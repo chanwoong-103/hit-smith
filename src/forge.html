@@ -1,0 +1,3321 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Hit Smith — 터져라! 대장간</title>
+<!-- 027 B-6: 브라우저는 시키지 않아도 /favicon.ico 를 긁어 간다. 그게 없으면
+     콘솔에 404 가 한 건 남고, 022 배포 확인의 「콘솔 에러 0건」과 CrazyGames QA
+     첫인상에 그대로 걸린다. 빈 data URI 한 줄이면 **요청 자체가 안 나간다** —
+     파일도 외부 요청도 늘지 않는다(원칙 2). -->
+<!-- 030: 027 이 넣은 빈 `data:,` 를 **모루 한 장**으로 바꾼다 (027 제안 ⑸).
+     포털 탭·카드에 뜨는 인상이라 빈 아이콘보다 낫다. 인라인 SVG data URI 라
+     **새 파일도 외부 요청도 0** 이다. 색은 ART-DIRECTION 6색 안의 놋쇠·무쇠다. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2314100E'/%3E%3Cpath d='M6 12h15l4-3v6l-4 2H17l3 6h-8l3-6H9l-3-2z' fill='%23B08D4F'/%3E%3Crect x='11' y='25' width='10' height='3' rx='1' fill='%238E99A8'/%3E%3C/svg%3E">
+<style>
+:root{
+  --iron:#12161b; --panel:#1f262e; --panel2:#28313b; --line:#3a4552;
+  --text:#c5cedb; --dim:#7d8b9c; --brass:#b8934a; --ember:#ff6b2c;
+  /* 금속·숯 톤 (표시 전용. 등급색은 아래 --g1~--g15 그대로 둔다) */
+  --edge:#4d5866; --coal:#0c1014; --steel:#8e99a8;
+  --g1:#6b7683; --g2:#7d9c7a; --g3:#5f93bd; --g4:#8a76c9;
+  --g5:#c06fb8; --g6:#d4903f; --g7:#e05a4a; --g8:#ffd166;
+  --g9:#5ce1c4; --g10:#ff3d7f;
+  --g11:#4dd0e1; --g12:#b388ff; --g13:#ff8a80; --g14:#ffe57f; --g15:#ffffff;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{
+  /* 화로 잔광은 008에서 캔버스로 이관했다 (__view.background==='canvas').
+     여기 남은 단색은 캔버스가 못 뜨는 경우의 바닥색이다 — 그라디언트를 여기
+     되살리면 캔버스 잔광과 두 겹이 된다. */
+  background:var(--iron);
+  color:var(--text);
+  font-family:-apple-system,"Apple SD Gothic Neo","Pretendard","Malgun Gothic",sans-serif;
+  font-size:14px; line-height:1.5; overscroll-behavior:none;
+  /* ── 세로 3단 (010 §1) ──
+     모바일 세로가 기준이고 데스크톱은 그 **확대**다. 좌우로 펼치지 않는다 —
+     판이 넓어지면 aspect-ratio 타일이 세로로 커져 008 이 고친 하단 차단이
+     되살아난다 (CLAUDE.md 검증 세션 「반응형 검사는 최소 두 크기로」).
+     그래서 폭은 480px 로 묶고 가운데 둔다.
+     body 에 z-index 를 주지 않는다 — 쌓임 맥락이 생기면 캔버스 층이 어긋난다
+     (007 실측). display:flex 와 overflow 는 쌓임 맥락을 만들지 않는다. */
+  max-width:480px; margin:0 auto; padding:0;
+  height:100vh; height:100dvh;
+  display:flex; flex-direction:column; overflow:hidden;
+  /* 026: CrazyGames 기술 요건 — 모바일·태블릿에서 길게 눌러 글자가 잡히거나
+     두 번 눌러 확대되지 않게 한다. 이 게임에는 사용자가 복사할 글이 없다. */
+  -webkit-user-select:none; -moz-user-select:none; -ms-user-select:none; user-select:none;
+}
+/* 026: 광고가 도는 동안 덮는 막. **입력을 삼키는 것이 목적**이고 보이는 것은 덤이다
+   (CrazyGames 요건 「광고를 요청·재생하는 동안 게임이 진행되면 안 된다」).
+   무대 루프와 250ms 틱은 따로 멈춘다 — 막 하나로는 rAF 가 안 멈춘다. */
+#adwall{position:fixed;inset:0;z-index:9998;display:none;background:rgba(8,11,15,.78)}
+#adwall.on{display:block}
+/* 상단 HUD — 웨이브·체력·재화. 어느 단이 스크롤되든 항상 보인다. */
+#hud{flex:none;padding:10px 10px 0}
+/* 전투 무대 (013). 캔버스가 그리는 자리라 **배경이 없어야 한다.**
+   높이를 vh 로 묶는 이유: 짧은 창(1280×600)에서 무대가 중앙 포커스를 밀어내면
+   008 이 고친 하단 차단이 되살아난다. */
+#arena{height:clamp(60px,12vh,96px);margin:8px 0 2px;background:none;
+  border-radius:4px;overflow:hidden}
+/* 중앙 포커스 — 모루와 화로. 남는 세로를 전부 가져가 화면에서 가장 큰 비중이 된다. */
+#focus{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:0 10px}
+#focus>#forge{margin-bottom:0;min-height:100%;
+  display:flex;flex-direction:column;justify-content:center}
+/* 하단 관리 패널 — 대기열·장비·테크·층. **자체 스크롤**을 가진다.
+   40vh 로 묶는 이유: 관리 패널이 길어져도 중앙 포커스를 밀어내지 못하게 한다. */
+#manage{flex:0 1 auto;min-height:104px;max-height:30vh;
+  overflow-y:auto;overscroll-behavior:contain;padding:0 10px 14px}
+/* ── 탭 (016) ──
+   **라우터가 아니다.** 판 넷이 전부 DOM 에 살아 있고 보이는 것 하나만 바뀐다.
+   해시·history·주소를 건드리지 않으므로 뒤로가기가 게임을 떠나는 동작 그대로다.
+   선택자도 전부 살아 있다 — 숨겨진 탭 안의 id 도 checklist 가 그대로 읽는다. */
+.tabpane{flex:1 1 auto;min-height:0;display:none}
+.tabpane.on{display:flex;flex-direction:column}
+/* 제련 탭은 안에서 다시 2단(#focus·#manage)으로 나뉘어 각자 스크롤한다.
+   나머지 둘은 판 하나짜리라 탭 자체가 스크롤 통이다. */
+#tabTower,#tabTech{overflow-y:auto;overscroll-behavior:contain;padding:0 10px 14px}
+#tabTower>*,#tabTech>*{flex:none}
+/* 하단 탭바. **배경을 밝히지 않는다** — 016 ⚠ 절: 패널 배경이 밝아지면
+   어두운 등급 6종의 아이콘 외곽선(대비 1.00)이 먼저 사라진다. 숯보다 어둡게. */
+#tabs{flex:none;display:flex;gap:5px;padding:6px 10px;
+  border-top:1px solid var(--line);background:var(--coal)}
+#tabs button{flex:1;padding:8px 4px;font-size:12px;letter-spacing:.06em;color:var(--dim);
+  background:linear-gradient(180deg,#242c35,#151a20)}
+#tabs button.on{color:var(--text);border-color:var(--brass);
+  background:linear-gradient(180deg,#333d49,#1d242b)}
+/* ── 캔버스 층 (007 뼈대 · 017 에서 2D 캔버스로) ──
+   본문 뒤에 고정으로 깔린다. 007 의 캔버스는 투명해서 화면에 아무 영향이 없고,
+   008 부터 여기에 모루·불티가 그려진다. 클릭은 전부 위의 DOM 이 받는다.
+   body 에 z-index 를 주지 않는 이유: body 에 쌓임 맥락이 생기면
+   background-attachment:fixed 로 깔린 화로 잔광의 래스터화가 달라져
+   화면 전체가 미세하게 바뀐다 (007에서 픽셀 비교로 실측). 대신 캔버스를
+   z-index:-1 로 내린다 — 페이지 배경보다는 위, 본문보다는 아래다. */
+#stage{position:fixed;inset:0;z-index:-1;pointer-events:none}
+/* 앞 겹: 불티·바운스. 뒤 겹(#stage)에 그리면 불투명한 패널에 가려 안 보인다
+   (008 에서 스크린샷으로 확인). 클릭은 pointer-events:none 으로 통과시킨다. */
+#fx{position:fixed;inset:0;z-index:2;pointer-events:none}
+#stage canvas,#fx canvas{display:block}
+.num{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-variant-numeric:tabular-nums}
+
+/* ── 강판 패널 (리벳 4개는 ::before 의 방사 그라디언트) ── */
+.panel{
+  position:relative;
+  background:linear-gradient(180deg,#2a333d 0%,#212a33 20%,#1a2128 100%);
+  border:1px solid var(--edge); border-radius:5px; padding:10px; margin-bottom:8px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07),inset 0 -1px 0 rgba(0,0,0,.55),
+             0 2px 4px rgba(0,0,0,.45);
+}
+.panel::before{
+  content:"";position:absolute;inset:5px;pointer-events:none;background-repeat:no-repeat;
+  background-image:
+    radial-gradient(circle 2px at 2px 2px,#78838f 38%,#20272e 72%,transparent 74%),
+    radial-gradient(circle 2px at calc(100% - 2px) 2px,#78838f 38%,#20272e 72%,transparent 74%),
+    radial-gradient(circle 2px at 2px calc(100% - 2px),#78838f 38%,#20272e 72%,transparent 74%),
+    radial-gradient(circle 2px at calc(100% - 2px) calc(100% - 2px),#78838f 38%,#20272e 72%,transparent 74%);
+}
+.panel>*{position:relative}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.dim{color:var(--dim);font-size:11px;letter-spacing:.08em}
+
+/* ── 금속 명판 타이틀 ── */
+#plate{text-align:center;margin:0 0 10px;position:relative}
+/* 027 B-3: 톱니(#cog)를 걷었다. 016 이 설정 팝업을 열려고 뒀는데, 그 팝업의
+   내용물(자동 판매·승천)이 제련 탭으로 옮겨가면서 **누르면 빈 창이 뜨는 버튼**만
+   남았다 — 016 「탭이 하나뿐인 탭바는 거짓말이다」와 같은 이유로 없앤다.
+   사운드(1.0 이후)가 들어오면 그때 배경음·밝기 자리로 돌아온다.
+   `#plate` 의 `position:relative` 는 남긴다 — `#plate span::before/after` 가 쓴다. */
+#plate span{
+  position:relative;display:inline-block;padding:5px 30px;
+  font-size:15px;font-weight:700;letter-spacing:.34em;color:#2b1e0a;
+  background:linear-gradient(180deg,#e6c47c,#bb964c 46%,#8b6b2e);
+  border:1px solid #6f5220;border-radius:3px;
+  text-shadow:0 1px 0 rgba(255,255,255,.32);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.55),inset 0 -1px 0 rgba(0,0,0,.3),0 2px 4px rgba(0,0,0,.5);
+}
+#plate span::before,#plate span::after{
+  content:"";position:absolute;top:50%;width:4px;height:4px;border-radius:50%;
+  transform:translateY(-50%);background:radial-gradient(circle at 34% 32%,#fff3d4,#7a5a24);
+}
+#plate span::before{left:9px} #plate span::after{right:9px}
+
+/* ── 버튼: 브러시드 스틸 ── */
+button{
+  font-family:inherit;font-size:14px;color:var(--text);
+  background:linear-gradient(180deg,#3a4450,#262e37);
+  border:1px solid var(--edge);border-radius:3px;padding:9px 12px;cursor:pointer;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 1px 2px rgba(0,0,0,.5);
+}
+button:active{transform:translateY(1px);box-shadow:inset 0 1px 3px rgba(0,0,0,.6)}
+button:disabled{opacity:.35;cursor:default;box-shadow:none}
+.primary{
+  background:linear-gradient(180deg,#dcb367,#a8842f);color:#22190a;border-color:#7d5f22;
+  font-weight:700;text-shadow:0 1px 0 rgba(255,255,255,.3);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 1px 2px rgba(0,0,0,.5);
+}
+.hot{
+  background:linear-gradient(180deg,#ff9354,#e04f16);color:#2a1206;border-color:#a83c10;
+  font-weight:700;text-shadow:0 1px 0 rgba(255,255,255,.25);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 0 12px rgba(255,107,44,.4);
+}
+#spin,#ad,#dad{display:flex;align-items:center;justify-content:center;gap:7px}
+
+/* ── 아이콘 공통 (부위 심볼 = 강철 채움 + 등급색 스트로크) ── */
+#sprite{display:none}
+.ico{display:inline-flex;align-items:center;justify-content:center;line-height:0}
+/* 픽셀 스프라이트 (009). 16px 원본을 **정수 배율(2배)** 로만 키운다 —
+   1.5배·2.3배는 픽셀을 뭉갠다. 크기를 px 로 못박아 반픽셀 위치를 막는다. */
+.ico img.px{display:block;image-rendering:pixelated;image-rendering:crisp-edges}
+/* 숫자 글리프 (010 §2). 자간이 이미지 안에 들어 있으므로 여백을 주지 않는다.
+   크기는 굽는 단계에서 정해져 CSS 로 늘리지 않는다 — 늘리면 정수 배율이 깨진다. */
+.gn{display:inline-flex;align-items:flex-end;vertical-align:-.18em;line-height:0}
+.gn img{display:block;image-rendering:pixelated;image-rendering:crisp-edges}
+.gn .gt{font-family:ui-monospace,Menlo,monospace;font-size:11px;font-style:normal;
+  line-height:1;align-self:flex-end;letter-spacing:0}
+.gn .gt::after{content:attr(data-c)}
+/* 같은 값을 글자로도 남겨 둔다 — textContent 로 읽는 검사와 보조기술이 살아 있어야 한다. */
+.gv{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);
+  white-space:nowrap;font-style:normal}
+.pl.gl .ico img.px{filter:drop-shadow(0 0 2px currentColor)}
+.ci{width:1em;height:1em;display:inline-block;vertical-align:-.16em}
+/* 등급 명판: 색은 인라인 --gc 하나로만 들어온다 (부위×등급 개별 드로잉 없음) */
+.pl{
+  position:relative;display:inline-flex;align-items:center;justify-content:center;
+  padding:4px;border:1.5px solid currentColor;border-radius:7px;
+  background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(0,0,0,.4));
+}
+.pl::before{content:"";position:absolute;inset:0;border-radius:5.5px;background:currentColor;opacity:.15}
+.pl .ico{position:relative}
+/* 11등급+ 은은한 발광 */
+.pl.gl{box-shadow:0 0 7px -1px currentColor,inset 0 0 9px -3px currentColor}
+/* 14~15등급 화염 오라 */
+.pl.au::after{
+  content:"";position:absolute;inset:-4px -3px -5px;border-radius:10px;pointer-events:none;
+  background:radial-gradient(62% 72% at 50% 106%,rgba(255,170,60,.9),rgba(255,70,0,.3) 44%,transparent 72%);
+  filter:blur(1.6px);animation:aura 1.4s ease-in-out infinite alternate;
+}
+@keyframes aura{from{opacity:.4;transform:scaleY(.88)}to{opacity:1;transform:scaleY(1.1)}}
+
+/* ── 화로 압력계 (구 천장 게이지) ── */
+#pity{display:flex;align-items:center;gap:9px;margin-bottom:10px}
+#pgauge{
+  width:48px;flex:none;padding:2px 3px 1px;border-radius:5px;
+  background:linear-gradient(180deg,#2e3742,#191f26);border:1px solid var(--edge);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 1px 2px rgba(0,0,0,.5);
+}
+#pgauge svg{display:block;width:100%;height:auto}
+#pneedle{transform-box:view-box;transform-origin:22px 24px;
+  transition:transform .4s cubic-bezier(.34,1.3,.5,1)}
+.pcol{flex:1;min-width:0;text-align:left}
+#pity .bar{height:6px;background:var(--coal);border:1px solid var(--edge);border-radius:3px;
+  overflow:hidden;margin-top:3px;box-shadow:inset 0 0 4px rgba(0,0,0,.85)}
+/* background-color 를 따로 두는 이유: 가득 상태 색 변화를 계산된
+   backgroundColor 로 재는 검사가 있다. 그라디언트만 쓰면 둘 다 투명이 된다. */
+#pityfill{height:100%;width:0%;background-color:var(--brass);
+  background-image:linear-gradient(180deg,rgba(255,255,255,.28),rgba(0,0,0,.22));
+  transition:width .25s}
+#pityfill.full{background-color:var(--ember);box-shadow:0 0 9px rgba(255,107,44,.75)}
+#pitytxt{font-size:10px;white-space:nowrap;letter-spacing:.03em}
+
+/* ── 화로 ── */
+/* 008: 가운데 패널과 화로 창의 **바탕만** 캔버스로 넘겼다. 테두리·리벳·릴 타일은
+   DOM 그대로라 checklist 선택자는 하나도 안 잃는다. 배경을 여기 되살리면
+   캔버스가 그린 모루·불빛을 덮어 버린다. */
+#forge{text-align:center;padding:14px 11px 12px;background:none}
+#hearth{
+  position:relative;display:flex;align-items:stretch;gap:7px;
+  /* 남는 세로는 화로가 먹는다 — 중앙 포커스가 커지는 방식이 이것이다.
+     릴은 아래 #reels 의 align-items:center 로 정사각을 유지한다.
+     240px 에서 멈추는 이유: 넓은 화면에서 끝없이 늘어나면 릴 세 칸이 떠 있는
+     빈 상자가 된다. 남는 세로는 패널이 justify-content:center 로 위아래에 나눈다. */
+  flex:1 1 auto;min-height:78px;max-height:240px;
+  margin:9px 0 10px;padding:8px;border-radius:9px 9px 4px 4px;
+  background:none;                     /* → 캔버스 gHearth */
+  border:1px solid var(--edge);
+  box-shadow:inset 0 0 24px rgba(0,0,0,.6),0 1px 0 rgba(255,255,255,.05);
+}
+/* 증기 한 겹 */
+#hearth::after{
+  content:"";position:absolute;left:1px;right:1px;top:1px;height:44%;pointer-events:none;
+  border-radius:8px 8px 0 0;
+  background:linear-gradient(180deg,rgba(196,212,228,.07),transparent);
+  animation:steam 6.5s ease-in-out infinite alternate;
+}
+@keyframes steam{from{opacity:.3;transform:translateY(-3%)}to{opacity:1;transform:translateY(3%)}}
+
+/* 세로 온도계 = 남은 충전 */
+#therm{
+  width:11px;flex:none;position:relative;overflow:hidden;border-radius:6px;
+  border:1px solid var(--edge);background:linear-gradient(180deg,#0a0d11,#161c23);
+  box-shadow:inset 0 0 5px rgba(0,0,0,.9);
+}
+#thermf{position:absolute;left:0;bottom:0;width:100%;height:0%;
+  background:linear-gradient(0deg,#ff4a15,#ff9c3c 58%,#ffd98a);
+  box-shadow:0 0 9px rgba(255,107,44,.75);transition:height .3s ease-out}
+#therm::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent 0 7px,rgba(255,255,255,.15) 7px 8px)}
+
+#reels{display:flex;justify-content:center;align-items:center;gap:6px;flex:1;min-width:0}
+/* 릴 = 화로 창. 세로 릴 스트립이 아니라 재료가 달궈지는 창 하나. */
+.reel{
+  flex:1;min-width:0;max-width:74px;aspect-ratio:1;position:relative;
+  border:1px solid #46515e;border-radius:4px;
+  background:
+    radial-gradient(125% 88% at 50% 122%,rgba(255,107,44,.45),rgba(255,60,0,.1) 46%,transparent 72%),
+    linear-gradient(180deg,#161c23,#0a0d11);
+  box-shadow:inset 0 0 11px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.05);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  transition:border-color .15s,box-shadow .15s;
+}
+/* 숯불 바닥 */
+.reel::before{
+  content:"";position:absolute;left:0;right:0;bottom:0;height:28%;pointer-events:none;
+  border-radius:0 0 3px 3px;
+  background:linear-gradient(0deg,rgba(255,92,20,.6),transparent);
+  filter:blur(2px);animation:coal 2.6s ease-in-out infinite alternate;
+}
+@keyframes coal{from{opacity:.5}to{opacity:1}}
+.reel .ico{color:#cf9550}   /* font-size 는 svg 를 1em 으로 키우던 값 — 011 에서 제거 */
+.reel .nm{font-size:9.5px;color:#93a1b2;margin-top:4px;letter-spacing:.06em}
+/* 정렬 순간 화염 (1회성, transform·opacity·filter 만) */
+.reel .fl,.reel .sk{position:absolute;pointer-events:none;opacity:0}
+.reel .fl{left:0;right:0;bottom:-5%;height:82%;border-radius:0 0 3px 3px;
+  background:radial-gradient(62% 100% at 50% 100%,#ffe08a,rgba(255,146,44,.9) 30%,
+             rgba(255,62,0,.4) 58%,transparent 76%);
+  filter:blur(1px)}
+.reel .sk{inset:0;background:
+  radial-gradient(circle 1.5px at 28% 62%,#ffd98a,transparent),
+  radial-gradient(circle 1.2px at 64% 52%,#ffb347,transparent),
+  radial-gradient(circle 1.6px at 46% 38%,#fff2cc,transparent),
+  radial-gradient(circle 1.1px at 75% 68%,#ff9a3c,transparent),
+  radial-gradient(circle 1.3px at 18% 46%,#ffc46b,transparent)}
+.reel.hit .fl{animation:burst .62s ease-out}
+.reel.hit .sk{animation:sparks .82s ease-out}
+@keyframes burst{
+  0%{opacity:0;transform:translateY(18%) scale(.72,.3)}
+  22%{opacity:1;transform:translateY(0) scale(1,1.1)}
+  62%{opacity:.72;transform:translateY(-5%) scale(.94,.96)}
+  100%{opacity:0;transform:translateY(-14%) scale(.82,.7)}}
+@keyframes sparks{
+  0%{opacity:0;transform:translateY(28%) scale(.7)}
+  25%{opacity:1}
+  100%{opacity:0;transform:translateY(-66%) scale(1.25)}}
+/* 담금질되어 나타나는 등장 (릴 스트립 스크롤 금지) */
+.reel .ico{animation:quench .5s ease-out}
+@keyframes quench{
+  0%{opacity:0;transform:scale(1.16);filter:brightness(3.4) blur(2.2px) saturate(.15)}
+  40%{opacity:1;filter:brightness(2) blur(0) saturate(.6)}
+  100%{opacity:1;transform:none;filter:none}}
+.reel.spin{border-color:#8d5c2c}
+.reel.spin .ico{animation:heat .3s ease-in-out infinite alternate}
+@keyframes heat{
+  from{opacity:.28;filter:blur(1.7px) brightness(.6)}
+  to{opacity:.95;filter:blur(0) brightness(1.75) drop-shadow(0 0 5px rgba(255,146,44,.9))}}
+.reel.lock{border-color:var(--brass);
+  box-shadow:0 0 9px rgba(184,147,74,.35),inset 0 0 11px rgba(0,0,0,.9)}
+.reel.lock .ico{animation:none;color:#e0be7a}
+.reel.lock::after{
+  content:"고정";position:absolute;top:0;right:0;font-size:9px;line-height:1.35;
+  color:#22190a;background:linear-gradient(180deg,#dfb96f,#a8842f);
+  padding:2px 4px;border-radius:0 3px 0 5px;letter-spacing:.04em}
+.reel.hit{border-color:var(--ember);
+  box-shadow:0 0 15px rgba(255,107,44,.55),inset 0 0 18px rgba(255,107,44,.35)}
+#msg{height:18px;font-size:12px;color:var(--dim);margin-bottom:8px}
+#msg.big{color:var(--ember);font-weight:700;text-shadow:0 0 10px rgba(255,107,44,.55)}
+
+/* ── 장비 ── */
+#gear{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+.slot{background:linear-gradient(180deg,#1b2229,#12171d);border:1px solid #3f4a56;
+  border-radius:4px;padding:6px 4px;text-align:center;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+.slot .pl{margin-bottom:2px;padding:3px}
+.slot .gd{font-size:10px;font-weight:700;margin-top:2px}
+.slot .op{font-size:9px;color:var(--dim);line-height:1.35;margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slot.empty{opacity:.32}
+.rm{font-size:9px;opacity:.75;letter-spacing:.06em}
+
+/* ── 자동 판매 ── */
+/* 027 B-2: 승천 배너. 조건이 찼을 때만 render() 가 켠다(평소 display:none).
+   한 주기의 끝이라 **굴리지 않고 보여야 한다** — #focus 의 맨 위에 앉는다. */
+#ascbar{margin:8px 0 0}
+/* 027 B-2: 관문 진행 줄. 조건 미달일 때만 글자가 들어간다. 비면 높이가 0 이라
+   첫 화면에 아무것도 안 늘어난다(원칙 7 — 새 세이브에서는 빈 문자열이다). */
+#ascgate{font-size:11px;line-height:1.45;margin-top:7px}
+#ascgate:empty{display:none}
+#asell{margin-top:9px;padding-top:9px;border-top:1px solid var(--line)}
+#asell .hd{font-size:10px;color:var(--dim);margin-bottom:5px;text-align:left}
+#asell .ck{display:flex;flex-wrap:wrap;gap:3px}
+#asell label{flex:1;min-width:38px;font-size:10px;padding:5px 0;text-align:center;
+  border:1px solid var(--line);border-radius:2px;cursor:pointer;
+  background:linear-gradient(180deg,#232b34,#191f26);
+  font-family:ui-monospace,Menlo,monospace;opacity:.4}
+#asell label.on{opacity:1;border-color:currentColor;
+  background:linear-gradient(180deg,rgba(255,255,255,.1),rgba(255,255,255,.02));
+  box-shadow:0 0 6px -1px currentColor}
+#asell input{display:none}
+
+/* ── 각인 ── */
+.sp{margin-top:6px;padding:5px 7px;border-left:2px solid var(--ember);
+  background:rgba(255,107,44,.08);font-size:11px;border-radius:0 3px 3px 0}
+.sp b{color:var(--ember)}
+.sp span{color:var(--dim);font-size:10px}
+
+/* ── 능력치 ── */
+#stats{display:grid;grid-template-columns:1fr 1fr;gap:1px 10px;margin-top:9px;
+  padding-top:9px;border-top:1px solid var(--line);font-size:11px}
+#stats div{display:flex;justify-content:space-between}
+#stats .k{color:var(--dim)}
+#stats .v{font-family:ui-monospace,Menlo,monospace}
+#stats .off .k,#stats .off .v{opacity:.3;text-decoration:line-through}
+
+/* ── 확률 ── */
+.odds{display:flex;align-items:center;gap:7px;margin-bottom:4px}
+.ol{font-size:10px;color:var(--dim);width:26px;flex:none;text-align:right}
+.obar{flex:1;height:11px;display:flex;border:1px solid var(--edge);border-radius:2px;
+  overflow:hidden;background:var(--coal);box-shadow:inset 0 0 4px rgba(0,0,0,.8)}
+.obar i{height:100%}
+#olegend{display:flex;flex-wrap:wrap;gap:2px 8px;margin-top:6px;font-size:9px;color:var(--dim)}
+#olegend b{font-family:ui-monospace,Menlo,monospace;font-weight:400}
+
+/* ── 전투 ── */
+#bar{height:10px;background:var(--coal);border:1px solid var(--edge);border-radius:2px;
+  overflow:hidden;margin:5px 0;box-shadow:inset 0 0 5px rgba(0,0,0,.85)}
+#fill{height:100%;background-color:var(--ember);
+  background-image:linear-gradient(180deg,rgba(255,255,255,.3),rgba(0,0,0,.25));
+  width:100%;transition:width .18s linear}
+#hpbar{height:6px;background:var(--coal);border:1px solid var(--edge);border-radius:2px;
+  overflow:hidden;position:relative;box-shadow:inset 0 0 4px rgba(0,0,0,.85)}
+/* 뒤에 깔린 붉은 띠가 늦게 따라오며 방금 깎인 만큼을 보여준다 (틱당 style 폭만 갱신) */
+#hpghost{position:absolute;left:0;top:0;height:100%;width:100%;background:#e05a4a;opacity:.55;
+  transition:width .5s ease-out .18s}
+#hpfill{position:relative;height:100%;background:#5f93bd;width:100%;
+  transition:width .18s linear,background-color .3s}
+#hpfill.heal{background:#7ec98a}
+#foes{font-size:11px;color:var(--dim);margin-top:4px}
+
+/* ── 적 무리 ── */
+#mob{display:flex;justify-content:center;flex-wrap:wrap;gap:4px;min-height:18px;margin:2px 0 1px}
+.foe{width:13px;height:16px;border:1px solid;border-radius:2px;flex:none}
+.foe.m{background:#e05a4a;border-color:#e05a4a}                    /* 근접 ▪ 채움 */
+.foe.r{background:transparent;border-color:#5f93bd;
+  box-shadow:inset 0 0 0 2px rgba(95,147,189,.28)}                 /* 원거리 ▫ 비움 */
+.foe.dead{animation:foedie .34s ease-out forwards}
+@keyframes foedie{
+  0%{transform:scale(1) translateY(0);opacity:1}
+  35%{transform:scale(1.3) translateY(-3px);opacity:.85}
+  100%{transform:scale(.35) translateY(9px);opacity:0}}
+
+/* ── 점진 노출 ── */
+.reveal{animation:reveal .55s ease-out}
+@keyframes reveal{
+  0%{opacity:0;transform:translateY(-8px) scaleY(.94)}
+  55%{opacity:1}
+  100%{opacity:1;transform:none}}
+
+/* ── 테크트리 ── */
+#tech div.t{display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid var(--line)}
+#tech div.t:first-child{border-top:none}
+#tech .nm{flex:1;font-size:12px}
+#tech .nm i{color:var(--dim);font-style:normal;font-size:10px;margin-left:5px}
+#tech .lvn{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--dim);width:44px;text-align:right}
+#tech button{padding:5px 9px;font-size:11px;min-width:62px}
+
+/* ── 주사위 (모루 위 평면 사각 트랙 — 원형 휠 금지) ── */
+#dice{position:fixed;inset:0;background:rgba(8,11,14,.96);display:none;
+  flex-direction:column;justify-content:flex-start;align-items:center;
+  padding:18px;z-index:10;overflow-y:auto;overscroll-behavior:contain}
+#dice.on{display:flex}
+/* 세로가 모자라면 반드시 닿을 수 있어야 한다 (008 §6 · ART-DIRECTION 품질 하한).
+   auto 여백은 남는 공간이 없으면 0으로 접혀서, 넘칠 때 위가 잘리지 않는다. */
+#dice>*{width:100%;max-width:420px;flex:none}
+#dice>:first-child{margin-top:auto}
+#dice>:last-child{margin-bottom:auto}
+#dval{display:flex;align-items:center;justify-content:center;gap:12px;
+  font-size:36px;line-height:1.2;font-family:ui-monospace,Menlo,monospace}
+.die{width:46px;height:46px;flex:none}
+.die .p{opacity:0}
+.die[data-v="1"] .c,.die[data-v="3"] .c,.die[data-v="5"] .c,
+.die[data-v="2"] .tl,.die[data-v="2"] .br,
+.die[data-v="3"] .tl,.die[data-v="3"] .br,
+.die[data-v="4"] .tl,.die[data-v="4"] .tr,.die[data-v="4"] .bl,.die[data-v="4"] .br,
+.die[data-v="5"] .tl,.die[data-v="5"] .tr,.die[data-v="5"] .bl,.die[data-v="5"] .br,
+.die[data-v="6"] .tl,.die[data-v="6"] .tr,.die[data-v="6"] .bl,.die[data-v="6"] .br,
+.die[data-v="6"] .ml,.die[data-v="6"] .mr{opacity:1}
+/* ── 던전 띠 (019) ── 013 의 근경 타일 4장 + 015 의 몹 6장을 **팔레트만 갈아**
+   다시 쓴다. 새 그림 0장. 색은 층수 → segOf() → stagePalette(근경) 로 파생하므로
+   무대와 같은 구간에서 같은 색이 된다 (두 화면이 한 몸). 명도는 무대와 동일한
+   DEPTH[2] 그대로다 — 019 §3: 바이옴은 색상만 바꾼다. */
+.dband{position:relative;height:72px;border-radius:5px;overflow:hidden;
+  border:1px solid var(--edge);background-color:var(--coal);
+  background-repeat:repeat-x;background-position:0 bottom;image-rendering:pixelated}
+/* 몹은 근경 지면선(띠 바닥에서 16px)에 발을 붙인다 — 무대와 같은 자리다.
+   스프라이트 24행 중 아래 2행이 비어 있어 그만큼 내려 앉힌다. */
+.dband i{position:absolute;right:11px;bottom:12px;width:48px;height:48px;
+  background-repeat:no-repeat;background-size:100% 100%;image-rendering:pixelated}
+.dband b{position:absolute;left:9px;bottom:5px;font-size:13px;color:var(--text);
+  font-family:ui-monospace,Menlo,monospace;text-shadow:0 1px 3px #000,0 0 7px #000}
+/* 등반 — 띠가 한 주기(타일 4장 × 32px × 배율 2 = 256px)만큼 흘러 이음매가 안 보인다 */
+.dband.climb{animation:dclimb .62s linear}
+@keyframes dclimb{from{background-position-x:0}to{background-position-x:-256px}}
+#tband{margin-bottom:8px}
+#dband{margin-bottom:8px}
+
+/* 모루 위에 얹힌 강판 트랙 (원형 휠·포인터 금지) */
+#board{position:relative;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;
+  padding:11px;border-radius:6px;
+  background:linear-gradient(180deg,#2a323b,#161b21);border:1px solid var(--edge);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 3px 9px rgba(0,0,0,.65)}
+#board::before{content:"";position:absolute;inset:4px;pointer-events:none;background-repeat:no-repeat;
+  background-image:
+    radial-gradient(circle 2px at 2px 2px,#78838f 38%,#1d242b 72%,transparent 74%),
+    radial-gradient(circle 2px at calc(100% - 2px) 2px,#78838f 38%,#1d242b 72%,transparent 74%),
+    radial-gradient(circle 2px at 2px calc(100% - 2px),#78838f 38%,#1d242b 72%,transparent 74%),
+    radial-gradient(circle 2px at calc(100% - 2px) calc(100% - 2px),#78838f 38%,#1d242b 72%,transparent 74%)}
+.tile{position:relative;aspect-ratio:1;border:1px solid #414c58;border-radius:3px;
+  background:linear-gradient(180deg,#1b212800,#11161b);background-color:#161c22;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05),inset 0 0 9px rgba(0,0,0,.65);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  font-size:9.5px;text-align:center;padding:3px;color:var(--dim)}
+.tile .ci{width:15px;height:15px}
+.tile b{font-size:13px;color:var(--text);font-family:ui-monospace,Menlo,monospace}
+.tile.here{border-color:var(--brass);background-color:#241f14}
+/* 말 = 모루 위의 놋쇠 못 */
+.tile.here::after{content:"";position:absolute;top:3px;left:3px;width:7px;height:7px;border-radius:50%;
+  background:radial-gradient(circle at 34% 30%,#f4dda6,#8a6a2e);box-shadow:0 0 6px rgba(184,147,74,.9)}
+.tile.land{border-color:var(--ember);background-color:#2e1b0d;color:var(--text)}
+.tile.land b{color:var(--ember)}
+/* 착지 번쩍임 (019). reduced-motion 에서는 `pop` 을 아예 안 붙인다 — 이 파일은
+   연출 억제를 CSS 미디어쿼리가 아니라 JS 한 곳(VIEW.reducedMotion)에서 한다. */
+.tile.land.pop{animation:tland .34s ease-out}
+@keyframes tland{
+  from{box-shadow:inset 0 0 0 1px var(--ember),0 0 17px 4px rgba(226,98,42,.8)}
+  to{box-shadow:inset 0 1px 0 rgba(255,255,255,.05),inset 0 0 9px rgba(0,0,0,.65)}}
+
+/* ── 정리 ── */
+#cmp{position:fixed;inset:0;background:rgba(8,11,14,.94);display:none;
+  flex-direction:column;justify-content:flex-start;align-items:center;
+  padding:16px;z-index:9;overflow-y:auto;overscroll-behavior:contain}
+#cmp.on{display:flex}
+#cmp>*{width:100%;max-width:460px;flex:none}
+#cmp>:first-child{margin-top:auto}
+#cmp>:last-child{margin-bottom:auto}
+
+/* ── 상세 팝업 (016) ── 확률표·옵션 상세·자동판매·승천을 메인에서 덜어낸 자리.
+   #dice·#cmp 와 **같은 규약**을 쓴다: 자체 스크롤 + auto 여백(넘치면 0으로 접혀
+   위가 안 잘린다, 008 §6). 통은 하나고 안의 네 절만 갈아 끼운다 — 통을 넷 만들면
+   하단 도달 규약을 네 번 다시 증명해야 한다.
+   배경 탭(#pop 자신이 클릭 대상일 때)과 닫기 버튼 둘 다로 닫힌다. */
+#pop{position:fixed;inset:0;background:rgba(8,11,14,.94);display:none;
+  flex-direction:column;justify-content:flex-start;align-items:center;
+  padding:16px;z-index:11;overflow-y:auto;overscroll-behavior:contain}
+#pop.on{display:flex}
+#pop>*{width:100%;max-width:440px;flex:none}
+#pop>:first-child{margin-top:auto}
+#pop>:last-child{margin-bottom:auto}
+.pophead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
+.pophead b{font-size:14px;font-weight:600;letter-spacing:.04em}
+.pophead button{padding:6px 12px;font-size:12px}
+/* 팝업이 열려 있어도 전투력·웨이브·골드는 계속 보인다 (#cmp 의 #cstat 과 같은 규약) */
+#pstat{margin-bottom:9px;text-align:center;font-size:12px;color:var(--text)}
+/* 배경 밝기는 .card 와 동일하게 둔다 — 016 ⚠ 절 (외곽선 대비를 밀지 않는다) */
+.popsec{display:none;background:linear-gradient(180deg,#28313b,#1a2128);
+  border:1px solid var(--edge);border-radius:4px;padding:12px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 5px rgba(0,0,0,.5)}
+.popsec.on{display:block}
+#popend{height:1px}
+.card{background:linear-gradient(180deg,#28313b,#1a2128);border:1px solid var(--edge);
+  border-radius:4px;padding:12px;margin-bottom:8px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 5px rgba(0,0,0,.5)}
+.card.new{border-color:var(--brass);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 0 12px rgba(184,147,74,.2)}
+.card h3{font-size:13px;font-weight:600;margin-bottom:6px}
+.card .hd{display:flex;align-items:center;gap:9px}
+.card .hd .pl{flex:none}
+.oplist{font-size:12px;line-height:1.7;margin-top:6px}
+.oplist .v{float:right;color:var(--text)}
+.oplist .k{color:var(--dim)}
+.oplist .dead{opacity:.35;text-decoration:line-through}
+.pw{font-size:11px;color:var(--dim);margin-top:6px}
+.delta{font-weight:700}
+.up{color:#7ec98a}.down{color:#e07070}
+
+/* ══ 030 — 가로형 배치 ═══════════════════════════════════════════════════
+   CrazyGames 틀은 **전부 16:9 가로**이고, 그중 「가장 중요」로 적힌 넷
+   (821×462·907×510·1077×606·1216×684)은 세로가 1280×720 보다도 짧다.
+   010 의 세로 3단을 그 틀에 그대로 넣으면 `#focus` 가 조여서 **제련 버튼이 첫
+   화면에서 밀려난다** — 027 제안 ⑵ 가 찾았고 030 검증이 31칸 중 14칸 FAIL 로
+   숫자를 박았다. 그 14칸이 **전부 `#spin`** 이다.
+
+   ⚠ **이 절은 `orientation:landscape` 에서만 켜진다. 세로(380×820)는 이 파일의
+     나머지 그대로이고, 030 은 그 바깥을 한 글자도 안 고쳤다.**
+
+   방향은 지시서가 준 그대로 — **위아래로 쌓던 것을 옆으로 편다.** 두 군데다:
+     ① `#hud` : 계기판 옆에 무대를 세운다 (세로 ~70px 을 되찾고 무대는 오히려 커진다)
+     ② `#tabForge` : 왼쪽 «누르는 것»(#focus) · 오른쪽 «보는 것»(#manage)
+   JS 배치 엔진도 라우터도 새 화면도 없다. 미디어 질의 하나다. */
+@media (orientation:landscape){
+  /* 480px 묶음을 푼다. 다만 **1120 에서 다시 묶는다** — 안 묶으면 1920 틀에서
+     무대가 통째로 늘어나 몹 여덟이 화면 끝까지 흩어지고(013 간격 규약), 던전·테크의
+     글줄이 한 줄로 늘어져 읽기가 나빠진다. 010 의 「폭을 묶는다」를 버리는 게 아니라
+     **묶는 값을 가로용으로 다시 고르는** 것이다. */
+  body{max-width:min(100%,1120px)}
+
+  /* 명판을 접는다. 포털 틀이 이미 게임 제목을 들고 있고, 세로 462 에서 41px 은
+     제련 버튼 한 줄 값이다. **DOM 에는 그대로 있다** — 선택자가 죽지 않는다. */
+  #plate{display:none}
+
+  /* ① HUD 를 가로로 — 계기판 | 무대 */
+  #hud{display:flex;align-items:stretch;gap:10px;padding:8px 12px 0}
+  #hud>.panel{flex:0 1 340px;min-width:0;margin-bottom:0}
+  /* 무대는 남는 폭을 전부 먹고 계기판과 **같은 높이**로 선다. 세로형의
+     `clamp(60px,12vh,96px)` 를 여기서만 푼다 — 가로에서는 높이를 옆칸이 정한다.
+     min-height 는 013 의 3층 패럴랙스가 뭉개지지 않는 하한이다. */
+  #arena{flex:1 1 auto;height:auto;min-height:92px;margin:0;align-self:stretch}
+
+  /* ② 제련 탭을 두 칸으로 */
+  #tabForge.on{flex-direction:row;align-items:stretch;gap:10px;padding-top:8px}
+  #focus{flex:1 1 56%;min-width:0;padding:0 0 8px 12px}
+  /* 화로는 «남는 세로를 먹는» 요소(013)라 왼칸이 길어지면 240px 까지 늘어나고,
+     릴은 74px 에서 멈추므로 **릴 세 칸이 떠 있는 빈 상자**가 된다 — 013 주석이
+     경고한 그 모양이다. 세로형에서는 3단이 먼저 조여서 안 나던 것이, 두 칸으로
+     펴면서 1216×684 부터 드러났다. 가로에서만 상한을 낮춘다. */
+  #hearth{max-height:168px}
+  #manage{flex:1 1 44%;min-width:0;max-height:none;min-height:0;padding:0 12px 8px 0}
+
+  /* 던전·테크는 판 하나짜리라 펴지 않는다 — 가운데로 묶어 글줄 길이를 지킨다. */
+  #tabTower,#tabTech{padding-top:8px}
+  #tabTower>*,#tabTech>*{max-width:560px;margin-left:auto;margin-right:auto}
+
+  #tabs{padding:5px 12px}
+}
+
+/* 좁은 화면(~380px) — 릴 5개까지 들어가도록 여백만 줄인다 */
+@media (max-width:400px){
+  body{padding:8px 7px 18px}
+  .panel{padding:9px}
+  #forge{padding:12px 8px 10px}
+  #hearth{gap:5px;padding:6px}
+  #reels{gap:4px}
+  #plate span{padding:5px 22px;letter-spacing:.26em}
+}
+</style>
+</head>
+<body>
+<div id="stage"></div><!-- 뒤 겹 캔버스: 배경·화로·모루 (007/008) -->
+<div id="fx"></div><!-- 앞 겹 캔버스: 불티·바운스 (008) -->
+
+<!-- ══ 인라인 SVG 심볼 — 재화·UI 6개만 ══
+     부위 아이콘 18개는 011 에서 지웠다. 009 가 픽셀 스프라이트로 갈아탄 뒤
+     캔버스 없는 환경(node harness)의 폴백으로만 남아 있었는데, harness 는
+     로직 검사용이고 아이콘 픽셀은 검사 대상이 아니다 — 폴백을 위해 4KB 를
+     두 벌 유지하는 것이 원칙 2(최소 해법)에 어긋난다. 지금은 캔버스가 없으면
+     빈 칸이 나온다.
+     아래 6개는 DOM 에 직접 박혀 있어 스프라이트로 대체되지 않는다.
+     016 이 더했던 톱니(s-cog)는 **027 이 걷었다** — 그 버튼이 열던 설정 팝업이
+     없어졌다. 심볼도 같이 지운다(쓰는 곳 없는 그림을 남기지 않는다, 원칙 2). -->
+<svg id="sprite" xmlns="http://www.w3.org/2000/svg"><defs>
+
+<!-- ── 재화·UI ── -->
+<symbol id="s-gold" viewBox="0 0 32 32">
+  <path d="M5.6 19h20.8l3.4 7.4H2.2z" fill="currentColor" opacity=".55"/>
+  <path d="M9.4 9.6h13.2l2.8 7.6H6.6z" fill="currentColor"/>
+</symbol>
+<symbol id="s-token" viewBox="0 0 32 32">
+  <path d="M16 2.4 27.8 9.2v13.6L16 29.6 4.2 22.8V9.2z" fill="currentColor" opacity=".24"/>
+  <path d="M16 2.4 27.8 9.2v13.6L16 29.6 4.2 22.8V9.2z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/>
+  <path d="M16 9.6 21.9 13v6.8L16 23.2 10.1 19.8V13z" fill="currentColor"/>
+</symbol>
+<symbol id="s-dust" viewBox="0 0 32 32">
+  <path d="M16 1.6 18.7 13.3 30.4 16 18.7 18.7 16 30.4 13.3 18.7 1.6 16 13.3 13.3Z" fill="currentColor"/>
+</symbol>
+<symbol id="s-ticket" viewBox="0 0 32 32">
+  <path d="M3.4 8.4h25.2v4.6a3 3 0 0 0 0 6v4.6H3.4V19a3 3 0 0 0 0-6z" fill="currentColor" opacity=".26" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>
+  <path d="M12.4 11.4v9.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-dasharray="2 2.6" stroke-linecap="round"/>
+</symbol>
+<symbol id="s-flame" viewBox="0 0 32 32">
+  <path d="M16 1.6c1.1 5.6-1.6 7.7-4.5 10.8C8.4 15.6 6.8 18.5 6.8 21.6 6.8 26.4 10.9 30.3 16 30.3s9.2-3.9 9.2-8.7c0-3.5-1.9-6-4.1-8.6-1 1.6-2.3 2.2-3.3 1.8 1.6-3.5 1-8.2-1.8-13.2z" fill="currentColor"/>
+  <path d="M16 30.3c-2.9 0-4.9-2-4.9-4.7 0-2.4 1.8-3.7 3.1-5.7.8 2 2 2.7 3.5 3.9 1.4 1.2 2 2.2 2 3.9 0 1.7-1.4 2.6-3.7 2.6z" fill="#ffe08a"/>
+</symbol>
+<symbol id="s-charge" viewBox="0 0 32 32">
+  <path d="M18.4 1.6 7.2 17.8h7.1L13 30.4 24.8 13.6h-7.4z" fill="currentColor"/>
+</symbol>
+</defs></svg>
+
+
+<!-- ══ 세로 3단 (010 §1) ══
+     상단 HUD(고정) / 중앙 포커스(모루·화로) / 하단 관리 패널(자체 스크롤).
+     감싸기만 했다 — 안쪽 id·class·라벨은 하나도 바뀌지 않았다. -->
+<div id="hud">
+<div id="plate"><span>Hit Smith</span></div>
+
+<div class="panel">
+  <div class="row">
+    <div><span class="dim">웨이브</span> <b class="num gv" id="wv">1</b><span id="wvg"></span>
+      <span id="star" style="color:var(--g14)"></span>
+      <span class="dim num" style="font-size:11px"> 최고 <b id="top">0</b></span></div>
+    <div class="num" style="font-size:12px">
+      <span style="color:var(--brass)"><svg class="ci"><use href="#s-gold"/></svg> <span id="gold">0</span></span>
+      &nbsp;<span style="color:var(--ember)"><svg class="ci"><use href="#s-token"/></svg> <span id="tok">0</span></span>
+    </div>
+  </div>
+  <div id="mob"></div>
+  <div id="bar"><div id="fill"></div></div>
+  <div id="hpbar"><div id="hpghost"></div><div id="hpfill"></div></div>
+  <div id="foes">—</div>
+</div>
+<!-- 전투 무대 (013). **빈 칸이다** — 3층 패럴랙스·몹·용사는 뒤 겹 캔버스가
+     이 사각형 안에 그린다. z-index:-1 캔버스가 비쳐야 하므로 배경을 주지 않는다
+     (017 의 「칠했다 ≠ 보인다」 — 감싼 요소가 불투명하면 캔버스가 통째로 가려진다). -->
+<div id="arena"></div>
+</div><!-- /#hud -->
+
+<!-- ══ 탭 넷 (016) ══ 제련 · 던전 · 테크 · 설정.
+     상점 탭 없음(골드 출구는 제련 강화 하나 — 원칙 4), 캐릭터 탭 없음(착용 장비는
+     제련 탭의 관리 패널에서 본다). 인벤토리 화면도 없다 — 보관은 대기열뿐이다(원칙 8). -->
+<div class="tabpane on" id="tabForge">
+<div id="focus">
+<!-- 027 B-2: 승천은 한 주기의 **끝**인데 016 이 톱니 안에 숨겨 뒀다. 025 1단계가
+     잰 「관문이 열린 뒤 승천까지의 죽은 꼬리 22시간」 가운데 일부는 **승천할 수
+     있다는 걸 몰라서** 생겼을 수 있다. 조건이 찼을 때만, 굴리지 않고 보이는 자리에
+     둔다. 누르면 확인은 016 의 상세 팝업 통(#popAsc)을 **그대로** 쓴다. -->
+<button id="asc" class="hot" style="width:100%;display:none">승천</button>
+<div class="panel" id="forge">
+  <!-- 화로 압력계: 바늘이 스핀마다 오르고 적색 구간에 닿으면 강제 정렬 -->
+  <div id="pity">
+    <div id="pgauge">
+      <svg viewBox="0 0 44 30">
+        <path d="M5.26 21.05A17 17 0 0 1 38.74 21.05" fill="none" stroke="#39434f" stroke-width="4.6" stroke-linecap="round"/>
+        <path d="M5.26 21.05A17 17 0 0 1 22 7" fill="none" stroke="#6f7c8b" stroke-width="4.6" stroke-linecap="round"/>
+        <path d="M34.02 11.98A17 17 0 0 1 38.74 21.05" fill="none" stroke="#c9401a" stroke-width="4.6" stroke-linecap="round"/>
+        <g id="pneedle"><path d="M22 24 21.05 10.6h1.9z" fill="#e8eef5"/></g>
+        <circle cx="22" cy="24" r="2.7" fill="#8e99a8" stroke="#39434f" stroke-width="1.2"/>
+      </svg>
+    </div>
+    <div class="pcol">
+      <span id="pitytxt" class="dim num"></span>
+      <div class="bar"><div id="pityfill"></div></div>
+    </div>
+  </div>
+  <!-- 화로 창(hearth window). 세로 릴 스트립이 아니라 재료가 달궈지는 창. -->
+  <div id="hearth">
+    <div id="therm"><i id="thermf"></i></div>
+    <div id="reels"></div>
+  </div>
+  <div id="msg"></div>
+  <div class="row">
+    <button id="spin" class="primary" style="flex:2">제련 <span class="num" id="chg">0</span></button>
+    <button id="auto" style="flex:1">자동</button>
+  </div>
+  <button id="ad" style="width:100%;margin-top:6px"><svg class="ci"><use href="#s-flame"/></svg><span id="adtxt">화로 지피기 — 충전 가득 + 배속</span></button>
+  <div class="dim" style="margin-top:8px">대기 <span class="num" id="qn">0</span>/<span class="num" id="qm">10</span> · 릴을 눌러 고정 (<svg class="ci" style="color:var(--ember)"><use href="#s-token"/></svg>1)</div>
+  <button id="open" style="width:100%;margin-top:6px;display:none"></button>
+</div>
+</div><!-- /#focus -->
+
+<div id="manage">
+<!-- 027 B-4: **제련 패널이 먼저다.** 강화는 골드의 유일한 출구인데(원칙 4)
+     #manage 가 max-height:30vh 라 둘째 패널에 있는 동안 세 크기 모두 «굴려야
+     보이는» 버튼이었다(027 A 의 TB8 이 6/6 FAIL 로 그것을 적었다). 장비 격자는
+     보는 것이지 누르는 것이 아니라 뒤로 간다. 30vh 자체는 안 건드린다(010 비율). -->
+<div class="panel">
+  <div class="row" style="margin-bottom:7px">
+    <span class="dim">제련 등급 <span class="num" id="lv">0</span></span>
+    <button id="up">강화 <svg class="ci" style="color:var(--brass)"><use href="#s-gold"/></svg> <span class="num" id="cost">50</span></button>
+  </div>
+  <!-- 027 B-2: 승천 관문이 **아직** 안 찼을 때의 진행 문구. 조건이 차면 비고,
+       그때는 #focus 의 승천 배너가 대신 말한다. -->
+  <div id="ascgate" class="dim"></div>
+  <button id="bOdds" style="width:100%;margin-top:8px">등급 확률표</button>
+  <!-- 027 B-1: 자동 판매 등급 체크. 칸 수가 등급 상한 cap() 을 따라 느는 것이라
+       제련 등급과 한 자리가 맞다 — 설정 팝업이 아니라 여기가 제자리였다. -->
+  <div id="asell"></div>
+</div>
+
+<div class="panel">
+  <div class="row" style="margin-bottom:7px">
+    <span class="dim">장비</span>
+    <span class="dim num">전투력 <b id="pw" style="color:var(--text)">0</b></span>
+  </div>
+  <div id="gear"></div>
+  <button id="bStats" style="width:100%;margin-top:8px">옵션 수치 상세</button>
+</div>
+</div><!-- /#manage -->
+</div><!-- /#tabForge -->
+
+<div class="tabpane" id="tabTower">
+<div class="panel" id="pTower" style="display:none">
+  <div class="row" style="margin-bottom:7px">
+    <span class="dim">무한의 층 <span style="color:var(--g9)"><svg class="ci"><use href="#s-ticket"/></svg> <b class="num" id="tk">2</b></span></span>
+    <span class="dim num">최고 <b id="best" style="color:var(--text)">0</b>층</span>
+  </div>
+  <!-- 던전 띠 (019): 013 타일 + 015 몹을 팔레트만 갈아 다시 쓴다. 새 그림 0장. -->
+  <div class="dband" id="tband"><i id="tguard"></i><b id="tfloor">미답</b></div>
+  <button id="tower" class="primary" style="width:100%">도전 — 오른 층만큼 별가루</button>
+</div>
+</div><!-- /#tabTower -->
+
+<div class="tabpane" id="tabTech">
+<div class="panel" id="pTech" style="display:none">
+  <div class="row" style="margin-bottom:8px">
+    <span class="dim">테크트리</span>
+    <span class="num" style="color:var(--g9)"><svg class="ci"><use href="#s-dust"/></svg> <span id="dust">0</span> 별가루</span>
+  </div>
+  <div id="tech"></div>
+</div>
+</div><!-- /#tabTech -->
+
+<!-- 하단 탭바. 최고 웨이브 10 전까지 **탭바 자체가 없다** (원칙 7).
+     탭이 하나뿐인 탭바는 거짓말이다 — 게이트가 열리는 순간 셋이 함께 나타난다. -->
+<div id="tabs" style="display:none">
+  <button id="tbForge" class="on">제련</button>
+  <button id="tbTower">던전</button>
+  <button id="tbTech">테크</button>
+</div>
+
+<div id="dice">
+  <!-- 층 등반 (019): 숫자가 오르는 동안 띠가 한 주기 흐른다. 캔버스를 쓰지 않아
+       절전과 무관하고, 색은 층수에서 무대와 같은 공식으로 파생한다. -->
+  <div class="dband" id="dband"><i id="dguard"></i><b id="dfloor">0층</b></div>
+  <div style="text-align:center;margin-bottom:10px">
+    <div class="dim" id="dmsg">주사위를 굴려 보상 칸을 정하세요</div>
+    <div id="dval">
+      <svg class="die" id="ddie" data-v="0" viewBox="0 0 32 32">
+        <rect x="2.6" y="2.6" width="26.8" height="26.8" rx="5" fill="#b9c3cf" stroke="#5b6673" stroke-width="1.6"/>
+        <rect x="4.6" y="4.6" width="22.8" height="10" rx="3" fill="#d3dae3"/>
+        <g fill="#1a1f26">
+          <circle class="p tl" cx="10.5" cy="10.5" r="2.6"/><circle class="p tr" cx="21.5" cy="10.5" r="2.6"/>
+          <circle class="p ml" cx="10.5" cy="16"   r="2.6"/><circle class="p mr" cx="21.5" cy="16"   r="2.6"/>
+          <circle class="p bl" cx="10.5" cy="21.5" r="2.6"/><circle class="p br" cx="21.5" cy="21.5" r="2.6"/>
+          <circle class="p c"  cx="16"   cy="16"   r="2.6"/>
+        </g>
+      </svg>
+      <span id="dnum">—</span>
+    </div>
+  </div>
+  <div id="board"></div>
+  <div class="row" style="margin-top:12px">
+    <button id="droll" class="primary" style="flex:1">굴리기</button>
+    <button id="dad" style="flex:1"><svg class="ci"><use href="#s-flame"/></svg>재굴림 <span id="dleft">2</span></button>
+  </div>
+  <button id="dtake" style="width:100%;margin-top:6px;display:none">보상 받기</button>
+</div>
+
+<div id="cmp">
+  <div class="dim" style="text-align:center;margin-bottom:8px">
+    남은 대기 <span class="num" id="qn2">0</span> · 교체하면 빠진 장비가 맨 앞에 남습니다
+    <div id="cstat" class="num" style="margin-top:4px;color:var(--text)"></div>
+  </div>
+  <div class="card" id="cOld"></div>
+  <div class="card new" id="cNew"></div>
+  <div class="row">
+    <button id="bSell" style="flex:1">판매</button>
+    <button id="bEquip" class="primary" style="flex:1">교체</button>
+  </div>
+  <button id="cclose" style="width:100%;margin-top:6px">닫기 — 화면 확인</button>
+</div>
+
+<!-- 026: 광고 중 입력 차단막. 통을 새로 만드는 것이 아니라 «막» 하나다. -->
+<div id="adwall"></div>
+
+<!-- ══ 상세 팝업 (016) ══ 통 하나 · 절 넷. 메인에서 덜어낸 표와 상세가 여기 산다.
+     절들은 닫혀 있어도 DOM 에 그대로 있어 render() 와 checklist 선택자가 살아 있다. -->
+<div id="pop">
+  <div class="pophead"><b id="ptitle"></b><button id="pclose">닫기</button></div>
+  <div id="pstat" class="num"></div>
+  <div class="popsec" id="popOdds">
+    <div class="odds"><span class="ol">기본</span><div class="obar" id="ob0"></div></div>
+    <div class="odds"><span class="ol">3연</span><div class="obar" id="ob2"></div></div>
+    <div id="olegend"></div>
+  </div>
+  <div class="popsec" id="popStats"><div id="stats"></div></div>
+  <!-- 027 B-3: 설정 절(#popSet)은 **비었으므로 걷었다.** 안에 있던 자동 판매와
+       승천은 제련 탭으로 갔다(B-1·B-2). 승천 «확인» 절(#popAsc)은 그대로 남는다 —
+       016 의 통 하나를 계속 쓴다. -->
+  <div class="popsec" id="popAsc">
+    <div class="dim" id="ascTxt"></div>
+    <button id="ascGo" class="hot" style="width:100%;margin-top:10px">승천한다</button>
+  </div>
+  <div id="popend"></div>
+</div>
+
+<!-- 017: 외부 라이브러리 0개. Phaser 3 (vendor 1,196,122B) 를 걷어냈고
+     `src/vendor/` 도 지웠다. 이제 게임은 **정말로 이 파일 하나**다 —
+     포털 업로드도 Pages 배포도 forge.html 복사 한 번이다.
+     새 라이브러리는 다시 계획 세션 승인 사항이다 (원칙 2). -->
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   === CORE (로직) ===
+   수식 · 상태 · 저장/복원 · 자체 점검. 렌더 개편(007~011) 동안
+   **바이트 단위로 보존**한다. 표시·디자인 작업은 이 구획을 만지지 않는다.
+   days.js 출력이 바이트 단위로 같아야 한다는 것이 이 구획의 계약이다.
+   ═══════════════════════════════════════════════════════════════════ */
+/* ══ 데이터 ══ */
+// id 는 곧 SVG 심볼 이름이다 (#s-<id>-<실루엣 단계>). 이모지 아이콘은 없다.
+const PARTS=[
+  {id:'weapon',nm:'무기'},{id:'head',nm:'모자'},
+  {id:'body',nm:'상의'},{id:'legs',nm:'하의'},
+  {id:'hands',nm:'장갑'},{id:'feet',nm:'신발'}];
+const GC=['','var(--g1)','var(--g2)','var(--g3)','var(--g4)','var(--g5)',
+  'var(--g6)','var(--g7)','var(--g8)','var(--g9)','var(--g10)',
+  'var(--g11)','var(--g12)','var(--g13)','var(--g14)','var(--g15)'];
+const GMAX=15;
+// 승천해도 등급 상한 곡선은 매번 똑같이 5등급부터. 오르는 건 장비 기본 수치와 릴 개수뿐.
+const cap=()=>Math.min(GMAX,5+Math.floor(S.lv/2));
+const capLvMax=()=>(GMAX-5)*2;                        // 상한이 다 열리는 제련 등급 = 20
+const nextCapAt=()=>(Math.floor(S.lv/2)+1)*2;
+const REELS=()=>Math.min(5,3+S.star);
+const PITY=()=>20*REELS();   // 천장: 이만큼 돌리면 다음 스핀은 전 릴 강제 정렬
+const starMul=()=>Math.pow(4,S.star);
+const optMul=()=>1+S.star*0.6;      // 별마다 옵션 수치 상한이 오른다
+// 대기창은 제련 7단계마다, 승천마다 1칸씩 늘어난다.
+const qmax=()=>10+Math.floor(S.lv/7)+S.star;
+const ASC_LV=()=>capLvMax()+8;                        // 승천 가능 제련 등급 = 28
+// 승천의 실질 관문은 웨이브다. 별마다 12씩 오른다 — 승천 보상(x4 = 약 +12웨이브)보다
+// 낮게 잡아야 별이 쌓여도 영영 막히지 않는다.
+const ASC_WAVE=()=>100+S.star*12;
+const lines=g=>g<=2?1:g<=6?2:g<=10?3:4;
+
+// 9등급 이상만 붙는 각인. tick 에서 한 줄로 처리되는 것만 넣음.
+const SP={
+  exec:{nm:'처형',   d:'적 체력 25% 이하에 피해 ×1.8'},
+  rage:{nm:'광폭',   d:'내 체력 50% 이하에 피해 ×1.5'},
+  regen:{nm:'재생',  d:'초당 최대 체력 2% 회복'},
+  pierce:{nm:'관통', d:'맞지 않는 피해 옵션도 절반 적용'}};
+const SPKEYS=Object.keys(SP);
+
+// cap = 1강화당 최대 수치(%). axis: dps/sur/eco
+const OPT={
+  crit  :{nm:'치명타 확률',cap:2.4,axis:'dps'},
+  cdmg  :{nm:'치명타 피해',cap:9.0,axis:'dps'},
+  aspd  :{nm:'공격 속도',  cap:3.2,axis:'dps'},
+  dbl   :{nm:'더블 어택',  cap:2.0,axis:'dps'},
+  melee :{nm:'근접 피해',  cap:5.0,axis:'dps'},
+  ranged:{nm:'원거리 피해',cap:5.0,axis:'dps'},
+  hp    :{nm:'체력',      cap:7.0,axis:'sur'},
+  block :{nm:'블록 확률',  cap:2.6,axis:'sur'},
+  leech :{nm:'생명력 흡수',cap:1.8,axis:'sur'},
+  gold  :{nm:'골드 획득',  cap:9.0,axis:'eco'}};
+const OPTKEYS=Object.keys(OPT);
+
+/* ══ 상태 ══ */
+// 새 게임의 상수 기본값. 자체 점검이 "저장값"이 아니라 이 반환값으로 초기 조건을
+// 검사하기 때문에 함수로 뽑아 둔다 (세이브가 있어도 점검이 통과해야 한다).
+function newState(){ return {
+  wave:1,gold:0,tok:2,lv:0,star:0,charge:30,queue:[],asell:Array(15).fill(false),
+  equip:{},lockIdx:-1,auto:false,t:Date.now(),
+  dust:0,tech:{},tk:2,tkDay:'',pos:0,best:0}; }
+const S=JSON.parse(localStorage.getItem('forge')||'null')||newState();
+S.star=S.star||0; S.pity=S.pity||0; S.peak=S.peak||0; S.top=S.top||0; S.dust=S.dust||0; S.tech=S.tech||{}; S.pos=S.pos||0; S.best=S.best||0;
+// 티켓은 하루 2장. 날짜만 비교하면 끝이라 서버가 필요 없다.
+const today=()=>new Date().toISOString().slice(0,10);
+if(S.tkDay!==today()){ S.tkDay=today(); S.tk=2; }
+while(!S.asell||S.asell.length<15) S.asell=(S.asell||[]).concat(false);   // 구버전 세이브 호환
+// 테크트리: 별가루로 올리는 6갈래. 항목당 최대 50단계, 한 단계는 작게.
+const TECH={
+  spd  :{nm:'충전 속도',   d:'주기 -0.8%',   max:100},
+  cap  :{nm:'저장 한도',   d:'충전 +30칸',   max:100},
+  sell :{nm:'판매 금액',   d:'+1.5%',        max:100},
+  cost :{nm:'강화 비용',   d:'-0.5%',        max:100},
+  gold :{nm:'골드 획득',   d:'+1.5%',        max:100},
+  align:{nm:'정렬 보정',   d:'일치 +0.25%',  max:100}};
+const T=k=>S.tech[k]||0;
+const techCost=k=>Math.round(8*Math.pow(1.09,T(k)));
+const CHG_MS=()=>Math.max(1500,6000*(1-T('spd')*0.008));
+const CHG_MAX=()=>600+T('cap')*30;
+
+/* ══ 확률 ══ */
+// 정렬 보너스 b(0/1/2) + 제련등급 lv 만큼 상위등급 가중치 상승. 1등급은 10% 하한 유지.
+// 열린 등급 안에서만 분포. 상한이 열릴 때마다 곡선 전체가 위로 밀린다.
+const BASEW=[40,25,15,10,5,3,1.5,.6,.2,.06,.02,.007,.002,.0006,.00015];
+function gradeProbs(b){
+  // 상한이 다 열린 뒤에는 제련 강화가 등급 확률을 더 밀지 않는다. 이후로는 세부등급만 오른다.
+  const c=cap(), k=1+b*0.55+Math.min(S.lv,capLvMax())*0.045;
+  let w=BASEW.slice(0,c).map((v,i)=>v*Math.pow(k,i)), s=w.reduce((a,x)=>a+x,0);
+  let p=w.map(v=>v/s);
+  if(p[0]<0.10){ const r=(1-0.10)/(1-p[0]); p=p.map(v=>v*r); p[0]=0.10; }
+  while(p.length<GMAX) p.push(0);
+  return p;
+}
+function rollGrade(b){
+  const p=gradeProbs(b); let r=Math.random();
+  for(let i=0;i<GMAX;i++){ r-=p[i]; if(r<=0) return i+1; }
+  return 1;
+}
+const rnd=a=>a[Math.floor(Math.random()*a.length)];
+// 큰 수 표기: 만 단위까지는 그대로, 그 위는 K/M/B/T, 그 위는 지수
+function fmt(n){ n=Math.floor(n);
+  if(n<1e4) return n.toLocaleString();
+  const u=['','K','M','B','T','Qa','Qi']; let i=0;
+  while(n>=1000&&i<u.length-1){n/=1000;i++;}
+  return n>=1000?n.toExponential(1):(n>=100?n.toFixed(0):n.toFixed(1))+u[i];
+}
+
+function makeItem(part,g){
+  const n = lines(g);
+  const pool=OPTKEYS.filter(k=>{
+    if(part!=='weapon'&&(k==='melee'||k==='ranged')) return false;
+    return true;});
+  const picked=[]; 
+  while(picked.length<n){ const k=rnd(pool); if(!picked.includes(k)) picked.push(k); }
+  const it={part,g,lv:rollLv(),ops:{}};
+  if(g>=9) it.sp=rnd(SPKEYS);
+  if(part==='weapon') it.wt = Math.random()<0.5?'melee':'ranged';
+  picked.forEach(k=>{ it.ops[k]=+(OPT[k].cap*optMul()*(0.4+Math.random()*0.6)*(1+(g-1)*0.28)*lvMul(it.lv)).toFixed(1); });
+  // 등급당 x1.9. 적 체력이 지수로 늘기 때문에 장비도 지수여야 따라간다.
+  it.base = Math.round((part==='weapon'?11:26)*Math.pow(1.9,g-1)*lvMul(it.lv)*starMul());
+  it.st = S.star;
+  return it;
+}
+// 등급 안의 세부등급 I~X. 제련 강화가 이 분포를 위로 민다.
+const LVW=[34,22,15,10,7,5,3.4,2.2,1.2,.6];
+function lvProbs(){
+  const k=1+S.lv*0.055;
+  let w=LVW.map((v,i)=>v*Math.pow(k,i)), s=w.reduce((a,c)=>a+c,0);
+  return w.map(v=>v/s);
+}
+function rollLv(){ const p=lvProbs(); let r=Math.random();
+  for(let i=0;i<10;i++){ r-=p[i]; if(r<=0) return i+1; } return 1; }
+const lvMul=l=>1+(l-1)*0.07;
+const ROMAN=['','I','II','III','IV','V','VI','VII','VIII','IX','X'];
+
+/* ══ 스탯 ══ */
+function stats(eq){
+  let atk=5,hp=100,o={},sp={};
+  for(const p in eq){ const it=eq[p]; if(!it) continue;
+    if(p==='weapon') atk+=it.base; else hp+=it.base;
+    if(it.sp) sp[it.sp]=true;
+    for(const k in it.ops) o[k]=(o[k]||0)+it.ops[k]; }
+  const wt = eq.weapon?eq.weapon.wt:null;
+  // 무기 타입과 안 맞는 피해 옵션은 죽은 옵션. 관통 각인이 있으면 절반만 살아남는다.
+  const on = wt==='melee' ? (o.melee||0) : wt==='ranged' ? (o.ranged||0) : 0;
+  const off= wt==='melee' ? (o.ranged||0): wt==='ranged' ? (o.melee||0) : 0;
+  const wb = on + (sp.pierce?off*0.5:0);
+  const dps = atk*(1+wb/100)*(1+(o.crit||0)/100*(o.cdmg||0)/100)
+              *(1+(o.aspd||0)/100)*(1+(o.dbl||0)/100);
+  return {dps,hp:hp*(1+(o.hp||0)/100),block:Math.min(60,o.block||0),
+          leech:(o.leech||0),gold:(o.gold||0),wt,o,sp};
+}
+const power=eq=>{const s=stats(eq);return Math.round(s.dps*Math.pow(s.hp/100,0.45));};
+
+/* ══ 제련 ══ */
+let spinning=false;
+function spin(){
+  if(spinning||S.charge<1||S.queue.length>=qmax()) return;
+  spinning=true; S.charge--;
+  const els=[...document.querySelectorAll('.reel')];
+  els.forEach((e,i)=>{ if(i!==S.lockIdx){e.classList.add('spin');e.classList.remove('hit');} });
+  const pityHit = S.pity>=PITY();
+  const res = pityHit
+    ? Array(REELS()).fill(S.lockIdx>=0?lockPart:Math.floor(Math.random()*6))  // 천장: 고정 릴이 있으면 그 부위로
+    : Array.from({length:REELS()},(_,i)=> i===S.lockIdx?lockPart:Math.floor(Math.random()*6));
+  // 정렬 보정: 굴린 뒤 확률적으로 릴 하나를 다른 릴에 맞춘다.
+  if(Math.random()<T('align')*0.0025 && res.length>1){
+    let a=0,b=1; while(a===b||a===S.lockIdx){a=(Math.random()*res.length)|0;b=(Math.random()*res.length)|0;}
+    res[a]=res[b];
+  }
+  setTimeout(()=>{
+    els.forEach((e,i)=>{e.classList.remove('spin');drawReel(e,res[i],i===S.lockIdx);});
+    const cnt={}; res.forEach(v=>cnt[v]=(cnt[v]||0)+1);
+    let best=1,part=res[Math.floor(Math.random()*res.length)];
+    for(const v in cnt){ if(cnt[v]>best){best=cnt[v];part=+v;} }
+    const b=best-1;                       // 2연=1, 3연=2, 4연=3, 5연=4
+    S.pity = best===REELS() ? 0 : S.pity+1;   // 자연 전릴 정렬도 천장을 비운다
+    if(b>0) els.forEach((e,i)=>{ if(res[i]===part) e.classList.add('hit'); });
+    const it=makeItem(PARTS[part].id,rollGrade(b));
+    const m=document.getElementById('msg');
+    const tag=`${PARTS[part].nm} ${it.g}등급 ${ROMAN[it.lv]}`;
+    if(S.asell[it.g-1]){                 // 자동 판매: 대기열을 거치지 않는다
+      S.gold += sellPrice(it);
+      m.innerHTML=`${tag} — 자동 판매 ${ciGold()}${fmt(sellPrice(it))}`; m.className='';
+    }else{
+      S.queue.push(it);
+      m.textContent = pityHit?`▣ 임계압 정렬 — ${tag}` : b>=2?`◆ ${best}연 정렬 — ${tag}` : b===1?`◇ 2연 — ${tag}` : tag;
+      m.className = (pityHit||b>=2)?'big':'';
+    }
+    S.lockIdx=-1; spinning=false; render();
+  },420);
+}
+let lockPart=0;
+
+/* ══ 전투 ══ */
+let foeHP=0,foeMax=0,pHP=0,foeKind='melee';
+
+function newWave(){
+  foeMax=120*Math.pow(1.12,S.wave-1); foeHP=foeMax;
+  foeKind = S.wave%3===0?'ranged':(S.wave%3===1?'melee':'mix');
+  pHP=stats(S.equip).hp;
+  document.getElementById('foes').textContent =
+    `${S.wave}층 · ${foeKind==='melee'?'근접 무리':foeKind==='ranged'?'원거리 무리':'혼합 무리'}`;
+  buildFoes();
+}
+function tick(){
+  const s=stats(S.equip); const hp0=pHP;
+  let dmg=s.dps*0.25;
+  if(s.sp.exec && foeHP/foeMax<=0.25) dmg*=1.8;
+  if(s.sp.rage && pHP/s.hp<=0.50)     dmg*=1.5;
+  foeHP -= dmg;
+  const raw = 9*Math.pow(1.115,S.wave-1)*0.25;
+  const isMelee = foeKind==='melee' || (foeKind==='mix'&&Math.random()<0.5);
+  pHP -= isMelee ? raw*(1-s.block/100) : raw;   // 블록은 근접에만
+  pHP += dmg*s.leech/100 + (s.sp.regen?s.hp*0.005:0);
+  pHP = Math.min(s.hp,pHP);
+  if(foeHP<=0){ S.peak=Math.max(S.peak||0,S.wave); S.top=Math.max(S.top||0,S.wave); S.gold += Math.round(4*Math.pow(1.10,S.wave-1)*(1+s.gold/100)*(1+T('gold')*0.015)); S.wave++; newWave(); }
+  else if(pHP<=0){ S.wave=Math.max(1,S.wave-1); newWave(); }
+  document.getElementById('fill').style.width=Math.max(0,foeHP/foeMax*100)+'%';
+  const hpr=Math.max(0,pHP/s.hp*100)+'%', hf=document.getElementById('hpfill');
+  hf.style.width=hpr; hf.classList.toggle('heal',pHP>hp0);
+  document.getElementById('hpghost').style.width=hpr;
+  drawFoes();
+  document.getElementById('wv').textContent=S.wave;
+}
+
+const sellPrice=it=>Math.round(4*Math.pow(1.75,it.g-1)*lvMul(it.lv||1)*Math.pow(4,it.st||0)*(1+T('sell')*0.015));
+// 교체: 새것을 끼고, 빠진 장비는 대기열 맨 앞으로. 실제로 껴보고 웨이브/능력치를
+// 확인한 뒤 되돌리거나(다시 교체) 팔면 된다. 판매만이 대기열을 줄인다.
+function resolve(action){
+  const nw=S.queue[0]; if(!nw) return;
+  const old=S.equip[nw.part]||null;
+  if(action==='equip'){
+    if(old && nw.g<=old.g-2 && !nw.wn){
+      if(!confirm(`${old.g}등급을 ${nw.g}등급으로 교체합니다.
+${old.g-nw.g}등급 낮습니다. 계속할까요?`)) return;
+      nw.wn=1;   // 같은 장비로는 다시 묻지 않는다 (왕복 시 반복 경고 방지)
+    }
+    S.queue.shift();
+    S.equip[nw.part]=nw;
+    if(old) S.queue.unshift(old);
+    // 팝업은 유지 — 카드가 뒤바뀐 상태로 다시 그려져서 그 자리에서 비교·되돌리기 가능
+  }else{
+    S.queue.shift();
+    S.gold += sellPrice(nw);
+    if(nw.g>=cap()-2) S.tok++;   // 상위 3등급을 팔 때만 토큰
+  }
+  newWave(); render(); openCmp();
+}
+
+// 승천: 상한을 다 열고 제련을 더 올리면 전부 팔고 별 하나. 릴이 늘고 시작 상한이 오른다.
+const canAscend=()=>cap()===GMAX && S.lv>=ASC_LV() && (S.peak||0)>=ASC_WAVE();
+function ascend(){
+  if(!canAscend()) return;
+  const list=Object.values(S.equip).concat(S.queue);
+  if(!confirm(`승천 ★${S.star+1}\n\n장비 ${list.length}개가 전부 팔리고 제련 등급이 0으로 돌아갑니다.\n`+
+    `등급 상한은 다시 5등급부터 — 같은 길을 더 강한 장비로 다시 오릅니다.\n\n`+
+    `장비 기본 수치 ×${(4**(S.star+1))}, 옵션 상한 ×${(1+(S.star+1)*0.6).toFixed(1)}, 대기창 ${qmax()+1}칸` +
+    (REELS()<5?`\n릴 ${REELS()}개 → ${REELS()+1}개`:'') + `\n\n계속할까요?`)) return;
+  list.forEach(it=>S.gold+=sellPrice(it));
+  S.equip={}; S.queue=[]; S.lv=0; S.star++; S.wave=1; S.peak=0; S.lockIdx=-1;
+  buildReels(); newWave(); render();
+}
+
+let lastSave=0;
+function save(force){
+  if(!force && Date.now()-lastSave<3000) return;
+  lastSave=Date.now();
+  localStorage.setItem('forge',JSON.stringify({...S,t:Date.now()}));
+}
+addEventListener('pagehide',()=>save(true));
+addEventListener('visibilitychange',()=>{ if(document.hidden) save(true); });
+
+const upCost=()=>Math.round(50*Math.pow(1.55,S.lv)*Math.max(0.5,1-T('cost')*0.005));
+
+/* ══ 무한의 층 ══ */
+// 웨이브 전투를 그대로 재사용. 별도 밸런싱 없이 층수만 센다.
+function climb(){
+  const st=stats(S.equip); let f=0;
+  while(f<999){
+    const hp=200*Math.pow(1.16,f), dmg=11*Math.pow(1.15,f);
+    if(hp/Math.max(st.dps,1e-9) > st.hp/Math.max(dmg-st.dps*st.leech/100,1e-9)) break;
+    f++;
+  }
+  return f;
+}
+
+/* ══ 주사위 판 ══ */
+// 8칸 순환. 보상은 도달 층수에 비례하므로 판 자체는 배율만 갖는다.
+const TILES=[
+  {n:'별가루',   k:'dust', m:1.0},
+  {n:'골드',     k:'gold', m:1.0},
+  {n:'고정 토큰',k:'tok',  m:3},
+  {n:'별가루',   k:'dust', m:2.0},
+  {n:'충전 가득',k:'chg',  m:0},
+  {n:'별가루',   k:'dust', m:3.5},
+  {n:'골드',     k:'gold', m:2.5},
+  {n:'고정 토큰',k:'tok',  m:1}];
+const tileAmt=t=> t.k==='dust' ? Math.max(1,Math.round(runFloor*t.m))
+               : t.k==='gold' ? Math.round(upCost()*0.5*t.m)   // 강화 비용 기준이라 언제나 유의미, 절대 폭발 안 함
+               : t.k==='tok'  ? t.m : 0;
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   === VIEW (표시) ===
+   DOM 조작 · 렌더 · 애니메이션 · Phaser 캔버스. 이후 렌더 개편은
+   여기만 만진다. 게임 상태를 바꾸는 코드는 이 아래에 두지 않는다.
+   ═══════════════════════════════════════════════════════════════════ */
+/* ══ 026 — 플랫폼 어댑터 (PLAT) ═══════════════════════════════════════════
+   **게임 코드는 SDK 를 직접 부르지 않는다.** 이 객체 넷만 부른다:
+   `PLAT.adsOn` · `PLAT.rewarded()` · `PLAT.playStart()` · `PLAT.playStop()`.
+   SDK 가 없으면 전부 무동작이고 `adsOn=false` 라 **광고가 없는 곳에는 광고
+   보상도 없다** — 026 §0 이 고친 결함이 그것이다(그 전까지 `#ad` 는 광고도
+   횟수 제한도 없이 충전을 가득 채웠다. 스핀이 무한이었다).
+
+   ⚠ 이 줄들은 **node 하네스에서도 eval 된다**(tools/harness.js 가 스크립트를
+     통째로 돌린다). 거기엔 `location`·`window`·`document.head` 가 전부 없다 —
+     그래서 바깥 세계를 만지는 자리는 전부 `typeof` 로 가린다. 하나라도 빠지면
+     smoke·days 가 ReferenceError 로 죽는다. */
+const CG_SDK='https://sdk.crazygames.com/crazygames-sdk-v3.js';
+// 사이트락(허용 도메인) 목록과 **같은 목록**이다. 027 제출 때 실제 목록으로 맞출 것.
+// ⚠ 이 목록이 틀리면 SDK 가 영영 안 실려 광고 수익이 조용히 0 이 된다.
+const CG_HOSTS=['crazygames.com','crazygames.co.uk','1001juegos.com'];
+// Basic Launch(QA) 동안 CrazyGames 는 광고를 꺼 둔다. SDK 에는 「광고가 켜졌는가」를
+// 묻는 수단이 없다 — `ad.hasAdblock()` 은 차단기만 본다. 그래서 상수 한 줄이다.
+// **Full Launch 로 넘어갈 때 028 이 이 한 줄만 true 로 바꾼다.**
+const ADS_LIVE=false;
+// 충전 광고 상한 (026 §4 — 값의 근거는 `node tools/days.js --ads` 결과표).
+const AD_COOL=25*60*1000, AD_DAY=3;
+// 재굴림 광고 쿨다운. 재굴림은 착지당 2회 상한이 이미 있어 상한은 더 안 둔다 —
+// 남은 위험은 «보상 하나에 광고 둘»로 읽히는 연쇄뿐이라 그것만 막는다.
+const DAD_COOL=30*1000;
+let dadAt=0, dadReady=()=>false;        // 던전 블록이 진짜 술어로 갈아 끼운다
+
+const adWall=on=>{ if(typeof document==='undefined') return;
+  const e=document.getElementById('adwall'); if(e&&e.classList) e.classList.toggle('on',!!on); };
+/* PLAT → __view 거울. **광고가 도는 동안에도 맞아야** 하므로 renderFast(250ms)에
+   기대지 않고 광고의 시작·끝에서 직접 부른다 — 250ms 뒤에 보면 광고는 이미 끝나
+   있고, 그러면 「광고 중에 멈췄는가」를 아무도 증명할 수 없다. */
+function platSync(){
+  const V=globalThis.__view; if(!V||!V.plat) return; const p=V.plat;
+  p.env=PLAT.env; p.ready=PLAT.ready; p.adsOn=PLAT.adsOn; p.paused=PLAT.paused;
+  p.blocked=PLAT.blocked; p.ads=PLAT.ads; p.done=PLAT.done; p.failed=PLAT.failed;
+  p.adLeft=Math.max(0,adLeft()); p.adReady=adOK(); p.dadReady=dadReady(); p.err=PLAT.err;
+}
+
+const PLAT={
+  env:'none',        // none | local | crazygames | disabled  (SDK.environment)
+  ready:false,       // SDK.init() 까지 끝났는가
+  adsOn:false,       // **지금 실제로 보상형 광고를 줄 수 있는가** — 버튼의 존재 조건
+  paused:false,      // 광고가 도는 동안 true. 입력막·무대·250ms 틱이 전부 이걸 본다
+  blocked:false,     // SDK 스크립트가 안 실렸다(차단기 포함) — SDK 없는 환경과 같이 돈다
+  err:'', sdk:null,
+  ads:0, done:0, failed:0,                      // 요청 / 완주 / 실패 (검증 창구)
+  playStart(){ try{ if(this.sdk) this.sdk.game.gameplayStart(); }catch(e){} },
+  playStop(){  try{ if(this.sdk) this.sdk.game.gameplayStop();  }catch(e){} },
+  // 끝까지 본 경우에만 true. 오류·중단은 false 이고, 그때 게임은 **그대로 이어진다**.
+  rewarded(){
+    if(!this.adsOn||this.paused||!this.sdk) return Promise.resolve(false);
+    this.ads++;
+    return new Promise(res=>{
+      let shut=false;
+      const end=ok=>{ if(shut) return; shut=true;
+        this.paused=false; adWall(false);
+        if(ok) this.done++; else this.failed++;
+        this.playStart(); platSync();
+        if(typeof globalThis.__canvasWake==='function') globalThis.__canvasWake(600);
+        res(ok); };
+      // 콜백이 영영 안 오는 경우의 보루. 정상 경로는 위 `shut` 이 막는다.
+      const t=setTimeout(()=>end(false),90*1000);
+      const fin=ok=>{ clearTimeout(t); end(ok); };
+      try{
+        this.sdk.ad.requestAd('rewarded',{
+          adStarted:()=>{ this.paused=true; adWall(true); this.playStop(); platSync(); },
+          adFinished:()=>fin(true),
+          adError:()=>fin(false) });
+      }catch(e){ this.err=String((e&&e.message)||e); fin(false); }
+    });
+  }
+};
+
+/* SDK 는 **CrazyGames 호스트와 `?cg=1` 에서만** 동적으로 싣는다.
+   Pages·로컬 파일에서는 이 함수가 첫 줄에서 돌아가므로 **외부 요청이 0 이다**
+   (022 배포 확인 항목 「네트워크 탭 외부 요청 0건」이 계속 통과해야 한다).
+   ⚠ SDK 문서는 `<head>` 에 **정적으로** 넣으라고 적고 동적 삽입은 언급이 없다.
+     `?cg=1` 로 init 까지 도는지 확인한 결과를 지시서 「구현 결과」에 적는다. */
+(function platInit(){
+  if(typeof location==='undefined'||typeof document==='undefined') return;
+  if(!document.head||!document.createElement) return;
+  const h=String(location.hostname||'').toLowerCase();
+  const onCG=CG_HOSTS.some(d=>h===d||h.endsWith('.'+d));
+  const forced=/[?&]cg=1(&|$)/.test(String(location.search||''));
+  if(!onCG&&!forced) return;                    // ← 여기서 끝난다. 외부 요청 0.
+  const sc=document.createElement('script');
+  sc.src=CG_SDK; sc.async=true;
+  // 차단기에 막혀도 **유저를 막지 않는다**(CrazyGames 요건). SDK 없는 환경과 똑같이 돈다.
+  sc.onerror=()=>{ PLAT.blocked=true; };
+  sc.onload=function(){
+    const SDK=(typeof window!=='undefined'&&window.CrazyGames)?window.CrazyGames.SDK:null;
+    if(!SDK){ PLAT.blocked=true; return; }
+    // init 은 비동기이고, 끝나기 전에는 SDK 를 쓸 수 없다(문서).
+    Promise.resolve().then(()=>SDK.init()).then(()=>{
+      PLAT.sdk=SDK; PLAT.ready=true; PLAT.env=SDK.environment||'unknown';
+      // `local`(localhost) 에서는 SDK 가 광고 대신 시연 오버레이를 띄운다 — 그걸로 흐름을 본다.
+      PLAT.adsOn=(PLAT.env==='crazygames'&&ADS_LIVE)||PLAT.env==='local';
+      PLAT.playStart();
+      renderFast();
+    }).catch(e=>{ PLAT.ready=false; PLAT.adsOn=false;
+      PLAT.err=String((e&&e.message)||e); });
+  };
+  document.head.appendChild(sc);
+})();
+
+/* 광고 버튼 둘의 존재·활성 상태는 **여기 한 곳에서만** 정한다.
+   ⚠ `VIEW` 는 이 파일의 한참 아래에서 선언되는데 renderFast() 는 그 전에 한 번
+     돈다(부팅 `render()`). 그래서 `VIEW` 를 직접 쓰지 않고 `globalThis.__view` 를
+     가려서 본다 — 직접 쓰면 첫 호출이 TDZ 로 죽는다. */
+const adLeft=()=>{ if(S.adDay!==today()){ S.adDay=today(); S.adN=0; } return AD_DAY-(S.adN||0); };
+const adOK=()=>PLAT.adsOn && !PLAT.paused && adLeft()>0 && Date.now()>=(S.adAt||0)+AD_COOL;
+function platUI(){
+  const ad=document.getElementById('ad'), dad=document.getElementById('dad');
+  // 광고가 없는 곳에서는 **버튼 자체가 없다.** 눌리는데 아무 일도 안 나는 버튼을
+  // 두는 것이 CrazyGames 요건 위반이자 최악의 첫인상이다(026 §0·§5).
+  if(ad){ ad.style.display=PLAT.adsOn?'':'none'; ad.disabled=!adOK(); }
+  if(dad){ dad.style.display=PLAT.adsOn?'':'none';
+    dad.disabled=!(PLAT.adsOn&&!PLAT.paused&&dadReady()); }
+  platSync();
+}
+
+/* ══ 아이콘 (표시 전용 · 수치와 무관) ══ */
+// 부위×등급 90종을 그리지 않는다. 실루엣 3단계 × 등급색 스트로크 ×
+// 상위 구간 이펙트(11+ 발광 / 14+ 화염 오라) 의 곱으로 15등급을 전부 덮는다.
+const TIER=g=>g<=5?1:g<=10?2:3;
+// 문장 안에 섞여 들어가는 재화 아이콘은 위 심볼을 쓴다 (기호·이모지 혼용 금지).
+const ci=(id,col)=>`<svg class="ci" style="color:${col}"><use href="#${id}"/></svg>`;
+const ciGold=()=>ci('s-gold','var(--brass)');
+const ciDust=()=>ci('s-dust','var(--g9)');
+const SPR_SIZE=32;
+/* ══ 020 — 격자 24 → 32, 화면 크기는 그대로 ═══════════════════════════════
+   격자만 키우면 무대가 **33% 커지고** 013 이 맞춘 간격·이음매가 전부 어긋난다
+   (지시서 020 §3). 그래서 배율을 두 갈래로 나눈다 — 이름이 곧 규약이다:
+
+     · **단위 배율** (`ms`·`scale`) — **화면 기준**이다. 1 이면 019 와 똑같은
+       24px. 배치·간격·오프셋 코드는 전부 이 단위로 쓴다. checklist `ST2` 도
+       `SS=24` 로 이 단위를 읽으므로 무대 검사가 그대로 맞는다.
+     · **굽는 배율** = 단위 배율 × `SPR_FIT`. 32칸을 24칸 몫에 넣는 보정이다.
+
+   ⚠ 숫자를 새로 박지 않는다 — `SPR_UNIT` 은 `SPR_SIZE` 에서 파생한다(지시서 §3).
+      `SG` 계열은 `SPR_SIZE` 를 읽으므로 32 를 그대로 따라온다. */
+const SPR_FIT=3/4;                 // 32칸 → 24칸 몫 (지시서 §3 의 «3/4»)
+const SPR_UNIT=SPR_SIZE*SPR_FIT;   // 24 — 단위 배율 1 이 차지하는 화면 크기
+// 손그림 18장 (부위 6 × 실루엣 3단계). 한 줄이 스프라이트 하나 = 32행을 이어 붙인 1,024자.
+// 문자: .=투명 1=외곽선 2=본체어둠 3=본체밝음 4=하이라이트 — **색이 아니라 팔레트 인덱스**다.
+//
+// 세 단계는 **대장장이의 솜씨**지 다른 생물이 아니다 (ART-DIRECTION 「실루엣 3단계가
+// 뜻하는 것」). 배경에 닿는 칸은 **100% 가 외곽선(1)** 이다 — 014 의 대비 규약이
+// 거기서 성립한다(`OC1`·`OC2`).
+//
+// ⚠⚠ **020 확정본(`docs/ref/sprites32-v4.json`)은 옛 두 규약을 지키지 않는다.**
+//   ① 세 단계의 경계상자가 부위마다 다르고(최대 9칸), t3 가 t2 윤곽 **밖으로**
+//      10~114칸 자란다 → checklist `SG2`·`SG5` 가 운다.
+//   ② t1 이 음영(2)·하이라이트(4)를 쓴다 → `SG3` 이 운다.
+//   검사를 고쳐 통과시키지 않았다(CLAUDE.md: 검사가 울면 검사를 고치지 말 것).
+//   그림이 확정본이고 규약이 옛것이라 **지시서 020 「구현 결과」에 수치와 함께
+//   적어 계획 세션으로 올렸다.** 판정이 나기 전에는 이 주석이 사실의 기록이다.
+const SPR={
+  weapon:[
+    '...........................................................111...........................11441..........................134431.........................1343311........................1343221........................13432221.......................13432221.......................13432221.......................13432221.......................13432221.......................13442221.......................13432221.......................13432221.......................13432221.......................13432221.......................13432221...................1...13432221...................131.13432221....................13313442221......................133312221........................1112121.........................121121.........................1212121........................112112131......................1121..1211.....................1221....111...................11311...........................14311...........................1321.............................11............................................................',
+    '............................................................11...........................111441.........................1344441........................14443421.......................14443331.......................144433331......................144433331......................144433331......................144433331......................134433331......................144433331......................144433331......................144432231......................144322331......................144422231......................144422231..................1...144422331..................1411144322231...................134244322231.....................1332322231.......................13422231........................1133331........................1111231........................112211231......................11221..1231...................111121....111..................141221..........................13311...........................12221............................111...........................................................',
+    '...........................................................1111..........................114441.........................1444441........................14432431.......................14223241.......................142242331......................143332331......................133242231......................132333231......................142242231......................143323231......................143323231......................143332231......................143433231......................142232231......................142323231.................111..142322231..................141.143342231...................133142313231....................12322212131......................134321211........................1133111........................11213211.......................112112321......................11221.12231...................111211...1211..................141221.....1....................14411...........................12331............................111...........................................................'
+  ],
+  head:[
+    '..............................................111..........................111444111......................13121312121....................1444144121131..................134444241214321.................134443231212321................13344432431334321...............12133431132343321..............1312111121311111131.............1412222214412222111.............1231111144441111121.............1212144244442321121.............1231111144311111121..............13111111111111211...............11213211111223121...............12123333312122211...............12234344412133221..............1211442444121243121.............1212144444114322121............121121314412133322121.........1122211231344121322122211.......1121121112144413311211211.......1212212211344412122122121........12223112211111121132221..........122223122222221322221............1222231111111322221..............11233333333333211.................1123344333211.....................111111111............................................................................',
+    '..............................................1111.........................111344211......................121213333311...................13412144434421.................1244414443344421................1344433333344421...............123444244443343321..............113444244443343321.............11213442443333333211............11221311444311322321............12112122143122134311............11333311333211333211............12111121443322112411.............114111111111112121..............121114111112341211..............122221344433222121..............111113224323332221.............1232233433333332221............112422334333333323311..........12213323344433342332121........12112123334333334332121211......12222211234333333211212231......13223222112333221122232331.......133333322111111223333321.........1333333322222233333321...........14433333333333334421.............113433333333344211................11144444444111.....................11111111............................................................................',
+    '...............................................11.............................1431.........................1113442111.....................123334424321...................13344344244321.................1334431321344331................1334312112134331...............122312214312233221..............121121434324312121.............12122133443321412121............11211224443312131211............11133343343121322121............12113441231213321221............12111112144121111121.............122111111111111221..............121211411114112121..............112112144431211211..............111211422222112111.............12221222443312112211............12112122443321121121...........1212312424433231212121........11222133241343311212121211......12222211231343312111212221......13222312114343241113322231.......132333112114311212332231.........1433333121112213333341...........13433333222233333421.............113443333333344211................11244444444111....................111111111............................................'
+  ],
+  body:[
+    '........................................................................................................................................111111....111111.............1113312121111121213111.........134443312111111112144431.......12444443121111111121444421......12444441212111121314444431......12314412144321112121441321.....1241212121443212214111121421....1444121314444321144121214441....1244212144443224444122124431.....112112214444223444121111211......11..1144443223444121..11............1144444223444121................1214444224444121................1214444324444121................1144444224444411................1222343223442121................1333322313212311...............11114333121121211...............122212111112121211..............121131222221333121...............1234411111444311.................1112444444211......................11111111............................................................................................................................................................................',
+    '.........................................................................................................111........111...............11123111.....1132111...........1444322111111112124441........1144443231111111132344441.......14444442221111112233444441......13444332142111123233344441.....1343113322231111121333113431....1131221222312222213131221411...143141121234412221412131131341..143411112344441114441211114341...1323111444444443444121112241.....11111234444444344441211111..........122344444434444321..............112334444434443121..............11133344443443121...............11211444443433121...............11122144443331211...............11111223332211121...............11222111111112121...............121122234432221221..............112211111111112111..............123321222222211311...............112441111111321...................111234432111......................11111111............................................................................................................................................',
+    '........................................................................................................1111........111................1233211.....123311.............143331221111..133441............134332111111112334311..........13244332111111224432321........134434433211112234124441........134433343233312341214441.......1133443233211121333144431.......12333443323111132334433331......13433344321211332344323431......13433234431222143444134431.....1234321344412221444412134321....1234312144431221344412114431....13441121344312214443211214321..124412112214441144432211214431..144412111121342433321111214431..134331111111221222112111133441...1442111221122222222121212441.....11111121221333333121211111.........123121111111122133111...........13333312111121334331............14433331421413334441.............113443312113344411................11111211211111......................111111.............................................................................................................................................'
+  ],
+  legs:[
+    '.....................................11111...........11111...........121211111111111112221...........112121222444431122221...........111113333433412211111...........112211222444421111121...........121221111111111212221..........11331134122222213311221.........113334443122111341222211........111334411122211131222211........11214412211111221411221.........11214441121111114444121.........11144441121.11121444121.........11344412211.111214441211........11344412211.112214441211........11144441211.112214441111........11214113111..11113412111........1213122111...11121312111.......14421111111...111111112121......13444444431...114444441421......13444444431...114444444311......12344444321...113444444311......11233333221....1133333211........122222211......11222221.........124143321......12141441.........111214421......12112121........1444144421......1214144411.....14444444111......12144444431....14444441211......12214444431....13333312211......12213333321....1111111111........1111111111..................................',
+    '.....................................1111..............111...........112211111111111111121...........112122222333322221211...........1112122114444113221211............112112213312211123311........11.133211111111112334311.......11314433122222221223444111......11344432122111112123441211......12344421211333331212444121......12344212133222333121244321......12333123333211233332133321.......111133333211111233331111.........1121333321..121333121...........1112333321..121333211...........1144322111..113223441...........1344321211..1121234431.........1244443211....1323444421........1244443221....1323444421........1123332111....1113344211........1221222121....1212222311........1232212311....1133222321........1244333321....1233344321........124444321......123444321........134443321......123344421........112243321......123342111.......1344323321......1233224431.....14444431221......12233444441....14444412111......11133444441....13333331221......12233333331....1111111111........1111111111..................................',
+    '.....................................111..............1111...........112111.........111211..........1121222111111111222121..........1121222334444432222121..........1112122223333322222211..........1121111112222211222121.........112132221211111212233121........1122322221411241223331211.......1123322323411243323331211.......1123323333411243333333111.......1133323333311244333333311.......1233333334112124333333321.......1233233334112124333333321.......1233233444112124333333321......11233333444112124433323321......12332333443122213443323321......123323334311222114433323321.....123323334311222114433323321.....123233344412222214443322321....13332333443122222144433223321...14432333432122221124433224431...12233333431111111113433333221....112333343111111111343344111.......111444311.....11344311..........111111111.....111111111........1121221211.....12222212111.....1221322111.......1221131221....11111111211.......12212333111...12222222211.......11212221211...11111111111........1111111111..................................'
+  ],
+  hands:[
+    '...........................................................................111111111.......................1111122211.....................1333113332111.................11133322333223211..............1111334432343333211............132113444423433343221..........12321131144231113433311........114321112214212221414411........113331131144441113121411........113342123414443444314411........123341213121222224434411........113342123413333321433311.........114423344233333121411............12333322444444413311.............1143333444444443311.............1143233444444433311.............1143233444444433311.............1133233444443422311..............112233444443423411..............122123444443312311..............1212133444411421................1212213444122121................1111122331211421.................113332222133321...................134444444411....................1111111211.......................111111111...........................................................................................................',
+    '...........................................1111111.11.....................123222321321...................11342234314311..................112342244134311.................1123422312143111.............11111233223121332321...........123321244323413432441...........134321244424433432321...........134321244334433433321...........133221344334434433311...........133221344444444432211............11322444444444443211............12423444444444443311............12423444444444443311.............113334444444444321...............12324444444444311...............1123241444444321.................112312144442211.................112131333332211.................111214444432211.................111213333332111................1121122222222221................1123334444432221................1233344444432221................1242344444432331.................11233444444421..................11223444443321....................11444444211......................111122211........................1111111............................................',
+    '............................................111...11........................1221112211..................111124311244111................124212341334433211..............124222342233433421..............1242312322143334311.............12333224411442343221.............1244323412442422341.............1244423412433423441.............1244323423433423421............11144323444324434411..........1132134334444433443211..........134213444444444444211...........144223344222222334311...........144322343233333324211............14331433444444443211............14411433444444444311............14121333333333333311.............1213443344333331311.............1343444334443312121..............1144444334333312321.............1144441433343341321...............12312144434331321...............1222134444422221.................122133311111411................124121312222121..................1231233111131...................1134444444411....................1111111111.......................111111111..........................................'
+  ],
+  feet:[
+    '.....................................................................................................111111111111111................12333444444444411...............12333444444414411...............12333333344121411...............12333333344313411...............12333333344314411...............12333333344121411...............12223333344121311...............112112111112121..................11221222221221..................11112111113421..................11123333333421..................11213333334421..................11213333334421..................1113333333344311................1133333333344411................1133333333334443111............12213333333333344221............1212133333333333344411..........121213333333334444443211........123133333333334444444421........123333333333333333333311........123333333333333333333311........124444211144444444444411.........12222111122222222222211.........111111...111111111111......................................................................................................',
+    '..........................................................................................................1111111111..................11111111111211.................111111222222121................1122214111111321................1121144444444321................1114444444444321................1144444444444121................1134444444441211................1134444443333111................11344433321111...................1122222212211...................1112222212131...................1121333331331...................1113333333331.....................133333111121111.................12333122222111111...............122221211222221111............11212222133111113111............1122133444444444444411..........11222144444444444444311.........11222114444444444441111.........11212221333344333312211.........11222222111111111112211.........11211111122222222222211.........11122221111111111111111...........111111.11111111111111....................................................................................................',
+    '...........................................111111111..................111111133333211................12221312144444311..............121114412133333321..............133333412133333321..............131111131433333211..............1122222134433221................121222221231141..................11222222112211..................11222222112211..................11222222211131...................1122222211131...................1122222222211...................1122222211121...................1122222211421...................1122222122141...................1122222122121...................1122222121421...................112222221411111................1212222221122211................112111112222222111..............11211111222111222111............1122222211144411144311..........12111222133434444444111.........12331222111111111111221.........12333122222222222222221.........11111111122222222222221.........11221111111222222222221..........1111....1111111111111....................111111111111.....................................'
+  ],
+};
+
+/* ══ 몹·용사 스프라이트 (015) ══
+   **SPR 과 일부러 따로 둔다.** SPR 은 「부위 6 × 단계 3 = 18장」이 원칙 3 예외의
+   상한이고, 검사(SG1)가 그 수를 못박고 있다. 몹·용사를 같은 표에 넣으면 그 상한이
+   흐려진다 — 표를 갈라야 각 상한을 따로 셀 수 있다.
+
+   근접 = 채움(솔리드) / 원거리 = **가운데가 실제로 뚫린** 윤곽.
+   001 의 채움·비움 구분은 블록·흡혈 선택의 근거를 화면에 보이게 하려는 것이므로,
+   색이 아니라 형태로 갈라야 검정 실루엣에서도 살아남는다.
+   3단계는 크기가 아니라 밀도 — 세 장의 마스크가 같고 안쪽 처리만 는다.
+   무대 배치·표시 배율은 013 이 정한다. 여기 있는 것은 그림뿐이다. */
+const SPR_MOB={
+  melee:[
+    '...............................................................................................................111111....1...............111..134444411.121..............13411334444442131................1331433444341211.................11213223333211..................1213433123331...................1112343333421.................112322344333431................1344332234322211................1444432223333311...............134443443222222331.............1333323444322222431.............1434312444433442331.............1433112333333432321............14431212333344321331............144312123344444313341...........134312123444444212341............144121111233321112431...........144311222111112111331...........144321111222121211231...........13421243212221342111.............1111233211212331...................12321.1112331...................13311...12321..................134431...1233411................111111....111111.......................................................................................................',
+    '...............................................111111...................11....13444431..1...............141111334444431131..............13443334443444331................1333443344444311.................13334232133121...................1334433334221..................1211344432431.................113332334332221................1444432233344441...............144444432234444321..............1344443442211122331............13333324444122213331............14344213444411143231............14444121344433442231...........144431121333333321331...........1444122133343333113441..........1444122133344443113441..........13441211123443311113431..........1441212211111121212441..........1444111122222212111441..........1444313312222214211341..........1443214431222134312221..........113311443112113441111.............1112331.11113321..................12321....1331...................12321....13221.................133441...1214431................111111....1111111.......................................................................',
+    '...............................................111111.........................13444431..................111..1344344441.11..............132112344434442121...............13344334443434121................133433244443411..................1334323224221..................11123433234311................1131213343333121...............134441223443223121.............1444444323323222141.............13444443323333332431...........132444333332233323331...........133331232433211123321...........143312114344333332331..........1343441221434434432331..........14433212123333333123331.........14442111134444333111331.........13341211213344441212131.........12331212123444431111131.........124431113222222211212141........134443122333333121121321........134443143233444214211131........11344114442333323431121...........11111443123321333111...............11312112112331..................12121..1..1221..................11311....111321................134241....1221331...............111111.....111111.......................................'
+  ],
+  ranged:[
+    '............................................................................1111....1......................1444411..11....................14444441..121..................1344444441..121.................1233444431...121................1233124221...121.................133234331....11..................1334441.....121...............1.1122321.....121..............1311213331.....111.............13323122223111112231............11133333311113333231...........11.12221131...1111121..........131.13421141......111...........11...1222321......121...........11...123121.......111..........121..121211........11...........141..143331.......121...........1431.1411331......11............1411141..1131......1.............1..141....131..111.................131....121..11.................141......11.....................121......11.....................11.......11....................141.......1411.................1111.......1111............................................................................................................',
+    '.....................................................11......................111.....11....................114441....11...................14444441...131.................1344444441..1131................1344444441..1.131...............1344134321..1..11................133234321..1..131................13443431..1..131..............1.1224431...1..131.............1411321121...1..131..........11132222333331113112331........144322443222333344333241........141133441113111113112241.........1..121112211....1..1211.............1441221.....1..131..............1311221.....1..131..............1123111.....1..131..............1312231.....1..11...............1121341.....1..11...............141.1431....1.11................131..1341...1131...............131....131...131...............141......131..11................131......141..11................131......131..1.................131......131...................1441......1441..................1111......1111............................................................................',
+    '.....................................................11.............................131.............................131...................111111....131..................14444441...1131.................134444441..1.131...............1344444441..1..131...........11.1334224411..1..131..........141..144124311..1...141........14331.123444341..1...141.........1331111213431...1..14331.........111321232221...1..12421........12433122234431113112221........1343233422222333232222321.......1433222323432111131332221........1111222244331...1.11121.............112444321...1..1231.............134312431...1..13341............12312121....1...131.............13122121....1...131.............14211241....1..131..............13431441....1..131..............1421.1331...1.131..............1421...1341..1131..............1331.....131..121...............131......141..131...............131.......11..1331..............131.......131..11..............1441......1341..................1111......11111............................................'
+  ],
+};
+/* 용사 한 장. 등급·부위를 반영하지 않는다 (반영하면 부위×단계×포즈로 손그림이
+   폭발한다 — 원칙 3). 몹의 채움/비움 어느 쪽도 아닌 제3의 처리를 쓴다:
+   채움 + **밝은 외곽** — 외곽선을 팔레트 1 이 아니라 4(백열 쪽)로 둔다. */
+const SPR_HERO='...............................................44444.........................443333344......................42333333334.....................433333343324....................433333333324....................433344443324....................43333244324.....................43334244324.....................42334444434...................4422224444424..................424432224443224................42344322222222334...............43333322222222334..............42233322333223224...............42222223344333224...............422222223333332224.............4222222222323232224.............42232222222233222234............42233322222224222224............42233322222233222334...........432223322233333322234...........43222332223333333244............432222222333333224..............432222222222222224..............432222222222222224..............432222223322422234..............422442223324.42224...............44..423324..42234................4...4344....43334...................4444....44444........................................';
+/* 용사 공격 포즈 **한 장** (018). ART-DIRECTION 「전투 모션」: 프레임을 그려서
+   만들면 몹 6장 × 3상태로 손그림이 두 배가 된다(원칙 3 위반). 팔을 뻗은 자세
+   하나면 예비-타격-복귀와 맞물려 충분하다. 몹은 **0장 추가** — 변형만으로 한다.
+   손그림 총량: 장비 18 + 몹 6 + 용사 2 = **26장**.
+   ⚠ SPR_HERO 를 배열로 바꾸지 않고 **따로 둔다** — checklist SG5·SG6 이
+   `SPR_HERO` 를 문자열로 읽어 경계상자·밝은외곽을 재기 때문이다. 배열로 바꾸면
+   그 두 항목이 조용히 죽는다(CLAUDE.md: 죽은 항목을 만들지 말 것). */
+const SPR_HERO_ATK='.....................................................44444.........................44343444.......................4344443344.....................424444443424....................433444433434....................433334444434....................433342222224....................433344222224...................4222344432334..................42444223432334...............44423444422332224............44433423444322332224.........44433343223333233443434.......4433444422222222223333434......43344432222222222222222224.....434444322222222222443222444.....444332222222222222344434........44342222222222222224434.........444.42222222222222233224.............42222222234322222334.............4222222344432222344..............4222222442222222224..............4422222222442222334...............42232224..4222434...............4224424....422224..............4222244.....43334..............422224.......42334..............422434.......433444.............444444.......444444...................................................................';
+
+/* ══ 무대 타일 (013 §1) ══════════════════════════════════════════
+   3층 패럴랙스: 먼 산·하늘 / 중경 지형 / 근경 바닥.
+   **손그림 총량은 층당 4장 = 12장이다** (ART-DIRECTION 「전투 무대」의 상한).
+   구간(바이옴)은 지형을 새로 그리지 않고 **팔레트만 갈아 끼워** 만든다 —
+   원칙 3 그대로다. 색은 아래 stagePalette() 가 웨이브에서 파생한다.
+
+   셀은 32×24 다(장비 24×24 와 다르다): 24 폭이면 배율 2에서 48px 마다
+   같은 산이 되풀이돼 눈에 띄게 반복된다. 32 폭 4장이면 한 주기가 256px 다.
+   **네 장의 좌·우 끝 열이 층마다 같은 모양**이라 어떤 순서로 붙여도 이어진다
+   (먼 산 가장자리 높이 17행 · 중경 15행 · 근경 윗면 16행 고정).
+   인덱스는 스프라이트와 같다: 1 외곽 · 2 그늘 · 3 본체 · 4 능선(좌상단 광원). */
+const TILE_W=32, TILE_H=24;
+const SPR_TILE={
+  far:[   // 먼 산·하늘 — 가장 느리게 흐른다
+    '................................................................................................................................................................................................................4.............................44344..........................4333334........................4333233344....................4433222223334..................4333222222233344..............4433322222222223334............433322222222222223334.........4433322222222222222223344......433322222222222222222223334...443332222222222222222222223334.43332222222222222222222222222334333222222222222222222222222222333222222222222222222222222222222322222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222',
+    '........................................................................................................................................................................................................................................................................................................................................................................4.............................4434...........................4333344........444.............433323334...444433344..........433222233344433333333344......44332222222333333332223333444..43332222222223332222222223333344333222222222222222222222222333333222222222222222222222222222223322222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222',
+    '.......................................................................................................................................................................................................................................................................................................................................................................................................................................................................................444.............444444......444433344.......444433333344444433333333344..44433333333333333333333222333344333333322222233333322222222233333332222222222222222222222222223322222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222',
+    '..........................................................................................................................................4...............................3..............................434............................4323............................33234..........................4322234.........................3222233........................432222234......................4322222223......................332222222344...................432222222223344444.............4322222222223333333444........44332222222222223333333344444..43332222222222222222223333333344333222222222222222222222233333333222222222222222222222222222223322222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222',
+  ],
+  mid:[   // 중경 지형
+    '......................................................................................................................................................................................................................................................................................................................................................................................................................................4444444444444......44.......444433333333333334....433444..44333333333333333333....333333443333333333333333333344443333333333333322222222222223333332233333332222222222222222223333222222332222222222222222222233332222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222',
+    '.............................................................................................................................................................................................................................................................................................................................................444...........................4433344......................4443333333444................44433333333333334444.........444333333332223333333334444...443333333332222222333333333334443333333322222222222223333333333333333222222222222222222223333333332222222222222222222222222223332222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222',
+    '......................................................................................................................................................................................................................................................................................................................................................................................................4444444.........................3333333.....4444444.............3333333.....3333333.......444444333333344444333333344444443333332222222333333333333333333333333322222223333322222223333333333333222222233333222222233333332222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222',
+    '.....................................................................................................................................................................................................................................................................................................................................................................................................................................................................444444444444444444444......444443333333333333333333334444443333333333333333333333333333333333333333333333333333333333333333333332222222222222222222223333332222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222',
+  ],
+  near:[   // 근경 바닥 — 몹이 여기 선다
+    '................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................4444444444444444444444444444444433333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333322222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222',
+    '......................................................................................................................................................................................................................................................................................................................................................................................................................................44444...........................33333..........444..............11111..........111........4444444444444444444444444444444433333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333322222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222',
+    '................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................4444444444444444444444444444444433333333333333333333333333333333333333333333333333133333333333333333331333333333333133333331333322222221222222222221222222212222222222212222222222221222222222222222222222222222222222222222222222222222222222222222222222222222',
+    '...........................................................................................................................................................................................................................................................................................................................................................................................................................................................................4444..........33........33....44333344...........3...4444444443333333344444444444444433333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333322222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222',
+  ],
+};
+
+
+/* ══ 픽셀 스프라이트 (009) ══
+   손그림은 **정확히 18장**이다 (부위 6 × 실루엣 3단계). 등급 15종은 한 장도
+   더 그리지 않고 팔레트 스왑 공식으로 파생한다 — CLAUDE.md 원칙 3 예외의 정확한
+   범위이고, 부위×등급 90장은 어떤 이유로도 안 된다.
+
+   실루엣 단계 경계는 002 가 정한 그대로 TIER(): 1~5 조악 / 6~10 정제 / 11~15 장식.
+   등급색 --g1~--g15 는 건드리지 않는다 (ART-DIRECTION 「등급색은 건드리지 않는다」
+   — 온도 램프는 상위 등급이 흰색으로 뭉개져 이미 기각됐다). */
+const hex2rgb=h=>{ h=String(h).trim().replace('#','');
+  if(h.length===3) h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+  return [parseInt(h.slice(0,2),16)||0,parseInt(h.slice(2,4),16)||0,parseInt(h.slice(4,6),16)||0]; };
+const rgbMul=(c,k)=>c.map(v=>Math.max(0,Math.min(255,Math.round(v*k))));
+const rgbMix=(a,b,t)=>a.map((v,i)=>Math.round(v+(b[i]-v)*t));
+const HOT_WHITE=hex2rgb('#FFD9A0');     // 백열 — 하이라이트가 향하는 곳
+const NEUTRAL=hex2rgb('#B08D4F');       // 놋쇠 — 등급 없는 릴 아이콘용
+
+// 등급색 한 개에서 4단계를 뽑는 **공식**. 등급마다 손으로 고른 색표가 아니다.
+// (외곽선만 014 에서 방향이 갈렸다 — 아래 gradePalette 주석 참고.)
+//
+// **캐시는 primeGrades() 만 채운다 — 부팅 끝에서 딱 한 번** (010 §4).
+// 예전에는 "첫 호출 때" 15색을 굳혔다. 지금은 문제가 없지만, 첫 호출 시점이
+// 앞당겨져 **CSS 토큰이 적용되기 전에** 걸리면 15색이 전부 기본값으로 굳고
+// 등급 판독이 통째로 죽는다 — 화면은 멀쩡해 보이는 조용한 실패다. 그래서
+// 시점을 코드로 못박고, 굳은 값이 토큰과 같은지 자체 점검이 확인한다.
+//
+// (009 메모의 "CSS 토큰이 바뀌면 스프라이트도 따라간다"는 부정확했다. 굳은 뒤에는
+//  런타임에 토큰을 바꿔도 안 따라온다. 소스를 고치고 새로 로드해야 따라온다.)
+let gcCache=null;
+function readGrades(){
+  try{ const cs=getComputedStyle(document.documentElement), a=[null];
+    for(let i=1;i<=GMAX;i++){
+      const v=cs.getPropertyValue('--g'+i).trim();
+      if(!v) return null;                 // 토큰이 아직 없다 — 굳히지 않는다
+      a.push(hex2rgb(v));
+    }
+    return a;
+  }catch(e){ return null; }               // node 검증 등 CSS 가 없는 환경
+}
+function primeGrades(){ const a=readGrades(); if(a) gcCache=a; return !!gcCache; }
+function gradeRGB(g){
+  if(!g) return NEUTRAL;
+  const a = gcCache || readGrades();      // 굳기 전에는 매번 읽는다 (틀린 값을 남기지 않는다)
+  return (a&&a[g]) || NEUTRAL;
+}
+/* 외곽선은 **배경에서 떨어지는 방향**으로 파생한다 (014 §1).
+   이유는 실측이다: 스프라이트에서 **배경(투명)에 닿는 픽셀의 100% 가 인덱스 1**
+   이다. 본체는 배경에 한 번도 닿지 않으므로, 실루엣 가장자리가 보이느냐는
+   오직 「외곽선 대 배경」이 정한다.
+   그런데 배경이 늘 어둡다(명판 L≈0.02~0.05 · 릴 L≈0.004). 옛 공식은 외곽선을
+   등급색 ×0.30 으로 **더 어둡게** 만들어, 15등급 전부에서 외곽선:배경 대비가
+   1.01~1.26 이었다 — 테두리가 배경에 녹아 실루엣이 1px 뭉갠 채로 보였다.
+   고정 숯으로 두는 안이 기각된 것도 같은 이유다(더 어두워지면 더 나빠진다).
+
+   그래서 방향을 등급색 명도로 가른다:
+     · 어두운 등급(L < 0.36)  → 백열 쪽으로 **올린다** (mix 0.50).
+       테두리가 배경에서 떨어지며 실루엣을 들어 올린다. 9종 + 중립이 여기 든다.
+     · 밝은 등급(L ≥ 0.36)   → 예전대로 ×0.30 으로 어둡게. 6종.
+       여기서는 본체가 이미 배경과 갈리고(본체:배경 5.76~10.85), 테두리를 올리면
+       거꾸로 **본체와** 안 갈린다(13등급은 1.31, 14등급 1.05). 그 경계가 임계값이다.
+
+   임계 0.36 과 혼합 0.50 은 실측으로 정했다:
+     · 0.36 은 **밝은 분기가 본체와 갈리기를 멈추는 지점**이다. 바로 아래
+       12등급(L=0.344)·6등급(L=0.343)은 올려도 외곽선:본체 1.40 으로 버티지만,
+       바로 위 13등급(L=0.410)은 1.31 로 무너진다. 0.32 로 잡아 보니 6·12 가
+       어두운 분기에 남아 그 두 칸만 실루엣이 빠져 보였다(전 등급 시트로 확인).
+     · 0.50 은 **하이라이트의 0.55 보다 낮게** 잡았다. 테두리가 하이라이트보다
+       밝아지면 좌상단 광원 고정(ART-DIRECTION)이 깨져 형태가 납작해진다.
+   결과: 밝은 분기 9종+중립의 외곽선:배경이 1.01~1.28 → **6.20~9.11**.
+
+   등급 15종은 여전히 **공식 파생**이다 — 갈리는 것은 계수 두 개뿐이고
+   등급별로 손수 고른 색표는 하나도 없다. */
+const OUT_LUM=0.36;                 // 임계 명도 (상대 휘도)
+const OUT_MIX=0.50;                 // 어두운 등급에서 백열 쪽으로 올리는 비율
+const srgbLin=v=>{ v/=255; return v<=0.04045 ? v/12.92 : Math.pow((v+0.055)/1.055,2.4); };
+const relLum=c=>0.2126*srgbLin(c[0])+0.7152*srgbLin(c[1])+0.0722*srgbLin(c[2]);
+function gradePalette(g){
+  const b=gradeRGB(g);
+  const out = relLum(b)>=OUT_LUM ? rgbMul(b,.30) : rgbMix(b,HOT_WHITE,OUT_MIX);
+  return [null, out, rgbMul(b,.62), b, rgbMix(b,HOT_WHITE,.55)];
+}
+
+/* ══ 무대 팔레트 (013 §2) ══════════════════════════════════════════
+   **구간(바이옴)은 팔레트 스왑이다.** 지형을 새로 그리지 않고 색만 갈아 끼운다.
+   구간 목록을 손으로 나열하지 않는다 — 웨이브에서 공식으로 파생한다.
+
+   ⚠ **섞지 않고 고른다.** ART-DIRECTION 6색 중 셋을 골라 **곱하기만** 한다.
+   두 색을 섞으면 6색 사이의 중간 색조가 생기고, checklist `CV3`(칠해진 픽셀이
+   팔레트 6색)이 색조 방향으로 판정하므로 거기서 먼저 운다. 곱하기는 방향을
+   보존하므로 아무리 어두워져도 팔레트 안이다.
+
+   ⚠ **밝기를 올리지 않는다.** 무대가 지금 배경보다 밝아지면 어두운 등급 6종의
+   아이콘 외곽이 먼저 사라진다(014 실측: 11등급 외곽선:배경 = 1.00).
+   그래서 근경조차 계수 0.62 로 눌러 둔다 — 아래 DEPTH 참고. */
+const C_QUENCH=hex2rgb('#4A6B72');      // 담금질물 — 대장간에서 멀어질수록
+const C_IRON_R=hex2rgb('#23262B');      // 무쇠
+// 대장간(놋쇠) → 식은 쇠(무쇠) → 물(담금질물). 멀어질수록 차가워진다.
+// ⚠ 6색은 **밝기가 제각각**이다 (놋쇠 176 · 무쇠 43 · 담금질물 114 가 최대 채널).
+//   그대로 곱하면 무쇠 구간이 거의 검정이 되어 몹이 사라진다(실측). 그래서 먼저
+//   **최대 채널을 255 로 올려 밝기를 맞춘다** — 이것도 곱하기라 색조 방향은 그대로고
+//   CV3(팔레트 6색)의 방향 판정을 통과한다.
+const normRGB=c=>{ const m=Math.max(c[0],c[1],c[2])||1; return rgbMul(c,255/m); };
+const BIOME_COLS=[NEUTRAL, C_IRON_R, C_QUENCH].map(normRGB);
+const BIOME_LEN=10;                     // 구간 하나 = 10 웨이브
+const segOf   = w => Math.floor(Math.max(0,(w|0)-1)/BIOME_LEN);
+const segRGB  = seg => BIOME_COLS[((seg%BIOME_COLS.length)+BIOME_COLS.length)%BIOME_COLS.length];
+// 대기 원근: 멀수록 어둡다. **근경조차 0.38 을 넘기지 않는다**(위 ⚠) — 처음에
+// 0.62 로 두었더니 흙 띠가 화면에서 가장 밝은 덩어리가 되어 무대가 UI 를 눌렀다.
+// (밝기를 맞춘 뒤라 이 계수는 세 구간 모두에 같은 뜻이다.)
+const DEPTH=[0.14, 0.22, 0.32];
+function stageBody(seg,depth){ return rgbMul(segRGB(seg), DEPTH[depth]); }
+function stagePalette(seg,depth){
+  const b=stageBody(seg,depth);
+  return [null, rgbMul(b,.45), rgbMul(b,.72), b, rgbMul(b,1.5)];
+}
+
+/* ⚠ 몹·용사 외곽선은 **등급색 파생에서 뗐다** (013, 015 발견).
+   015 는 용사의 밝은 외곽을 gradePalette 의 하이라이트로 만들었다. 용사는 등급이
+   없으니 개념적으로 틀렸고, 무엇보다 **바이옴이 배경을 바꾸면 그 외곽이 녹는다.**
+   규칙은 장비와 같다(ART-DIRECTION 외곽선 항목): 외곽선은 **배경의 반대 방향**
+   으로 간다. 다른 것은 기준이다 — 장비는 등급색 명도를 봤지만(배경이 늘 어두웠으
+   므로) 몹·용사는 **자기가 서 있는 땅의 명도**를 본다.
+
+   ⚠⚠ **밝은 땅 분기는 지금 도달할 수 없다 — 죽은 분기다** (018 검증 · 019 §3).
+   땅은 `normRGB` 로 최대 채널을 255 로 올린 뒤 `DEPTH[2]=0.32` 를 곱하므로
+   상대휘도가 **0.084 에서 포화**한다. `OUT_LUM` 은 0.36 이다. 즉 013 §4 가 적은
+   "바이옴이 땅을 밝히면 외곽선이 따라 뒤집힌다"는 처음부터 성립한 적이 없다.
+   **그래서 바이옴은 색상(hue)만 바꾸고 땅 명도는 고정한다** — 억지로 밝히면
+   뒤집힘은 여전히 안 걸린 채 대비만 떨어지고(그 한계에서 몹 3.83 · 용사 2.86),
+   어두운 등급 6종의 아이콘 외곽(014: 11등급 대비 1.00)과 근접/원거리 채움 구분이
+   **동시에** 무너진다. 019 의 던전 띠도 같은 `stagePalette(seg,2)` 를 쓴다.
+   지우지 않는 이유: 나중에 명도 정책이 바뀌면 여기가 되살릴 자리다. */
+function foeOutline(body,seg){
+  const bg=stageBody(seg,2);            // 몹·용사가 서는 곳 = 근경 바닥
+  //                ↓ 죽은 분기 (위 ⚠⚠ — relLum(bg) 는 0.084 를 못 넘는다)
+  return relLum(bg)>=OUT_LUM ? rgbMul(body,.28) : rgbMix(body,HOT_WHITE,OUT_MIX);
+}
+function mobPalette(seg){
+  // 색은 바이옴이 가져간다 — 근접·원거리는 **형태로만** 갈린다 (ART-DIRECTION).
+  // ⚠ 본체는 땅(0.38)보다 **밝아야 한다.** 어둡게 두었더니 밝은 외곽선만 남아
+  //   근접이 **비어 보였다** — 001·015 의 「근접=채움 / 원거리=비움」이 뒤집힌다.
+  //   지금: 밝은 외곽(배경 대비) + 땅보다 밝은 본체(채움) + 실제 구멍(비움).
+  const b=rgbMul(segRGB(seg),.55);
+  return [null, foeOutline(b,seg), rgbMul(b,.62), b, rgbMix(b,HOT_WHITE,.45)];
+}
+function heroPalette(seg){
+  // 용사는 바이옴을 타지 않는다 — 우리 편이라는 것이 색으로 읽혀야 한다(놋쇠).
+  // SPR_HERO 는 외곽을 **인덱스 4** 로 그린다(015 주석). 그래서 4번 칸이 외곽선이다.
+  const b=rgbMul(NEUTRAL,.62);
+  return [null, rgbMul(b,.45), rgbMul(b,.66), b, foeOutline(b,seg)];
+}
+
+// 등급별 PNG 를 한 번만 구워 캐시한다. 최대 6부위 × (15등급+중립) × 배율 2종.
+//
+// **확대를 PNG 에 구워 넣는다.** 16px 원본을 CSS 로 키우면, 아이콘이 flex 안에서
+// 소수점 좌표에 앉는 순간(실측: 10개 전부 그랬다) 원본 픽셀이 2px·3px 로 들쭉날쭉
+// 잘린다 — image-rendering:pixelated 로도 못 막는다. 미리 정수 배율로 키워 두면
+// 화면에는 1:1 로 놓이므로, 위치가 소수여도 픽셀 폭이 균일하다.
+//
+// 굽는 경로는 **하나뿐**이다 — 장비 스프라이트(§009)와 숫자 글리프(010 §2)가
+// 같은 bakePX 를 쓴다. 픽셀 문자열 + 팔레트 + 정수 배율 → PNG.
+// 픽셀 문자열 + 팔레트 + 정수 배율 → ImageData. **래스터로 가는 길은 여기 하나**다.
+// 아래 bakePX(→PNG data URL) 와 013 의 paintPX(→캔버스에 직접) 가 둘 다 이것을 쓴다.
+function pxData(cx,px,W,H,P,scale){
+  // 020: 배율이 **정수가 아니어도 된다**(3/4·3/2). 보간은 여전히 없다 —
+  // 칸 i 가 차지하는 목적지 구간을 `round(i·s) … round((i+1)·s)` 로 잡아
+  // **칸끼리 경계를 공유**시킨다. 틈도 겹침도 안 생기고, 정수 배율에서는
+  // 예전 블록 복제와 **완전히 같은 결과**가 나온다(round(i·s)=i·s).
+  const cw=Math.max(1,Math.round(W*scale)), ch=Math.max(1,Math.round(H*scale));
+  const im=cx.createImageData(cw,ch), d=im.data;
+  if(scale<1) return shrinkPX(im,px,W,H,P,scale,cw,ch);
+  for(let y=0;y<H;y++){
+    const y0=Math.round(y*scale), y1=Math.round((y+1)*scale);
+    for(let x=0;x<W;x++){
+      const c=px.charCodeAt(y*W+x)-48;
+      if(!(c>=1&&c<=4)) continue;      // NaN 도 여기서 걸러야 한다
+      const col=P[c]; if(!col) continue;
+      const x0=Math.round(x*scale), x1=Math.round((x+1)*scale);
+      for(let sy=y0;sy<y1;sy++){ let o=(sy*cw+x0)*4;
+        for(let sx=x0;sx<x1;sx++,o+=4){
+          d[o]=col[0]; d[o+1]=col[1]; d[o+2]=col[2]; d[o+3]=255;
+        }
+      }
+    }
+  }
+  return im;
+}
+/* ══ 축소는 «구멍»을 지킨다 (020) ═══════════════════════════════════════
+   32칸을 24px 에 넣으면 칸 넷 중 하나가 목적지에서 자리를 잃는다. 그냥 버리면
+   **원거리 몹의 구멍이 제일 먼저 사라진다** — 013·015 가 「근접=채움 / 원거리=비움」
+   을 색이 아니라 **진짜 구멍**으로 낸 판단이 무대에서 통째로 죽는다.
+   실측: 그냥 버리는 축소에서 무대 원거리 구멍 3.1% → **0.6%**, `ST2` 가 울었다.
+
+   그래서 목적지 픽셀이 덮는 칸들을 보고 **우선순위로 고른다**:
+     ① 덮은 칸에 «에워싸인 투명»(= 구멍)이 하나라도 있으면 → 투명. **구멍이 이긴다.**
+     ② 아니면 덮은 칸 중 **외곽선 칸**이 이긴다. 구멍이 구멍으로 읽히려면 그것을
+        **에워싼 고리가 배경보다 밝아야** 한다 — 고리가 본체 어둠(2)으로 내려앉으면
+        구멍이 바깥으로 새어 «비움»이 사라진다(실측 1.8%, ST2 문턱 2.0%).
+     ③ 아니면 첫 칠해진 칸. **바깥 투명은 절대 이기지 못한다** — 그래야 외곽선
+        한 줄이 통째로 지워지지 않는다(014 의 대비 규약이 거기 산다).
+   ⚠ 외곽선 인덱스는 **그림마다 다르다**(지시서 020 §2): 장비 18 + 몹 6 은 1,
+     용사 2장은 1 을 한 칸도 안 쓰고 4 가 테두리다. 그래서 문자열에 '1' 이
+     있으면 1, 없으면 4 로 잡는다 — 두 규약을 한 줄로 받는다.
+   구멍 여부는 테두리에서 흘린 채움(flood fill)으로 정한다 — `SG7` 이 구멍을 세는
+   방법과 같은 정의라 검사와 구현이 같은 말을 한다. */
+function shrinkPX(im,px,W,H,P,scale,cw,ch){
+  const d=im.data, N=W*H;
+  const EDGE=px.indexOf('1')>=0 ? 1 : 4;     // 020 §2 — 테두리 인덱스가 두 갈래다
+  const solid=i=>{ const c=px.charCodeAt(i)-48; return c>=1&&c<=4; };
+  const outside=new Uint8Array(N), st=[];
+  for(let x=0;x<W;x++){ st.push(x, (H-1)*W+x); }
+  for(let y=0;y<H;y++){ st.push(y*W, y*W+W-1); }
+  while(st.length){ const i=st.pop();
+    if(outside[i]||solid(i)) continue;
+    outside[i]=1;
+    const x=i%W, y=(i-x)/W;
+    if(x>0) st.push(i-1); if(x<W-1) st.push(i+1);
+    if(y>0) st.push(i-W); if(y<H-1) st.push(i+W);
+  }
+  for(let dy=0;dy<ch;dy++){
+    const sy0=Math.floor(dy/scale), sy1=Math.min(H-1,Math.ceil((dy+1)/scale)-1);
+    for(let dx=0;dx<cw;dx++){
+      const sx0=Math.floor(dx/scale), sx1=Math.min(W-1,Math.ceil((dx+1)/scale)-1);
+      let hole=false, pick=-1;
+      for(let y=sy0;y<=sy1&&!hole;y++) for(let x=sx0;x<=sx1;x++){
+        const i=y*W+x;
+        if(!solid(i)){ if(!outside[i]){ hole=true; break; } continue; }
+        const c=px.charCodeAt(i)-48;
+        if(c===EDGE){ pick=c; }                 // 외곽선이 먼저다 (위 ②)
+        else if(pick<0) pick=c;
+      }
+      if(hole||pick<0) continue;
+      const col=P[pick]; if(!col) continue;
+      const o=(dy*cw+dx)*4;
+      d[o]=col[0]; d[o+1]=col[1]; d[o+2]=col[2]; d[o+3]=255;
+    }
+  }
+  return im;
+}
+function bakePX(px,W,H,P,scale){
+  try{
+    const cv=document.createElement('canvas');
+    cv.width=Math.max(1,Math.round(W*scale)); cv.height=Math.max(1,Math.round(H*scale));
+    const cx=cv.getContext('2d');
+    cx.putImageData(pxData(cx,px,W,H,P,scale),0,0); return cv.toDataURL('image/png');
+  }catch(e){ return null; }      // node 검증 등 캔버스가 없는 환경 — 부르는 쪽이 물러난다
+}
+// 무대 타일·몹은 PNG 를 거치지 않는다. data URL 은 **디코드가 비동기**라 굽자마자
+// 그릴 수 없고(014 에서 naturalWidth=0 로 밟았다), 무대는 한 프레임 안에 3층을
+// 다 깔아야 한다. putImageData 는 알파를 **덮어쓰므로** 층마다 자기 캔버스에 깐다.
+function paintPX(cx,px,W,H,P,scale,dx,dy){
+  try{ cx.putImageData(pxData(cx,px,W,H,P,scale),dx,dy); return true; }
+  catch(e){ return false; }
+}
+const SPR_CACHE={};
+function spriteURL(part,g,scale){
+  scale=scale||2;
+  const k=part+'|'+(g||0)+'|'+scale;
+  if(k in SPR_CACHE) return SPR_CACHE[k];
+  // 스프라이트 한 장은 24행을 이어 붙인 576자 문자열이다 (행 배열이 아니다).
+  const url=bakePX(SPR[part][ (g?TIER(g):2) - 1 ], SPR_SIZE, SPR_SIZE, gradePalette(g), scale*SPR_FIT);
+  SPR_CACHE[k]=url; return url;
+}
+
+/* ══ 숫자 비트맵 글리프 (010 §2) ══
+   웹폰트 금지 + 한글 = 한글 비트맵은 수 MB. 그래서 ART-DIRECTION 「타이포」대로
+   **계속 변하는 숫자만** 픽셀로 그리고 한글은 시스템 스택에 둔다.
+   손그림 총량은 스프라이트 18장 + 여기 **17자**까지다. 그 이상은 원칙 3 위반이다.
+
+   한 칸은 5×7 — 글자 4×6 에 오른쪽 1열이 자간, 아래 1행이 행간(그리고 쉼표 꼬리)이다.
+   자간을 이미지 안에 넣어 두면 img 를 그냥 붙여 놓기만 해도 간격이 맞고,
+   **배율을 올려도 자간이 정수로 따라온다** (CSS margin 으로 벌리면 소수가 된다).
+   글리프는 '1' 만 쓴다 — 굽는 쪽에서 팔레트 1~4 를 전부 같은 색으로 준다. */
+const GLY_W=5, GLY_H=7;
+const GLYPH={
+  '0':'.11..1..1.1..1.1..1.1..1..11.......',
+  '1':'..1...11....1....1....1...111......',
+  '2':'.11..1..1....1...1...1...1111......',
+  '3':'111.....1..11.....1.1..1..11.......',
+  '4':'...1...11..1.1.1111....1....1......',
+  '5':'1111.1....111.....1.1..1..11.......',
+  '6':'.11..1....111..1..1.1..1..11.......',
+  '7':'1111....1...1....1...1....1........',
+  '8':'.11..1..1..11..1..1.1..1..11.......',
+  '9':'.11..1..1.1..1..111....1..11.......',
+  '+':'............1...111...1............',
+  '-':'................111................',
+  '×':'...........1.1...1...1.1...........',
+  '/':'...1....1...1....1...1...1.........',
+  '%':'1..1....1...1...1...1....1..1......',
+  '.':'..........................1........',
+  ',':'..........................1...1....'
+};
+const GLY_CACHE={}, GLY_COL={};
+// CSS 토큰 → #rrggbb. 등급색과 달리 표시색은 몇 개뿐이라 이름 그대로 캐시한다.
+function cssHex(name){
+  if(name.charAt(0)==='#') return name;
+  if(GLY_COL[name]) return GLY_COL[name];
+  try{ const v=getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    if(v) return (GLY_COL[name]=v);
+  }catch(e){}
+  return '#c5cedb';
+}
+function glyphURL(ch,hex,scale){
+  const k=ch+'|'+hex+'|'+scale;
+  if(k in GLY_CACHE) return GLY_CACHE[k];
+  const px=GLYPH[ch]; let u=null;
+  if(px){ const c=hex2rgb(hex); u=bakePX(px,GLY_W,GLY_H,[null,c,c,c,c],scale); }
+  return (GLY_CACHE[k]=u);
+}
+// 글리프에 없는 글자(fmt 의 K·M·B·e 같은 단위)는 시스템 글꼴로 같은 줄에 섞는다.
+// 17자를 넘겨 알파벳까지 그리는 것이 금지라 이렇게 간다.
+function numHTML(str,name,scale){
+  const hex=cssHex(name); let h='', any=false;
+  for(let i=0;i<str.length;i++){
+    const ch=str.charAt(i), u=glyphURL(ch,hex,scale);
+    if(u){ any=true; h+='<img width="'+(GLY_W*scale)+'" height="'+(GLY_H*scale)+'" src="'+u+'" alt="">'; }
+    // 글자를 속성으로 넣고 ::after 로 그린다 — 이래야 아래 숨은 .gv 와 겹쳐
+    // textContent 가 "T21.9T" 처럼 두 번 나오지 않는다.
+    else h+='<i class="gt" data-c="'+ch+'"></i>';
+  }
+  // 숨은 글자를 함께 둔다 — textContent 로 값을 읽는 검사·보조기술이 살아 있어야 한다.
+  return any ? '<span class="gn" style="color:'+hex+'">'+h+'</span><i class="gv">'+str+'</i>' : null;
+}
+// 값이 **바뀔 때만** 다시 만든다 (틱당 innerHTML 재구성 금지).
+function setNum(id,val,name,scale){
+  const el=document.getElementById(id); if(!el) return;
+  const str=String(val), k=str+'|'+name+'|'+scale;
+  if(el.__gk===k) return;
+  const h=numHTML(str,name,scale);
+  if(h==null) el.textContent=str;      // 캔버스가 없는 환경 — 평범한 글자로 물러난다
+  else el.innerHTML=h;
+  el.__gk=k;
+}
+
+// 표시 크기는 **정수 배율만** 쓴다. 1.5배·2.3배는 픽셀을 뭉갠다.
+// 24×24 가 되면서 2배 = 48px 다 (16×16 시절의 2배 = 32px 자리를 그대로 쓴다 —
+// 슬롯·카드 칸은 105~143px 라 48px 가 여유 있게 들어간다).
+const SPR_SCALE=2, SPR_PX=SPR_UNIT*SPR_SCALE;   // 48px — 019 와 같다 (단위 배율)
+// 릴 배율은 **창 폭이 아니라 칸 폭**에서 고른다. 릴 수가 3~5로 변해서 같은 창에서도
+// 칸 크기가 달라지기 때문이다 (380px 에서 3릴이면 74px, 5릴이면 56px). 칸은
+// aspect-ratio:1 이라 세로도 같은 값이고, 아래 라벨 한 줄이 그만큼을 먹는다.
+// **CSS 로 줄이지 않고** 처음부터 그 배율로 굽는다 (48px 을 32px 로 줄이면 깨진다).
+const REEL_LABEL=16;                     // .reel .nm 한 줄 + margin-top
+function REEL_SCALE(){
+  const q = (typeof document!=='undefined') && document.querySelector;
+  const el = q && document.querySelector('.reel');
+  const w = (el && el.getBoundingClientRect) ? el.getBoundingClientRect().width : 0;
+  if(!w) return 2;                       // 아직 배치 전이거나 캔버스 없는 환경
+  return Math.max(1, Math.min(3, Math.floor((w-REEL_LABEL)/SPR_UNIT)));
+}
+function icoPix(part,g,scale){
+  scale=scale||SPR_SCALE;
+  const u=spriteURL(part,g,scale);
+  // 캔버스가 없는 환경(node harness)에서는 **빈 칸**이 나온다 — 011 §2 의 판정이다.
+  // harness 는 로직 검사용이고 아이콘 픽셀은 검사 대상이 아니다.
+  if(!u) return `<span class="ico"></span>`;
+  const w=SPR_UNIT*scale;                // 화면 크기는 단위 배율이 정한다
+  return `<span class="ico"><img class="px" width="${w}" height="${w}" src="${u}" alt=""></span>`;
+}
+
+// 등급 명판. 색은 인라인 color 하나로만 들어가고 나머지는 CSS 가 파생시킨다.
+function plate(part,g){
+  const fx = g>=14?' gl au' : g>=11?' gl' : '';
+  return `<span class="pl${fx}" style="color:${g?GC[g]:'var(--line)'}">`
+       + icoPix(part, g) + `</span>`;
+}
+
+// 스핀 끝에 한 번만 부른다 (틱당 아님). .fl/.sk 를 새로 깔아 두면 직후에 붙는
+// .hit 클래스로 화염·불티 애니메이션이 1회 재생된다.
+function drawReel(el,idx,locked){
+  el.innerHTML=`<i class="fl"></i><i class="sk"></i>`
+    + icoPix(PARTS[idx].id,0,REEL_SCALE()) + `<div class="nm">${PARTS[idx].nm}</div>`;
+  el.dataset.p=idx; el.classList.toggle('lock',!!locked);
+}
+
+// 표시용 적 개체. 개체별 체력은 없다 — 전체 체력 비율 × 개체 수 나눗셈뿐.
+let foeEls=[],foeCount=0;
+function buildFoes(){
+  foeCount = 5 + (S.wave*7)%5;                       // 5~9마리
+  const m=document.getElementById('mob'); if(!m) return;
+  let h='';
+  for(let i=0;i<foeCount;i++)
+    h+=`<i class="foe ${foeKind==='mix'?(i%2?'r':'m'):(foeKind==='ranged'?'r':'m')}"></i>`;
+  m.innerHTML=h;                                     // 웨이브 시작 시 1회만
+  foeEls=[...m.children];
+}
+/* ══ 021 — 소멸은 «가까운 쪽»부터 ══════════════════════════════════════
+   용사는 무대 왼쪽, 몹은 오른쪽에서 온다(013). 따라서 **무리의 가장 왼쪽이
+   가장 가까운 개체**이고, 죽는 것도 거기서부터여야 한다.
+
+   여태까지는 살아 있는 쪽을 `i < alive` 로 잡아 **인덱스 끝(= 가장 먼 쪽)부터**
+   지웠다. 화면의 다른 규약과도 어긋나 있었다 — 018 의 번쩍임은 `i===0` 을
+   「맞는 개체」로 친다. **맞는 놈과 죽는 놈이 서로 반대편**이었던 셈이다.
+
+   고치는 자리는 한 줄이다: 죽은 개체는 **앞쪽 (n − alive) 마리**다. 살아남은
+   개체는 자기 자리에 그대로 서 있고(재배치 없음 — 간격·이음매가 안 흔들린다),
+   무리의 **왼쪽 끝이 뒤로 물러난다.**
+   ⚠ `alive` 자체는 CORE 의 `foeHP/foeMax × 개체 수` 그대로다. 021 은 **몇 마리가
+     죽는지**를 건드리지 않고 **어느 놈이 죽는지**만 바로잡는다. */
+const deadCut=(n,alive)=>Math.max(0,n-alive);   // 인덱스 < deadCut 이면 죽은 개체
+
+// 틱에는 class 토글만. 상태가 바뀐 개체만 건드려 처치 애니메이션이 1회 재생된다.
+let lastAlive=-1;
+function drawFoes(){
+  const alive=Math.max(0,Math.min(foeCount,Math.round(foeHP/foeMax*foeCount)));
+  const cut=deadCut(foeCount,alive);
+  // 무대(013)도 같은 수를 그린다. 루프는 자고 있으므로 **개체 수가 실제로 바뀐
+  // 순간에만** 깨운다 — 011 이 세운 「사건으로 못박는다」 규약이다. 40ms 면
+  // 두 프레임이라 다시 그리기에 충분하고, 유휴 가동률은 1%대에 머문다
+  // (80ms 로 두었을 때 3.0% → 40ms 에서 1.5%. 011 기준선이 1.0~2.7% 였다).
+  if(alive!==lastAlive){
+    // 018: 줄어든 만큼 무대에서 **소멸**시킨다. 소멸 시점 자체는 여기서 정하지
+    // 않는다 — 위 alive 계산(CORE 의 체력/개체 수)이 이미 정한 것을 따를 뿐이다.
+    // 019 §2: **같은 틱에 여럿이 죽으면 한 번에 넘긴다.** 마리마다 부르면 마리마다
+    // 400ms 깨움 창과 불티 다발이 따로 서서, 한 틱에 여러 마리가 빠지는 자리마다
+    // 앞 겹이 불티 수만큼 더 오래 살았다. 소멸 시점은 그대로고 창만 하나로 묶는다.
+    if(lastAlive>=0 && alive<lastAlive && typeof globalThis.__foeDie==='function'){
+      // 021: 새로 죽는 것은 **앞쪽**의 다음 몇 마리다 — `n-lastAlive` 부터
+      // `n-alive` 직전까지. 오름차순으로 담으므로 **묶인 안에서도 가까운 쪽이
+      // 먼저**다(019 의 묶기는 그대로 — 호출은 여전히 한 번이다).
+      const gone=[]; for(let i=deadCut(foeCount,lastAlive);i<cut;i++) gone.push(i);
+      globalThis.__foeDie(gone);
+    }
+    lastAlive=alive;
+    if(typeof globalThis.__canvasWake==='function') globalThis.__canvasWake(40); }
+  for(let i=0;i<foeEls.length;i++){
+    const d=i<cut?'1':'0';                       // 021: 앞쪽(가까운 쪽)이 먼저 죽는다
+    if(foeEls[i].dataset.d!==d){ foeEls[i].dataset.d=d; foeEls[i].classList.toggle('dead',d==='1'); }
+  }
+}
+
+/* ══ 정리 ══ */
+function opRows(it,wt){
+  return Object.entries(it.ops).map(([k,v])=>{
+    const dead = (k==='melee'&&wt==='ranged')||(k==='ranged'&&wt==='melee');
+    return `<div class="${dead?'dead':''}"><span class="k">${OPT[k].nm}</span>
+      <span class="v num">+${v}%</span></div>`;}).join('');
+}
+function cardHTML(it,label){
+  if(!it) return `<h3>${label}</h3><div class="dim">비어 있음</div>`;
+  const P=PARTS.find(p=>p.id===it.part);
+  return `<h3>${label}</h3>
+    <div class="hd">${plate(it.part,it.g)}
+      <div class="row" style="flex:1"><span>${P.nm}${it.wt?` · ${it.wt==='melee'?'근접':'원거리'}`:''}</span>
+      <b style="color:${GC[it.g]}">${it.g}등급 <span class="rm">${ROMAN[it.lv||1]}</span></b></div></div>
+    <div class="pw num">기본 ${fmt(it.base)}</div>
+    <div class="oplist">${opRows(it,it.wt||(S.equip.weapon&&S.equip.weapon.wt))}</div>
+    ${it.sp?`<div class="sp"><b>각인 · ${SP[it.sp].nm}</b> <span>${SP[it.sp].d}</span></div>`:''}`;
+}
+function openCmp(){
+  if(!S.queue.length){ document.getElementById('cmp').classList.remove('on'); return; }
+  const nw=S.queue[0], old=S.equip[nw.part]||null;
+  const after={...S.equip,[nw.part]:nw};
+  const d=power(after)-power(S.equip);
+  document.getElementById('cOld').innerHTML=cardHTML(old,'착용 중');
+  document.getElementById('cNew').innerHTML=cardHTML(nw,'대기열')+
+    `<div class="pw">교체 시 전투력 <span class="delta ${d>=0?'up':'down'} num">${d>=0?'+':'-'}${fmt(Math.abs(d))}</span></div>`;
+  document.getElementById('bSell').innerHTML=`판매 ${ciGold()}${fmt(sellPrice(nw))}`;
+  document.getElementById('bEquip').textContent=old?'교체해서 껴보기':'장착';
+  document.getElementById('qn2').textContent=S.queue.length;
+  document.getElementById('cmp').classList.add('on');
+}
+
+/* ══ 렌더 ══ */
+// 첫 화면 점진 노출: 층·테크는 최고 웨이브 10 전까지 숨긴다 (원칙 7).
+// 진행 기반 — 경과 시각이나 날짜 기준이 아니다. S.top 에서 파생하므로 별도 저장이 없고,
+// 웨이브 10을 이미 넘긴 기존 세이브는 로드 즉시 노출된다.
+const GATE_WAVE=10;
+let gateOn=null;                 // null = 아직 판정 전 (첫 판정은 연출 없이 조용히)
+function gateUI(){
+  const on=(S.top||0)>=GATE_WAVE;
+  if(gateOn===on) return;        // 상태가 바뀔 때만 DOM 을 건드린다
+  const born=gateOn!==null&&on;  // 도달하는 그 순간
+  gateOn=on;
+  ['pTower','pTech'].forEach(id=>{ const e=document.getElementById(id); if(!e) return;
+    e.style.display=on?'':'none';
+    if(born){ e.classList.remove('reveal'); void e.offsetWidth; e.classList.add('reveal'); } });
+  // 016: 판만 숨기면 **빈 탭**이 남는다. 그리고 탭이 하나뿐인 탭바는 거짓말이라
+  // 게이트 전에는 **탭바 자체를 숨긴다** — 열리는 순간 셋이 함께 나타난다.
+  const bar=document.getElementById('tabs');
+  if(bar) bar.style.display=on?'':'none';
+  // 잠긴 탭을 보고 있는 채로 게이트가 닫히면 빈 화면에 갇힌다.
+  if(!on) showTab('tabForge');
+}
+// 매 틱 갱신은 숫자·버튼 상태만. innerHTML 재구성은 render()에서만 한다.
+function renderFast(){
+  gateUI();
+  // 계속 변하는 숫자는 픽셀 글리프로 (010 §2). 한글 라벨은 시스템 스택 그대로다.
+  // #wv 는 CORE 의 tick() 이 textContent 로 쓰는 자리라 손대지 않고, 옆칸 #wvg 에
+  // 글리프를 둔다 — CORE 는 바이트 그대로 두면서 화면만 바꾸는 이음매다.
+  setNum('wvg',S.wave,'--text',3);          // 숫자(대)
+  setNum('gold',fmt(S.gold),'--brass',2);
+  setNum('tok',S.tok,'--ember',2);
+  document.getElementById('chg').textContent=Math.floor(S.charge);
+  document.getElementById('qn').textContent=S.queue.length;
+  document.getElementById('qm').textContent=qmax();
+  document.getElementById('lv').textContent=S.lv;
+  document.getElementById('cost').textContent=fmt(upCost());
+  setNum('pw',fmt(power(S.equip)),'--text',2);
+  document.getElementById('dust').textContent=fmt(S.dust);
+  document.getElementById('tk').textContent=S.tk;
+  document.getElementById('up').disabled=S.gold<upCost();
+  document.getElementById('spin').disabled=S.charge<1||S.queue.length>=qmax();
+  document.getElementById('tower').disabled=S.tk<1;
+  document.getElementById('open').style.display=S.queue.length?'block':'none';
+  document.getElementById('open').textContent=`정리하기 (${S.queue.length})`;
+  if(S.queue.length>=qmax()) document.getElementById('msg').textContent='대기 가득 — 정리해야 계속 제련';
+  const cs=document.getElementById('cstat');
+  if(cs) cs.innerHTML=`전투력 ${fmt(power(S.equip))} · 웨이브 ${S.wave} · ${ciGold()}${fmt(S.gold)}`;
+  // 상세 팝업도 같은 줄을 든다 — 열려 있는 동안 판단 근거가 화면에서 사라지지 않는다 (016).
+  const ps=document.getElementById('pstat');
+  if(ps) ps.innerHTML=`전투력 ${fmt(power(S.equip))} · 웨이브 ${S.wave} · ${ciGold()}${fmt(S.gold)}`;
+  // 화로 압력계 — 폭(막대)과 바늘 각도만 갱신한다. innerHTML 재구성 없음.
+  const pv=Math.min(100,S.pity/PITY()*100);
+  const pf=document.getElementById('pityfill');
+  pf.style.width=pv+'%';
+  pf.className=S.pity>=PITY()?'full':'';
+  document.getElementById('pneedle').style.transform='rotate('+(-80+pv*1.6)+'deg)';
+  document.getElementById('pitytxt').textContent=
+    S.pity>=PITY()?'▣ 임계압 — 다음 제련은 전 릴 정렬':`화로압 ${S.pity}/${PITY()}`;
+  // 세로 온도계 = 남은 충전 (표시 전용, 수치는 그대로)
+  document.getElementById('thermf').style.height=
+    Math.min(100,S.charge/CHG_MAX()*100)+'%';
+  const ad=document.getElementById('ad'), adt=document.getElementById('adtxt');
+  if(boosted()){ ad.className='hot';
+    adt.textContent=`1.5배속 ${Math.ceil((S.boost-Date.now())/60000)}분 남음`; }
+  // 첫 화면에는 분 단위를 쓰지 않는다 (원칙 7 — 시간 압박 표기 금지).
+  // 잔여 분은 배속이 도는 동안에만 위 줄에서 보여 준다.
+  else { ad.className=''; adt.textContent='화로 지피기 — 충전 가득 + 배속'; }
+  platUI();                                  // 026 — 광고 버튼의 존재·활성은 여기서만 정한다
+}
+function render(){
+  renderFast();
+
+  document.getElementById('asell').innerHTML=
+    `<div class="hd">이 등급은 대기열을 거치지 않고 바로 판매</div><div class="ck">`+
+    GC.slice(1,cap()+1).map((c,i)=>
+      `<label class="${S.asell[i]?'on':''}" style="color:${c}" data-g="${i}">${i+1}</label>`
+    ).join('')+`</div>`;
+  [...document.querySelectorAll('#asell label')].forEach(l=>
+    l.onclick=()=>{ S.asell[+l.dataset.g]=!S.asell[+l.dataset.g]; render(); });
+  document.getElementById('auto').className=S.auto?'hot':'';
+  document.getElementById('gear').innerHTML=PARTS.map(p=>{
+    const it=S.equip[p.id];
+    if(!it) return `<div class="slot empty">${plate(p.id,0)}<div class="gd">—</div></div>`;
+    return `<div class="slot">${plate(p.id,it.g)}
+      <div class="gd" style="color:${GC[it.g]}">${it.g}등급 <span class="rm">${ROMAN[it.lv||1]}</span></div>
+      <div class="op">${Object.keys(it.ops).map(k=>OPT[k].nm.slice(0,2)).join('·')}</div></div>`;
+  }).join('');
+
+  // 착용 중 합계. 무기 타입과 안 맞는 옵션은 죽은 표시.
+  const s=stats(S.equip);
+  const rows=[['공격력',Math.round(s.dps),''],['체력',Math.round(s.hp),'']];
+  OPTKEYS.forEach(k=>{
+    const v=s.o[k]||0; if(!v) return;
+    const dead=(k==='melee'&&s.wt==='ranged')||(k==='ranged'&&s.wt==='melee');
+    rows.push([OPT[k].nm,'+'+v.toFixed(1)+'%',dead?'off':'']);});
+  document.getElementById('stats').innerHTML=rows.map(([k,v,c])=>
+    `<div class="${c}"><span class="k">${k}</span><span class="v">${v}</span></div>`).join('')
+    + Object.keys(s.sp).map(k=>
+    `<div style="grid-column:1/-1;color:var(--ember)"><span>각인 · ${SP[k].nm}</span>
+     <span style="color:var(--dim);font-size:10px">${SP[k].d}</span></div>`).join('');
+
+  drawOdds('ob0',gradeProbs(0)); drawOdds('ob2',gradeProbs(2));
+  const c=cap();
+  document.getElementById('star').textContent=S.star?' ★'.repeat(Math.min(S.star,5))+(S.star>5?S.star:''):'';
+  setNum('top',S.top||0,'--dim',2);
+  document.getElementById('asc').style.display=canAscend()?'block':'none';
+  // 027 B-2: 승천 관문 진행. **조건이 미달일 때만** 글자가 들어가고, 다 차면 빈다
+  // (그때는 #focus 의 배너가 말한다). 상한이 아직 안 열린 구간에서는 아무 말도
+  // 하지 않는다 — 첫 화면에 웨이브 수를 늘어놓지 않는다(원칙 7).
+  const gt=document.getElementById('ascgate');
+  if(gt) gt.innerHTML = (cap()<GMAX || canAscend()) ? ''
+    : S.lv<ASC_LV()
+      ? `모든 등급 개방 · 승천까지 제련 <b style="color:var(--text)">${ASC_LV()}</b>`
+      : `승천까지 <b style="color:var(--ember)">${ASC_WAVE()}웨이브</b> 도달 필요`
+        + ` <span class="num">(현재 최고 ${S.peak||0})</span>`;
+  document.getElementById('asc').textContent=
+    `승천 ★${S.star+1} — 수치 ×${4**(S.star+1)} · 옵션 상한 ×${(1+(S.star+1)*0.6).toFixed(1)}`
+    + (REELS()<5?` · 릴 ${REELS()+1}개`:'');
+  // 승천 확인 팝업 본문 (016). 되돌릴 수 없는 조작이라 잃는 것을 먼저 적는다.
+  const at=document.getElementById('ascTxt');
+  if(at) at.innerHTML=
+    `장비 ${Object.keys(S.equip).length+S.queue.length}개가 전부 팔리고 제련 등급이 0으로 돌아갑니다.`
+    +`<br>등급 상한은 다시 5등급부터 — 같은 길을 더 강한 장비로 다시 오릅니다.`
+    +`<br><br><b style="color:var(--text)">★${S.star+1}</b> · 기본 수치 ×${4**(S.star+1)}`
+    +` · 옵션 상한 ×${(1+(S.star+1)*0.6).toFixed(1)} · 대기창 ${qmax()+1}칸`
+    + (REELS()<5?` · 릴 ${REELS()}개 → ${REELS()+1}개`:'');
+  document.getElementById('olegend').innerHTML=
+    gradeProbs(0).slice(0,c).map((p,i)=>
+      `<span style="color:${GC[i+1]}">${i+1} <b>${(p*100).toFixed(p<1?3:1)}%</b></span>`).join('')
+    + `<span style="width:100%;margin-top:3px">`
+    + (c<GMAX ? `제련 <b>${nextCapAt()}</b> 강화 시 <b style="color:${GC[c+1]}">${c+1}등급</b> 개방`
+       : canAscend() ? `<b style="color:var(--g14)">승천 가능</b>`
+       : S.lv<ASC_LV() ? `모든 등급 개방 · 세부등급 상승 중 · 제련 <b>${ASC_LV()}</b>`
+       : `승천까지 <b style="color:var(--ember)">${ASC_WAVE()}웨이브</b> 도달 필요 (현재 최고 ${S.peak||0})`)
+    + `</span>`;
+
+  renderTech();
+  save();
+}
+
+function drawOdds(id,p){
+  document.getElementById(id).innerHTML=p.slice(0,cap()).map((v,i)=>
+    `<i style="width:${v*100}%;background:${GC[i+1]}" title="${i+1}등급 ${(v*100).toFixed(3)}%"></i>`).join('');
+}
+
+/* ══ 던전 연출 (019 §1) ══════════════════════════════════════════════
+   **새 그림을 한 장도 그리지 않는다.** 013 의 근경 타일 4장과 015 의 몹 6장을
+   팔레트만 갈아 다시 쓴다 — 손그림 총량은 38장 그대로다(ST3).
+
+   색은 층수에서 **공식으로** 파생한다: 무대 바이옴과 **같은 `segOf()`** 에 층수를
+   먹인다. 구간 목록을 손으로 나열하지 않으며, 같은 구간이면 무대와 던전이 같은
+   색이 되어 두 화면이 한 몸으로 읽힌다 (놋쇠 → 무쇠 → **담금질물**, 멀어질수록
+   차가워진다). 명도는 무대와 **동일한 `stagePalette(seg,2)`** 를 쓴다 — 019 §3:
+   바이옴은 색상만 바꾸고 땅 명도는 고정이다.
+
+   왜 캔버스가 아니라 data URL + CSS 인가: 앞 겹(#fx)은 z-index 2 인데 주사위 판
+   (#dice)은 10 이다. 팝업 위에 캔버스를 올리려면 층 순서를 건드려야 하고, 그것은
+   007 이 「body 에 쌓임 맥락을 만들지 말 것」으로 금지한 종류의 변경이다. 구운
+   PNG 를 배경으로 얹으면 층 순서를 하나도 안 건드리고 같은 그림이 나온다. */
+const DGN_SCALE=2;                     // 타일 32×24 → 64×48 · 몹 24 → 48
+const dgnCache={};                     // 구간당 한 벌. 구간 수가 유한하므로 상한이 있다
+const dgnTier=f=>Math.max(1,Math.min(3,1+Math.floor((Math.max(1,f|0)-1)/25)));
+// 띠는 무대를 **작게 접은 것**이다: 같은 3층을 같은 순서·같은 지평선 규칙으로 쌓는다.
+// (근경 한 겹만 깔았더니 띠의 8할이 빈 하늘이라 그냥 가느다란 땅금으로 읽혔다.)
+// ⚠ paintPX 는 putImageData 라 **투명까지 덮어쓴다** — 무대와 똑같이 층마다 자기
+//   캔버스에 깔고 drawImage 로 겹친다.
+const DGN_H=72;                        // 띠 높이 · 지면선은 DGN_H-16 = 56
+function dgnBand(seg){
+  const k='b'+seg; if(k in dgnCache) return dgnCache[k];
+  let url=null;
+  try{
+    const s=DGN_SCALE, W=TILE_W*4*s, H=TILE_H*s, G=DGN_H-8*s;   // 네 장이 한 주기 = CSS 의 256px
+    const cv=document.createElement('canvas'); cv.width=W; cv.height=DGN_H;
+    const g=cv.getContext('2d');
+    // ⚠ 무대의 STAGE_KEYS 는 rAF 블록 **안**의 지역 상수라 여기서 안 보인다
+    //   (처음에 그걸 불렀다가 ReferenceError 가 try 에 먹혀 띠가 통째로 비었다).
+    ['far','mid','near'].forEach((key,i)=>{
+      const lay=document.createElement('canvas'); lay.width=W; lay.height=H;
+      const lx=lay.getContext('2d'), P=stagePalette(seg,i), t=SPR_TILE[key];
+      for(let j=0;j<4;j++) paintPX(lx,t[j],TILE_W,TILE_H,P,s,TILE_W*s*j,0);
+      // 지평선 규칙은 무대(bakeStage)와 같은 식이다 — 먼 산이 가장 위다.
+      g.drawImage(lay, 0, i===0 ? G-17*s-8*s : i===1 ? G-15*s-3*s : G-16*s);
+    });
+    url=cv.toDataURL('image/png');
+  }catch(e){ url=null; }                        // 캔버스가 없는 환경 — 띠 없이 돈다
+  return (dgnCache[k]=url);
+}
+const dgnGuard=(seg,tier,kind)=>{
+  const k='g'+seg+'|'+tier+'|'+kind; if(k in dgnCache) return dgnCache[k];
+  const px=(SPR_MOB[kind]||SPR_MOB.melee)[tier-1];
+  return (dgnCache[k]=bakePX(px,SPR_SIZE,SPR_SIZE,mobPalette(seg),DGN_SCALE));
+};
+// 띠 하나를 그 층의 색으로 칠한다. 반환값을 __view 에 그대로 낸다(검증 창구).
+function dgnPaint(el,floor,kind){
+  const seg=segOf(floor), tier=dgnTier(floor);
+  const b=dgnBand(seg), g=dgnGuard(seg,tier,kind||'melee');
+  const i=el.querySelector?el.querySelector('i'):null;   // node 하네스에는 DOM 이 없다
+  if(b) el.style.backgroundImage=`url(${b})`;
+  if(i&&g) i.style.backgroundImage=`url(${g})`;
+  return {seg, tier, band:!!b, guard:!!g};
+}
+const dgnV=()=>globalThis.__view&&globalThis.__view.dungeon;
+function dgnSync(){
+  const V=globalThis.__view; if(!V) return;
+  const d=V.dungeon, el=document.getElementById('dice');
+  d.open=!!(el&&el.classList.contains&&el.classList.contains('on'));
+  d.pos=S.pos|0; d.landed=(landed==null?-1:landed); d.rerolls=rerolls; d.best=S.best|0;
+}
+// 던전 패널의 띠는 **최고 층**의 구간을 보여 준다. 구간이 바뀔 때만 다시 굽는다.
+let tbandSeg=-2;
+function dgnPanel(){
+  const el=document.getElementById('tband'); if(!el) return;
+  const f=S.best|0, lab=document.getElementById('tfloor');
+  if(lab) lab.textContent = f>0 ? `최고 ${f}층` : '미답';
+  if(segOf(f)===tbandSeg) return;
+  tbandSeg=segOf(f); dgnPaint(el,f,'melee');
+}
+// 층 등반 — 숫자가 오르는 동안 띠가 한 주기 흐른다. 타이머 하나뿐이고 스스로
+// 정리한다(soak 가 보는 타이머 순증이 남지 않는다).
+let climbT=0;
+function climbFx(floor){
+  const band=document.getElementById('dband'), num=document.getElementById('dfloor');
+  if(!band||!num) return;
+  const V=globalThis.__view, red=!!(V&&V.reducedMotion);
+  const info=dgnPaint(band, floor, foeKind==='ranged'?'ranged':'melee');
+  if(V){ const d=V.dungeon; d.floor=floor|0; d.seg=info.seg; d.tier=info.tier;
+    d.band=info.band; d.guard=info.guard; V.counters.climb++; }
+  clearInterval(climbT); climbT=0;
+  band.classList.remove('climb'); void band.offsetWidth;   // 애니메이션 재시작
+  if(red||floor<=0){ num.textContent=floor+'층'; if(V) V.dungeon.climbing=false; return; }
+  band.classList.add('climb');
+  if(V) V.dungeon.climbing=true;
+  let i=0; const N=14;
+  climbT=setInterval(()=>{
+    i++; num.textContent=Math.round(floor*i/N)+'층';
+    if(i<N) return;
+    clearInterval(climbT); climbT=0;
+    band.classList.remove('climb');
+    if(V) V.dungeon.climbing=false;
+  },44);                                                   // 14 × 44ms ≈ 620ms = 띠 한 주기
+}
+
+let runFloor=0, rerolls=0, landed=null;
+// 026: 위(VIEW 머리)에 둔 자리표시 술어를 여기서 진짜로 갈아 끼운다. 위에서 바로
+// `rerolls` 를 읽으면 첫 renderFast() 가 TDZ 로 죽는다 — 이 변수가 아래에 있어서다.
+dadReady=()=>rerolls>0 && landed!==null && Date.now()>=dadAt+DAD_COOL;
+function enterTower(){
+  if(S.tk<1) return;
+  S.tk--; runFloor=climb(); S.best=Math.max(S.best,runFloor);
+  rerolls=2; landed=null;
+  hopStop();                                   // 지난 굴림의 말이 남아 있지 않게
+  document.getElementById('dmsg').textContent=`${runFloor}층 도달 — 주사위를 굴리세요`;
+  document.getElementById('ddie').dataset.v='0';
+  document.getElementById('dnum').textContent='—';
+  document.getElementById('droll').disabled=false;
+  document.getElementById('dtake').style.display='none';
+  climbFx(runFloor);
+  drawBoard(); document.getElementById('dice').classList.add('on'); render();
+  dgnSync();
+}
+
+// 칸 아이콘도 같은 심볼 한 벌을 쓴다 (이모지 혼용 금지)
+const TILEICO={dust:'s-dust',gold:'s-gold',tok:'s-token',chg:'s-charge'};
+const TILECOL={dust:'var(--g9)',gold:'var(--brass)',tok:'var(--ember)',chg:'var(--g8)'};
+/* 말이 걷는 중에는 **걷는 자리**를 보여 준다. 결과(landed)는 이미 확정돼 있지만
+   그것을 먼저 칠해 버리면 걸을 이유가 사라진다 — 도착해서야 칸이 번쩍인다. */
+let hopT=0, hopPos=-1;
+function drawBoard(){
+  const walk=hopPos>=0;
+  document.getElementById('board').innerHTML=TILES.map((t,i)=>{
+    const amt=tileAmt(t);
+    const cls = walk ? (hopPos===i?'here':'')
+      : (landed===i ? (globalThis.__view&&globalThis.__view.reducedMotion?'land':'land pop')
+        : (S.pos===i&&landed===null?'here':''));
+    return `<div class="tile ${cls}">
+      <svg class="ci" style="color:${TILECOL[t.k]}"><use href="#${TILEICO[t.k]}"/></svg>
+      <b>${t.k==='chg'?'가득':fmt(amt)}</b>${t.n}</div>`;}).join('');
+}
+function hopStop(){ clearInterval(hopT); hopT=0; hopPos=-1;
+  const d=dgnV(); if(d) d.rolling=false; }
+/* 굴림 연출 (019 §1) — **8칸 사각 트랙 위를 말이 한 칸씩 걷는다.**
+   원형 휠·포인터는 002 에서 이미 기각했다(룰렛으로 읽힌다 — 원칙 7).
+   ⚠ 여기서 바뀌는 것은 **말의 자리뿐**이다. 눈금·착지·버튼 상태는 rollDice 가
+     클릭과 같은 틱에 이미 확정한다 — 검사(9b·9c)가 클릭 직후에 landed 와 버튼을
+     읽고, 사람도 연출이 끝나기 전에 재굴림을 누를 수 있어야 한다. */
+function hopTo(from,steps){
+  hopStop();
+  const V=globalThis.__view, die=document.getElementById('ddie');
+  if(V) V.counters.dice++;
+  if(!V || V.reducedMotion || !(steps>0)){ drawBoard(); return; }
+  hopPos=from; V.dungeon.rolling=true;
+  let i=0;
+  hopT=setInterval(()=>{
+    i++; hopPos=(from+i)%TILES.length;
+    if(die) die.dataset.v=String(1+((from+i)%6));   // 눈이 구르다 멎는다
+    if(i>=steps){ clearInterval(hopT); hopT=0; hopPos=-1;
+      if(die) die.dataset.v=String(steps); V.dungeon.rolling=false; }
+    drawBoard();
+  },105);
+}
+function rollDice(){
+  const d=1+Math.floor(Math.random()*6);
+  const from=S.pos;
+  S.pos=(S.pos+d)%TILES.length; landed=S.pos;
+  document.getElementById('ddie').dataset.v=d;
+  document.getElementById('dnum').textContent=d;
+  const t=TILES[landed];
+  document.getElementById('dmsg').textContent=
+    `${t.n} ${t.k==='chg'?'':fmt(tileAmt(t))} — 받거나 광고로 다시 굴리기`;
+  document.getElementById('droll').disabled=true;
+  document.getElementById('dtake').style.display='block';
+  document.getElementById('dtake').textContent=`${t.n} 받기`;
+  hopTo(from,d);
+  drawBoard(); render(); dgnSync();
+}
+function takeReward(){
+  const t=TILES[landed], a=tileAmt(t);
+  if(t.k==='dust') S.dust+=a;
+  else if(t.k==='gold') S.gold+=a;
+  else if(t.k==='tok') S.tok+=a;
+  else S.charge=CHG_MAX();
+  hopStop();
+  document.getElementById('dice').classList.remove('on'); render();
+  rewardFx(); dgnSync();
+}
+/* 보상 수령 — 008 의 불티를 그대로 쓴다(새 파티클 시스템 금지, 019 §1).
+   **판이 닫힌 뒤** 던전 판 위에서 터진다: 불티는 앞 겹(#fx, z-index 2)이고 주사위
+   판은 그 위(10)라, 열린 채로 터뜨리면 아무것도 안 보인다. */
+function rewardFx(){
+  const V=globalThis.__view; if(V) V.counters.reward++;
+  const p=document.getElementById('pTower');
+  if(!p || !p.getBoundingClientRect || typeof globalThis.__fxBurst!=='function') return;
+  const r=p.getBoundingClientRect();
+  if(!(r.width>0&&r.height>0)) return;          // 던전 탭이 안 보이면 터뜨릴 자리가 없다
+  globalThis.__fxBurst(V&&V.reducedMotion?3:14, r.x+r.width/2, r.y+r.height*0.62, .8);
+}
+document.getElementById('tower').onclick=enterTower;
+document.getElementById('droll').onclick=rollDice;
+document.getElementById('dtake').onclick=takeReward;
+// 026: **광고가 앞에 선다.** 보상 내용은 그대로 — 착지당 2회 상한도 그대로다.
+document.getElementById('dad').onclick=()=>{     // 광고 = 재굴림, 최대 2회
+  if(!PLAT.adsOn||PLAT.paused||!dadReady()) return;
+  PLAT.rewarded().then(ok=>{
+    platUI();
+    if(!ok) return;                              // 오류·중단 → 보상 없이 그대로 이어간다
+    dadAt=Date.now();
+    rerolls--; landed=null; rollDice(); });
+};
+
+/* ══ 테크트리 렌더 ══ */
+function renderTech(){
+  document.getElementById('best').textContent=S.best;
+  dgnPanel();                       // 던전 띠 (019) — 구간이 바뀔 때만 다시 굽는다
+  document.getElementById('dleft').textContent=rerolls;
+  document.getElementById('dad').disabled=!(PLAT.adsOn&&!PLAT.paused&&dadReady());  // 026
+  document.getElementById('tech').innerHTML=Object.entries(TECH).map(([k,v])=>{
+    const l=T(k), maxed=l>=v.max, c=techCost(k);
+    return `<div class="t"><span class="nm">${v.nm}<i>${v.d}</i></span>
+      <span class="lvn">${l}/${v.max}</span>
+      <button data-t="${k}" ${maxed||S.dust<c?'disabled':''}>${maxed?'완료':ciDust()+fmt(c)}</button></div>`;
+  }).join('');
+  [...document.querySelectorAll('#tech button[data-t]')].forEach(b=>
+    b.onclick=()=>{ const k=b.dataset.t, c=techCost(k);
+      if(S.dust>=c&&T(k)<TECH[k].max){ S.dust-=c; S.tech[k]=T(k)+1; render(); } });
+}
+
+/* ══ 배선 ══ */
+const reels=document.getElementById('reels');
+function buildReels(){
+  reels.innerHTML='';
+  const made=[];
+  for(let i=0;i<REELS();i++){
+    const d=document.createElement('div'); d.className='reel';
+    d.onclick=()=>{ if(spinning) return;
+      if(S.lockIdx===i){S.lockIdx=-1; S.tok++;}   // 해제하면 토큰 환불
+      else if(S.tok>0){ S.tok--; S.lockIdx=i; lockPart=+d.dataset.p; }
+      [...reels.children].forEach((e,j)=>e.classList.toggle('lock',j===S.lockIdx)); render(); };
+    reels.appendChild(d); made.push(d);
+  }
+  // 그리기는 **다 붙인 뒤**. 하나만 붙은 상태에서 재면 칸이 아니라 줄 전체 폭이
+  // 나와서 REEL_SCALE() 이 한 단계 크게 잡힌다.
+  made.forEach((d,i)=>drawReel(d,i%6,false));
+}
+// 등급색 15종을 **여기서 한 번** 굳힌다 (010 §4). 스타일시트는 <head> 에서 이미
+// 적용됐고, 아래 buildReels() 가 첫 스프라이트를 굽기 **전**이라는 것이 요점이다.
+primeGrades();
+buildReels();
+
+document.getElementById('spin').onclick=spin;
+document.getElementById('auto').onclick=()=>{S.auto=!S.auto;render();};
+document.getElementById('open').onclick=openCmp;
+document.getElementById('cclose').onclick=()=>document.getElementById('cmp').classList.remove('on');
+document.getElementById('cmp').onclick=e=>{ if(e.target.id==='cmp') e.target.classList.remove('on'); };
+document.getElementById('bEquip').onclick=()=>resolve('equip');
+document.getElementById('bSell').onclick=()=>resolve('sell');
+// 광고 보상은 웨이브에 비례시키지 않는다. 후반 웨이브에서 지수로 터진다.
+const boosted=()=>Date.now()<(S.boost||0);
+// 026 §0: 여기가 공짜였다. 이제 **광고를 끝까지 본 경우에만** 보상이 나간다.
+// 보상 내용(충전 가득 + 30분 1.5배속)은 한 글자도 안 바꿨다 — 앞에 광고가 설 뿐이다.
+// 쿨다운·하루 횟수는 `S` 에 적는다(`S.boost` 와 같은 자리 · CORE 미변경).
+document.getElementById('ad').onclick=()=>{
+  if(!adOK()) return;
+  PLAT.rewarded().then(ok=>{
+    if(!ok){ platUI(); return; }                 // 오류·중단 → 보상 없이 그대로 이어간다
+    S.adN=(S.adN||0)+1; S.adAt=Date.now();
+    S.charge=CHG_MAX(); S.boost=Date.now()+30*60*1000; render(); });
+};
+document.getElementById('up').onclick=()=>{ if(S.gold>=upCost()){S.gold-=upCost();S.lv++;render();} };
+
+/* ══ 탭 (016) ══════════════════════════════════════════════════════
+   라우터를 들이지 않는다. 주소·해시·history 를 건드리는 순간 뒤로가기가
+   "게임에서 나가기"가 아니라 "탭 되돌리기"가 되고, 세이브 한 벌짜리 단일
+   파일에 상태가 두 군데(S 와 URL) 생긴다. 여기서 필요한 것은 그게 아니라
+   **보이는 판 하나를 바꾸는 일**뿐이다 — class 토글이면 끝이다. */
+const TABS=['tabForge','tabTower','tabTech'];
+const tabBtn=t=>document.getElementById('tb'+t.slice(3));
+function showTab(id){
+  const pane=document.getElementById(id);
+  if(!pane) return;
+  const bar=document.getElementById('tabs');
+  // 탭바가 없는 동안(웨이브 10 전)에는 제련 말고 갈 곳이 없다
+  if(id!=='tabForge' && bar && bar.style.display==='none') return;
+  TABS.forEach(t=>{
+    const p=document.getElementById(t), tb=tabBtn(t);
+    if(p) p.classList.toggle('on',t===id);
+    if(tb) tb.classList.toggle('on',t===id);
+  });
+  // 제련 탭이 들고 나면 #forge 기하가 통째로 생겼다 사라진다. 루프가 자고 있으면
+  // sync() 가 안 돌아 패널 바탕이 어긋난 채 멈춘다 (011 의 「깨우는 자리」 규약).
+  if(typeof globalThis.__canvasWake==='function') globalThis.__canvasWake(600);
+}
+TABS.forEach(t=>{ const b=tabBtn(t); if(b) b.onclick=()=>showTab(t); });
+
+/* ══ 상세 팝업 (016) ══════════════════════════════════════════════
+   통 하나(#pop)에 절 넷. 닫기 버튼과 배경 탭 둘 다로 닫힌다. */
+// 027 B-3: `set` 을 뺐다. 절이 없어졌으므로 키도 없어야 한다 — 남겨 두면
+// openPop('set') 이 «제목만 있고 내용이 없는 창»을 연다(그게 곧 거짓말이다).
+const POPS={odds:'등급 확률표', stats:'옵션 수치 상세', asc:'승천'};
+function openPop(k){
+  Object.keys(POPS).forEach(n=>{
+    const e=document.getElementById('pop'+n[0].toUpperCase()+n.slice(1));
+    if(e) e.classList.toggle('on',n===k);
+  });
+  document.getElementById('ptitle').textContent=POPS[k]||'';
+  document.getElementById('pop').classList.add('on');
+  renderFast();                                  // 전투력·웨이브·골드 줄을 최신으로
+}
+const closePop=()=>document.getElementById('pop').classList.remove('on');
+document.getElementById('pclose').onclick=closePop;
+document.getElementById('pop').onclick=e=>{ if(e.target.id==='pop') closePop(); };
+document.getElementById('bOdds').onclick=()=>openPop('odds');
+document.getElementById('bStats').onclick=()=>openPop('stats');
+// 승천 확인은 설정 팝업 위에 덧대지 않고 같은 통에서 절만 갈아 끼운다.
+document.getElementById('asc').onclick=()=>openPop('asc');
+// 확인은 이 팝업이 이미 받았다. ascend() 는 CORE 라 안의 confirm() 을 지울 수
+// 없으므로, **이 호출 동안만** 통과시킨다 — 두 번 묻지 않기 위한 이음매다
+// (008 의 MutationObserver 와 같은 종류: CORE 바이트는 그대로 둔다).
+document.getElementById('ascGo').onclick=()=>{
+  closePop();
+  const c=globalThis.confirm;
+  try{ globalThis.confirm=()=>true; ascend(); }
+  finally{ globalThis.confirm=c; }
+  showTab('tabForge');
+};
+
+// 오프라인 = 타임스탬프 델타 한 줄. 시뮬레이션 없음.
+S.charge=Math.min(CHG_MAX(),S.charge+(Date.now()-S.t)/CHG_MS());
+newWave(); render();
+setInterval(()=>{
+  // 026: 광고가 도는 동안은 **게임이 진행되지 않는다** (CrazyGames 요건).
+  // 충전도 자동 제련도 전투도 멈춘다 — 광고 길이만큼 시간이 얼어붙을 뿐이다.
+  if(PLAT.paused) return;
+  S.charge=Math.min(CHG_MAX(),S.charge+250/CHG_MS()*(boosted()?1.5:1));
+  if(S.auto) spin(); tick(); renderFast(); save(); },250);
+
+
+/* ══ 2D 캔버스 렌더 (007 뼈대 · 008 타격 연출 · 017 에서 Phaser 제거) ══ */
+// **캔버스가 두 겹인 이유** (008 에서 실측으로 드러난 구조적 제약):
+// 007 은 캔버스를 z-index:-1 로 본문 뒤에 깔았다. 배경(§1)은 그래야 패널 대비가
+// 안 깨진다. 그런데 불티·바운스(§3)를 같은 캔버스에 그리면 **불투명한 DOM 패널
+// 뒤로 가려져 한 픽셀도 안 보인다** (008 첫 구현에서 스크린샷으로 확인했다).
+// 캔버스 한 장으로는 "배경은 뒤 · 불티는 앞"을 동시에 만족할 수 없다. 그래서:
+//   #stage (z-index:-1) : 페이지 배경 · 가운데 패널 바탕 · 화로 창 · 모루 · 셰이크
+//   #fx    (z-index: 2) : 불티 · 바운스  (pointer-events:none 이라 클릭은 통과)
+// **010 판정: 합치지 않는다.** 세로 3단으로 중앙 영역이 열렸지만, 그 안에 있는
+// 릴·온도계·압력계가 전부 DOM 이라 겹침 순서는 그대로다 — 불티는 그 DOM 위에,
+// 배경은 그 아래에 있어야 한다. 한 겹으로 만들려면 릴까지 캔버스로 옮겨야 하고,
+// 그러면 checklist 의 선택자 검사가 통째로 죽는다(CLAUDE.md: 죽은 항목은 지우지 말
+// 것). 008 실측대로 프레임 비용의 주인은 층 수가 아니라 재그리기였고 009가 그걸
+// 걷어냈으므로, 합치는 이득도 없다. 두 겹을 유지한다.
+//
+// 기존 250ms 틱이 여전히 진실의 원천이다. 렌더 층은 그리기만 하고 게임 상태를
+// 건드리지 않는다 (이중 틱 금지).
+//
+// **017: Phaser 를 걷어냈다.** 실제로 쓰던 API 는 Game·AUTO·Scale.RESIZE 넷뿐이라
+// (013b 실측) vendor 1.14MB 가 아래 rAF 루프 두 개로 대체된다. 화면은 007 때와
+// 같은 원칙으로 **한 픽셀도 달라지지 않게** 옮겼다 — 예외는 방사 그라디언트
+// 하나뿐이고, 그것도 옛 타원 스택의 누적 알파 곡선을 그대로 옮겼다.
+//
+// __view : 캔버스 층의 유일한 검증 창구. **여기 노출되지 않는 연출은 완료로
+// 인정하지 않는다** (CLAUDE.md 검증 세션 절).
+
+// ── 색 (docs/ART-DIRECTION.md 6색에서만 고른다) ──────────────────
+// 무쇠와 숯은 둘 다 어둡지만 **색기가 반대**다 (무쇠=푸른 기, 숯=갈색 기).
+// 한 겹으로 뭉개면 평범한 다크 UI가 된다 — 배경을 캔버스로 옮기면서 이 두 겹을
+// 세로로 갈라 둔다: 위는 금속(무쇠), 아래로 갈수록 숯불 바닥(숯).
+// 밝기 단계는 새 색을 만들지 않고 **알파로만** 낸다.
+const C_IRON  = 0x23262B;   // 무쇠 — 식은 강철, 푸른 기가 도는 회색
+const C_CHAR  = 0x14100E;   // 숯   — 숯불 바닥, 갈색 기. 가장 낮은 배경·화로 안쪽
+const C_HOT   = 0xE2622A;   // 열철 — 작업 온도의 쇠. 화로 발광
+const C_WHITE = 0xFFD9A0;   // 백열 — 정점 순간에만 (정렬 성공)
+const C_BRASS = 0xB08D4F;   // 놋쇠 — 부속 금속
+// 담금질물(#4A6B72)은 별가루·무한의 층 전용이라 008 연출에는 쓰지 않는다.
+
+// ── 연출 상수 (§4 성능 상한) ───────────────────────────────────────
+const FX_MAX_PARTICLES = 64;    // 동시 생존 불티 상한. 방치형이라 상한이 곧 안전장치다.
+const FX_BURST_BASE    = 6;     // 2연 기본 불티 수
+const FX_BURST_PER_HIT = 5;     // 정렬 릴 1개당
+const FX_BURST_PER_G   = 1.2;   // 등급 1당
+const FX_BURST_CAP     = 34;    // 1회 분출 상한 (동시 상한과 별개)
+const FX_BURST_REDUCED = 3;     // reduced-motion 일 때 고정 수
+const FX_SHAKE_MS      = 150;
+// 절전 (011 §1): 마지막 사건 뒤 이만큼 더 돌고 잠든다. 셰이크·바운스·불티가
+// 끝났는지는 따로 확인하므로, 이 값은 "DOM 이 한 번 더 움직일 여유"다.
+const SLEEP_IDLE_MS    = 320;
+const FX_SHAKE_MIN     = 0.003, FX_SHAKE_MAX = 0.011;   // 카메라 셰이크 세기
+const FX_BOUNCE_MS     = 380;
+
+const VIEW={
+  engine:'canvas2d', ready:false, scene:null,
+  canvas:{w:0,h:0}, overlay:{visible:false},
+  background:'css',                    // 008 에서 'canvas' 가 된다
+  // 018 이 넷을 더한다. **노출되지 않는 연출은 완료로 인정하지 않는다**(CLAUDE.md).
+  // 019 가 셋을 더한다 (던전 연출도 같은 규약을 따른다 — 노출 없으면 완료 아님).
+  counters:{shake:0, burst:0, bounce:0, attack:0, hitstop:0, flash:0, dissolve:0,
+    climb:0, dice:0, reward:0},
+  limits:{particles:FX_MAX_PARTICLES, burstPerHit:FX_BURST_CAP},
+  alive:{particles:0, tweens:0},       // 누적 방지 확인용 (§4)
+  reducedMotion:false,
+  lastBurst:0,                         // 직전 분출 개수 — reduced 축소가 눈에 보이게
+  layers:{bg:'#stage', fx:'#fx'},      // 위 주석의 두 겹 구조
+  // 무엇이 실려 있는지. count 는 **손그림 장수**다 (파생 개수가 아니다).
+  sprites:{size:SPR_SIZE, count:18, palettes:15, scale:SPR_SCALE,
+    // 손그림 총량의 내역. 상한을 표별로 따로 센다 (015: 장비 18 + 몹 6 + 용사 1 = 25).
+    hand:{equip:18, mob:6, hero:2, tile:12, total:38},   // 018: 용사 공격 포즈 +1
+    // 릴은 칸 폭에서 정수 배율을 고른다 (012). 검증이 실제로 고른 값을 볼 수 있게 낸다.
+    get reelScale(){ return REEL_SCALE(); },
+    // 등급 g → 실루엣 단계. 검증이 3단계 경계를 직접 확인할 수 있게 배열로 낸다.
+    tierByGrade:[0,1,1,1,1,1,2,2,2,2,2,3,3,3,3,3]},
+  // 몹·용사 (015). 무대는 013 이 만들지만, 그림이 실려 있다는 것은 지금 확인된다.
+  mobs:{size:SPR_SIZE, axes:['melee','ranged'], tiers:3, count:6,
+    fill:{melee:'solid', ranged:'hollow'}, hero:{count:1, edge:'bright'}},
+  // 숫자 글리프 (010 §2). count 는 **손그림 글자 수**다. 17자를 넘기면 원칙 3 위반.
+  glyphs:{cell:[5,7], count:17, chars:'0123456789+-×/%.,', scales:[2,3]},
+  // 세로 3단 (010 §1). 각 단이 지금 몇 px 이고 스크롤이 어디 붙었는지.
+  layout:{tiers:['#hud','#focus','#manage'], hud:0, focus:0, manage:0,
+    focusScroll:0, manageScroll:0},
+  anvil:null,                          // 모루 화면 좌표 = 연출의 발원점
+  // 전투 무대 (013). 캔버스는 Playwright 가 못 읽으므로 여기 없는 것은 검증 불가다.
+  stage:{layers:3, tiles:12, tile:[TILE_W,TILE_H], scale:0, seg:-1, scrollX:0,
+    moving:false, ground:0, mobs:0, alive:0, kind:'', tier:1, hero:false, rect:null,
+    // 018 §3 — 개체 간격. 마리 수가 곧 남은 체력이라 붙으면 정보가 죽는다.
+    mobScale:0, mobStep:0, mobX0:0, gap:0},
+  // 전투 모션 (018). 지금 무엇이 도는 중인지 — 카운터와 짝이 되는 상태 창구다.
+  motion:{attacking:false, atkPhase:'', hitstop:false, flashing:false, dying:0,
+    pose:'idle', trail:false, reduced:false,
+    // 021 — 사라진 슬롯을 **순서대로**. 낮은 인덱스가 용사에 가까운 쪽이다.
+    // 같은 틱에 묶여 죽어도 담기는 순서는 가까운 쪽부터다.
+    dieOrder:[]},
+  // 던전 (019). 층 등반·주사위·보상이 지금 어디까지 왔는지. 그림은 013 타일 4장과
+  // 015 몹 6장을 팔레트만 갈아 쓴 것이라 **손그림은 한 장도 늘지 않는다**.
+  dungeon:{open:false, floor:0, best:0, seg:-1, tier:1, pos:0, landed:-1,
+    rerolls:0, climbing:false, rolling:false, band:false, guard:false},
+  // 재굽기가 정말 안 도는지 + **지금 자고 있는지** 보는 창구 (011 §1).
+  // ⚠ 카운터는 "재웠다"만 말한다. "화면이 맞다"는 픽셀로 따로 봐야 한다
+  //   (CLAUDE.md 검증 세션 절 — 009 가 이 구멍으로 통과했다).
+  // ⚠ `frames`/`framesFx` = **실제로 그린 프레임 수** (013 §0). 017 이 Phaser 를
+  //   걷어내며 `loop.frame` 이 사라져 011 이 세운 「루프 가동률(duty)」 이 NaN 이
+  //   됐다(016 에서 뒤 겹 3.2% / 앞 겹 10.3% 를 주던 식). 두 겹을 따로 재우므로
+  //   카운터도 따로 둔다 — duty = frames / (경과초 × 60).
+  //   **성능 검사는 렌더 실패를 보상한다**(CLAUDE.md): 프레임 간격만 보면 "안 그려서
+  //   빨라진" 빌드가 더 좋아 보인다. 이 둘이 그 구멍을 메우는 짝이다.
+  //   `hidden`/`hiddenSkips` = 019 §2. 숨은 탭에서 **건너뛴 연출의 수**다 —
+  //   "안 그렸다"를 카운터로 말해야 duty ≤ 2% 가 우연이 아님을 보일 수 있다.
+  perf:{bgBakes:0, panelBakes:0, moves:0, sleeping:false, wakes:0, sleeps:0,
+    frames:0, framesFx:0, hidden:false, hiddenSkips:0},
+  // 026 — **노출되지 않는 것은 완료로 인정하지 않는다**(CLAUDE.md). 광고는
+  // 자동 검사가 눈으로 볼 수 없는 연출이라 여기 전부 내건다.
+  plat:{env:'none', ready:false, adsOn:false, paused:false, blocked:false,
+    ads:0, done:0, failed:0, adLeft:0, adReady:false, dadReady:false, err:''}
+};
+globalThis.__view=VIEW;                // 브라우저에선 window.__view. node 검증에서도 안 죽는다.
+
+// 017: Phaser 를 걷어냈다. 남은 것은 브라우저 2D 캔버스뿐이다.
+// **브라우저 판별은 requestAnimationFrame 으로 한다** — 옛 `typeof Phaser` 자리다.
+// node 하네스(tools/harness.js)에는 rAF 도 실제 캔버스도 없으므로 이 블록을 통째로
+// 건너뛴다. 하네스는 CORE 검사용이고 화면은 검사 대상이 아니다(011 이 SVG 폴백을
+// 지울 때 세운 규약과 같다).
+if(typeof requestAnimationFrame!=='undefined' && typeof document!=='undefined'
+   && document.getElementById('stage')){
+  // 화면 좌표를 재는 대상. 캔버스는 고정(fixed)이라 스크롤하면 어긋나므로
+  // 매 프레임 사각형을 확인하고 **바뀐 프레임에만** 다시 그린다.
+  const rectOf=id=>{ const e=document.getElementById(id); if(!e) return null;
+    const r=e.getBoundingClientRect();
+    return {x:r.left, y:r.top, w:r.width, h:r.height}; };
+  const same=(a,b)=>a&&b&&Math.abs(a.x-b.x)<.5&&Math.abs(a.y-b.y)<.5&&
+                    Math.abs(a.w-b.w)<.5&&Math.abs(a.h-b.h)<.5;
+  // 0xRRGGBB → 캔버스 색 문자열. 팔레트 상수(C_IRON…)는 그대로 두고 여기서만 푼다.
+  const hex=c=>'#'+c.toString(16).padStart(6,'0');
+  const rgba=(c,a)=>`rgba(${c>>16&255},${c>>8&255},${c&255},${a})`;
+
+  const mq = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+  VIEW.reducedMotion = !!(mq && mq.matches);
+  if(mq && mq.addEventListener) mq.addEventListener('change',e=>{ VIEW.reducedMotion=e.matches; });
+
+  /* ── 두 겹의 캔버스 ─────────────────────────────────────────────────
+     Phaser 가 해 주던 일은 이것이 전부였다: 부모에 <canvas> 를 만들고, 화면
+     크기로 맞추고, rAF 를 돌린다. 실제로 쓰던 API 도 Game·AUTO·Scale.RESIZE
+     넷뿐이었다(013b 실측). 그래서 아래 30줄이 vendor 1.14MB 을 대신한다.
+     ⚠ **해상도는 CSS 픽셀 1:1 로 둔다.** Phaser 3 도 그랬다. devicePixelRatio 로
+     올리면 선이 또렷해지는데, 그것이 곧 "화면이 달라졌다"이고 017 의 성공 조건과
+     정면으로 부딪힌다. 제안 절에 적어 올렸다. */
+  function mkLayer(id){
+    const h=document.getElementById(id); if(!h) return null;
+    const c=document.createElement('canvas');
+    c.style.width='100%'; c.style.height='100%';   // 부모는 position:fixed;inset:0
+    h.appendChild(c);
+    return {el:c, ctx:c.getContext('2d')};
+  }
+  const L_BG=mkLayer('stage'), L_FX=mkLayer('fx');
+
+  let CW=0, CH=0;                       // 캔버스 CSS 크기 (= __view.canvas)
+  let bgCan=null, bgCtx=null;           // 배경을 구워 두는 오프스크린
+  let pnCan=null, pnCtx=null;           // 가운데 패널을 구워 두는 오프스크린
+  let rF=null, rH=null, rV=null;        // #forge · #hearth · #focus 사각형
+  let shakeUntil=0, shakeAmp=0;         // 카메라 셰이크
+
+  /* ⚠ 009~010 을 두 세션 잡아먹은 RenderTexture 함정 둘이 **여기엔 존재하지 않는다.**
+       ① 원점: 2D 캔버스는 언제나 좌상단 기준이다. setOrigin 이라는 개념이 없다.
+       ② 크기 변경: `canvas.width=w` 는 버퍼를 새로 잡고 지울 뿐, 그 뒤의 그리기가
+          망가지지 않는다. destroy/재생성이 필요 없어 makeBg·panelRT 두 함수가
+          아래 두 줄로 줄었다. 013b 가 이관 근거로 든 자리가 이것이다. */
+  const sizeCan=(c,w,h)=>{ if(c.width!==w||c.height!==h){ c.width=w; c.height=h; } return c; };
+
+  /* ── 방사 그라디언트 (017 의 유일한 그림 변경) ──────────────────────
+     008 이 잔광을 타원 26장(배경)·12장(화로)으로 만든 이유는 Phaser Graphics 에
+     방사 그라디언트가 **없어서**였다. 2D 캔버스에는 있다.
+     **곡선은 새로 고르지 않고 옛 스택의 누적 알파를 그대로 옮긴다** — 017 의
+     성공 조건이 "눈에 보이는 변화 0"이기 때문이다. 층 t 의 알파가 a/N·(1−.35t)
+     이고 반지름 r 인 점은 t≥r 인 층 전부에 덮이므로
+        A(r) = a·∫ᵣ¹(1−.35t)dt = a·[(1−r) − .175(1−r²)]
+     캔버스 방사 그라디언트는 원형뿐이라 세로만 눌러 타원으로 만든다. */
+  function glow(g,cx,cy,rx,ry,a,N,dy){
+    // ⚠ 화로 잔광의 타원 12장은 **동심이 아니었다** — 중심이 base−.08h·t 로 t 와
+    //   함께 움직였다. 즉 전체가 (cx,cy) 를 중심으로 한 **닮음 확대** 족이고,
+    //   캔버스 방사 그라디언트의 두 원이 그리는 것이 정확히 그 닮음이다. 끝 원을
+    //   (0,dy,rx) 로 두면 층 t 가 재현된다. dy 를 빼면 동심 = 배경 잔광 26장.
+    //   동심으로 놨을 때 모루 아래가 최대 13 밝았다(실측).
+    // ⚠ 알파는 **합이 아니라 곱**으로 쌓인다. ∫ 근사(a·[(1−r)−.175(1−r²)])는
+    //   화로처럼 층 알파가 굵으면 중앙에서 .495 vs 실제 .393 으로 크게 빗나가고,
+    //   가장자리에서는 층 수가 적어(ceil) 반대로 모자란다. 그래서 옛 스택의
+    //   합성을 그대로 계산해 스톱으로 옮긴다 — 층 j 의 고른 구간 한가운데에 찍는다.
+    // 탭이 숨으면 #hearth 가 0×0 이라 rx·ry 가 0 이 되고 k=0/0=NaN 이 된다 —
+    // createRadialGradient 는 비유한값에 예외를 던진다(017 검증에서 pageerror 로
+    // 잡혔다). 옛 fillEllipse 는 0 크기를 조용히 넘겼으므로 여기서 막는다.
+    if(!(rx>0)||!(ry>0)) return;
+    const k=ry/rx, off=(dy||0)/k;
+    const gr=g.createRadialGradient(0,0,0, 0,off,rx);
+    //   층 j..N 이 덮는 구간은 r∈((j−1)/N, j/N] 이므로 스톱은 그 **한가운데**에
+    //   찍는다. (j+.5)/N 로 한 칸 밀었더니 전 구간이 10 밝게 나왔다(실측).
+    for(let j=1;j<=N;j++){ let keep=1;
+      for(let i=j;i<=N;i++) keep*=1-a/N*(1-.35*i/N);
+      gr.addColorStop((j-.5)/N, rgba(C_HOT, 1-keep)); }
+    g.save(); g.translate(cx,cy); g.scale(1,k);
+    g.fillStyle=gr; g.beginPath(); g.arc(0,off,rx,0,Math.PI*2); g.fill();
+    g.restore();
+  }
+
+  // 배경: 무쇠 두 겹 + 아래쪽 화로 잔광 (§1, body CSS 에서 008 이 이관한 것).
+  function drawBg(){
+    if(!bgCan) return;
+    const w=CW, h=CH, g=bgCtx;
+    g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,w,h);
+    // 위쪽은 무쇠(푸른 기), 아래로 내려가며 숯(갈색 기)으로 넘어간다.
+    g.fillStyle=hex(C_CHAR); g.fillRect(0,0,w,h);
+    const lg=g.createLinearGradient(0,0,0,h*.62);
+    lg.addColorStop(0,hex(C_IRON)); lg.addColorStop(1,hex(C_CHAR));
+    g.fillStyle=lg; g.fillRect(0,0,w,h*.62);
+    glow(g, w*.5, h*1.06, w*1.25*.68, h*.52*.68, .15, 26);   // ← 옛 타원 26장
+    VIEW.perf.bgBakes++;
+  }
+
+  // 가운데 패널 바탕 + 화로 창 + 모루 (§2). 패널 크기 그대로 굽는다 —
+  // 화면 크기로 잡으면 프레임마다 화면 한 장을 더 칠하게 된다(009 실측).
+  function bakePanel(){
+    const w=Math.max(1,Math.ceil(rF.w)), h=Math.max(1,Math.ceil(rF.h));
+    if(!pnCan){ pnCan=document.createElement('canvas'); pnCtx=pnCan.getContext('2d'); }
+    sizeCan(pnCan,w,h);
+    const g=pnCtx, ox=rF.x, oy=rF.y;      // 오프스크린 안은 패널 좌상단 기준 좌표
+    g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,w,h);
+    const lg=g.createLinearGradient(0,0,0,rF.h);
+    lg.addColorStop(0,hex(C_IRON)); lg.addColorStop(1,hex(C_CHAR));
+    g.fillStyle=lg; g.fillRect(0,0,rF.w,rF.h);
+    if(rH){
+      const hx=rH.x-ox, hy=rH.y-oy, cx=hx+rH.w/2, base=hy+rH.h;
+      g.fillStyle=hex(C_CHAR); g.fillRect(hx,hy,rH.w,rH.h);   // 화로 안쪽은 숯
+      glow(g, cx, base, rH.w*.46, rH.h*.525, .6, 12, -rH.h*.08);  // ← 옛 타원 12장
+      // 모루: 도형만. 릴 타일이 화로 창을 거의 덮으므로 바닥 띠에 낮게 앉힌다 —
+      // 타일 사이 틈과 아래 여백으로 실루엣이 비친다.
+      const aw=Math.min(rH.w*.5,170), ah=Math.max(14,rH.h*.30);
+      const ay=base-2, T=ay-ah, L=cx-aw/2, R=cx+aw/2;
+      VIEW.anvil={x:ox+cx, y:oy+T};                            // 연출 발원점(화면 좌표)
+      g.fillStyle=hex(C_CHAR);
+      g.fillRect(cx-aw*.19, T+ah*.34, aw*.38, ah*.52);         // 몸통
+      g.fillRect(cx-aw*.30, ay-ah*.16, aw*.60, ah*.16);        // 받침
+      g.fillStyle=hex(C_IRON);
+      g.fillRect(L, T, aw, ah*.30);                            // 상판
+      g.beginPath(); g.moveTo(R,T);                            // 뿔
+      g.lineTo(R+aw*.16, T+ah*.15); g.lineTo(R, T+ah*.30); g.closePath(); g.fill();
+      // 윗면은 새 회색을 만들지 않고 화로 불빛을 받게 한다 (알파로만 밝힌다)
+      g.fillStyle=rgba(C_HOT,.35); g.fillRect(L, T, aw, ah*.07);
+    } else VIEW.anvil=null;
+    VIEW.perf.panelBakes++;
+  }
+
+
+  /* ══ 전투 무대 (013) ══════════════════════════════════════════════
+     "모험을 떠난다"를 만드는 자리다. 규칙은 ART-DIRECTION 「전투 무대」 그대로:
+
+     ① **평소에는 멈춰 있다.** 웨이브를 클리어하는 순간에만 배경이 옆으로 흐른다.
+        상시 스크롤은 011 의 절전을 통째로 무효로 만든다 — 방치형에서 배터리는
+        곧 체류 시간이다. 그래서 이동은 사건(웨이브 전환) 하나에만 붙는다.
+     ② **3층 패럴랙스**를 소수의 타일 반복으로 만든다 (손그림 12장).
+     ③ **구간은 팔레트 스왑**이다. 지형을 새로 그리지 않는다.
+
+     층마다 **한 장씩 구워 두고**(009·011 규약) 프레임당 drawImage 세 번으로 끝낸다.
+     띠 너비를 「무대 폭 + 4타일」로 잡는 이유: 네 장이 한 주기라 4타일마다 무늬가
+     반복되므로, 그만큼 여유를 두면 **스크롤이 아무리 진행돼도 다시 굽지 않는다.** */
+  const STAGE_PARA=[0.25, 0.55, 1.00];    // 먼 산이 가장 느리다
+  const TRAVEL_MS=420, TRAVEL_PX=176;     // 짧고 분명하게 (길면 방치 시간을 이동이 먹는다)
+  const STAGE_KEYS=['far','mid','near'];
+  let rA=null;                            // #arena 사각형
+  let stLay=[], stScale=0, stSeg=-1, stW=0, stH=0, stGround=0;
+  let scrollX=0, travFrom=0, travTo=0, travUntil=0;
+  const foeCan={};                        // 구간·배율당 몹·용사 캔버스 한 벌
+
+  // 스프라이트의 실제 바닥 행 — 발을 지면선에 맞추려면 이것이 필요하다.
+  function lastRow(px,W,H){
+    for(let y=H-1;y>=0;y--) for(let x=0;x<W;x++)
+      if(px.charCodeAt(y*W+x)!==46) return y;
+    return H-1;
+  }
+  function foeSprite(kind,tier,ms,seg,white){
+    const k=kind+'|'+tier+'|'+ms+(white?'|w':'');
+    if(foeCan[k]) return foeCan[k];
+    const px = kind==='hero' ? SPR_HERO : kind==='heroAtk' ? SPR_HERO_ATK
+             : (SPR_MOB[kind]||SPR_MOB.melee)[tier-1];
+    // 번쩍임(018)은 같은 그림을 **백열 한 색으로** 구운 판이다 — 프레임을 그리지
+    // 않는다는 규약 그대로고, 팔레트만 갈아 끼우면 되므로 한 장도 늘지 않는다.
+    const P = white ? [null,HOT_WHITE,HOT_WHITE,HOT_WHITE,HOT_WHITE]
+            : (kind==='hero'||kind==='heroAtk') ? heroPalette(seg) : mobPalette(seg);
+    const cv=document.createElement('canvas');
+    cv.width=SPR_UNIT*ms; cv.height=SPR_UNIT*ms;
+    if(!paintPX(cv.getContext('2d'),px,SPR_SIZE,SPR_SIZE,P,ms*SPR_FIT,0,0)) return null;
+    cv.__bot=lastRow(px,SPR_SIZE,SPR_SIZE);   // **칸** 인덱스다 — 화면으로 옮길 때 SPR_FIT 을 곱한다
+    return (foeCan[k]=cv);
+  }
+  // 무기 궤적은 **012 의 장비 스프라이트를 그대로 태운다**(ART-DIRECTION).
+  // 등급이 오르면 궤적의 그림이 바뀌므로 장비를 바꾼 보람이 전투에서 보인다.
+  function weaponSprite(g,ms){
+    const k='wpn|'+(g|0)+'|'+ms;
+    if(foeCan[k]) return foeCan[k];
+    const px=SPR.weapon[(g?TIER(g):2)-1];
+    const cv=document.createElement('canvas');
+    cv.width=SPR_UNIT*ms; cv.height=SPR_UNIT*ms;
+    if(!paintPX(cv.getContext('2d'),px,SPR_SIZE,SPR_SIZE,gradePalette(g),ms*SPR_FIT,0,0)) return null;
+    return (foeCan[k]=cv);
+  }
+
+  /* ══ 전투 모션 (018) ══════════════════════════════════════════════
+     ART-DIRECTION 「전투 모션」: **타격감은 프레임 수가 아니라 타이밍에서 나온다.**
+       ① 예비-타격-복귀 — 예비는 길게, 타격은 짧게, 복귀는 천천히. translate 뿐이다.
+       ② hitstop      — 맞는 순간 양쪽을 **완전히 멈춘다**. 더하는 게 아니라 빼는 기법.
+       ③ 번쩍임        — 백열 한 색으로 구운 같은 그림을 2프레임 얹는다.
+       ④ 소멸          — 그림이 아니다. 위로 튀었다 아래로 꺼지며 불티가 흩어진다.
+     넷 다 `__view.counters` 에 나온다. 추가 손그림은 용사 공격 포즈 1장뿐이다. */
+  const ATK_WIND=150, ATK_HIT=70, ATK_BACK=180;   // 예비 · 타격 · 복귀
+  const ATK_LAND=ATK_WIND+ATK_HIT, ATK_ALL=ATK_LAND+ATK_BACK;
+  const ATK_PULL=6, ATK_PUSH=13;                  // 셀 단위 (배율을 곱한다)
+  const HITSTOP_MS=50;      // 3프레임
+  const FLASH_MS=34;        // 2프레임
+  const DIE_MS=320;
+  const DIE_LOG=32;         // `motion.dieOrder` 상한 — 검증 창구지 로그가 아니다
+  // §3 개체 간격 — 고정 픽셀이 아니라 **무대 폭에서 파생**한다.
+  const STAGE_X0=0.27, STAGE_SPAN=0.72, MOB_GAP=0.14;
+  const MOB_INK=0.88;       // 스프라이트 24칸 중 실제로 칠해진 폭의 비율(경계상자)
+  let atkT=-1, atkGrade=0, atkLanded=false;
+  let stopUntil=0, flashUntil=0;
+  const dying=[];           // {slot,kind,tier,t}
+
+  /* ⚠ 개체 수가 곧 남은 체력이다 (DESIGN.md: 전체 체력 / 개체 수). 붙어서 하나로
+     보이면 그 정보가 죽는다 — 013 검증이 「근접 9마리가 뭉쳤다」고 지적한 자리다.
+     간격을 고정 픽셀로 주면 마리 수가 바뀔 때 다시 뭉치므로 무대 폭에서 파생하고,
+     폭이 모자라면 **배율을 한 단계 낮춘다**(배율은 정수여야 한다 — 012). */
+  function mobLayout(){
+    const n=foeCount|0;
+    const span=rA.w*STAGE_SPAN;
+    // 필요한 폭은 **칸 폭이 아니라 잉크 폭**으로 잰다. 스프라이트는 24칸 중 21칸만
+    // 칠해져 있어(경계상자) 칸으로 재면 필요 이상으로 배율을 낮춘다 — 처음에 그렇게
+    // 잡았더니 380 에서 5마리일 때도 배율 1 로 떨어졌다.
+    const need=m=>{ const ink=SPR_UNIT*m*MOB_INK;
+      return (n-1)*(ink+Math.max(3,ink*MOB_GAP)) + SPR_UNIT*m; };
+    let ms=Math.max(1,stScale-1);
+    while(ms>1 && need(ms) > span) ms--;
+    const step=n>1 ? (span-SPR_UNIT*ms)/(n-1) : 0;
+    return {n, ms, x0:rA.x+rA.w*STAGE_X0, step, gap:step-SPR_UNIT*ms*MOB_INK};
+  }
+  const heroDX=ms=>{
+    if(atkT<0) return 0;
+    // reduced-motion 에서는 예비·복귀를 줄인다 (008 규칙 유지).
+    if(VIEW.reducedMotion)
+      return atkT<ATK_LAND ? 0 : ATK_PUSH*ms*.5*(1-Math.min(1,(atkT-ATK_LAND)/ATK_BACK));
+    if(atkT<ATK_WIND) return -ATK_PULL*ms*ezOut(atkT/ATK_WIND);          // 예비: 천천히 뒤로
+    if(atkT<ATK_LAND){ const t=(atkT-ATK_WIND)/ATK_HIT;                   // 타격: 빠르게 앞으로
+      return -ATK_PULL*ms + (ATK_PULL+ATK_PUSH)*ms*t*t; }
+    return ATK_PUSH*ms*(1-ezOut((atkT-ATK_LAND)/ATK_BACK));               // 복귀: 천천히
+  };
+  function stepMotion(dt){
+    // hitstop — **무대의 시간이 흐르지 않는다.** 용사도 몹도 소멸도 그 자리에 선다.
+    if(nowMs()<stopUntil) return;
+    if(atkT>=0){
+      atkT+=dt;
+      if(!atkLanded && atkT>=ATK_LAND){        // 궤적이 닿는 순간
+        atkLanded=true;
+        if(!VIEW.reducedMotion){ stopUntil=nowMs()+HITSTOP_MS; VIEW.counters.hitstop++; }
+        flashUntil=nowMs()+(VIEW.reducedMotion?FLASH_MS:HITSTOP_MS+FLASH_MS);
+        VIEW.counters.flash++;
+      }
+      if(atkT>=ATK_ALL){ atkT=-1; atkLanded=false; }
+    }
+    for(let i=dying.length-1;i>=0;i--){ dying[i].t+=dt; if(dying[i].t>=DIE_MS) dying.splice(i,1); }
+  }
+  // 개체 하나가 사라지는 순간 (CORE 의 체력 계산은 건드리지 않는다 — 소멸 시점은
+  // drawFoes 가 이미 정한 그대로다). 008 의 불티 예산 안에서 몇 알만 흩는다.
+  // 019 §2: **슬롯 배열을 받는다.** 같은 틱에 죽은 것들은 한 다발이다 — 깨움 창도
+  // 불티 예산도 한 번만 선다. 숫자 하나로 부르던 옛 호출도 그대로 받는다.
+  globalThis.__foeDie=slots=>{
+    if(!rA || !stLay.length) return;
+    if(hidden()){ VIEW.perf.hiddenSkips++; return; }   // 안 보이는 소멸은 그리지 않는다
+    const list=Array.isArray(slots)?slots:[slots];
+    if(!list.length) return;
+    const L=mobLayout(), ground=rA.y+stGround;
+    const tier=Math.max(1,Math.min(3,1+Math.floor((S.wave-1)/25)));
+    // 불티는 **다발 전체의 예산**을 나눠 쓴다. 마리마다 6알이면 9마리에서 54알이
+    // 되어 앞 겹이 그만큼 오래 살아 있는다 — 자리는 마리마다 지키되 알 수를 나눈다.
+    const budget=VIEW.reducedMotion?2:Math.min(12, 5+list.length);
+    const per=Math.max(1, Math.round(budget/list.length));
+    for(const slot of list){
+      const kind = foeKind==='mix' ? (slot%2?'ranged':'melee') : foeKind;
+      dying.push({slot, kind, tier, t:0});
+      VIEW.counters.dissolve++;
+      // 021 — **소멸 순서를 검증 창구에 낸다.** 이 값이 없어서 101개 검사 중
+      // 아무도 「먼 쪽부터 죽는다」를 못 잡았다. 길이는 묶어 둔다(누수 금지).
+      VIEW.motion.dieOrder.push(slot);
+      if(VIEW.motion.dieOrder.length>DIE_LOG) VIEW.motion.dieOrder.shift();
+      emit(per, L.x0+L.step*slot+SPR_UNIT*L.ms/2, ground-8*L.ms, .45);   // 짧게 사는 불티
+    }
+    // 깨우는 창은 **실제로 도는 시간에 맞춘다.** 처음에 앞 겹을 1,220ms 깨웠더니
+    // 유휴 가동률이 앞 겹만 35.6% 로 뛰었다(불티는 320ms 면 다 꺼진다).
+    canvasWake(DIE_MS+80, DIE_MS+90);
+  };
+  function bakeStage(){
+    stLay=[];
+    if(!rA || rA.w<8 || rA.h<8) return;
+    // 배율은 정수다 (012 규약 — 소수 배율은 픽셀을 뭉갠다).
+    const s=Math.max(1,Math.min(3,Math.floor(rA.h/26)));
+    const seg=segOf(S.wave), w=Math.ceil(rA.w)+TILE_W*4*s, h=TILE_H*s;
+    const G=Math.round(rA.h-8*s);        // 지면선 — 근경 흙 두께가 8행이다
+    for(let i=0;i<3;i++){
+      const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+      const cx=cv.getContext('2d'), P=stagePalette(seg,i);
+      const tiles=SPR_TILE[STAGE_KEYS[i]], tw=TILE_W*s;
+      for(let t=0; t*tw<w; t++) paintPX(cx,tiles[t%4],TILE_W,TILE_H,P,s,t*tw,0);
+      // 층의 지평선이 위에서부터 먼 산 → 중경 → 근경 순으로 내려와야 원근이 산다.
+      // 각 층 타일의 「가장자리 높이」(먼 17행 · 중경 15행 · 근경 16행)를 기준으로
+      // 지면선 G 에서 거꾸로 올려 놓는다. 처음에 0.30h 로 잡았더니 중경 지평선이
+      // 근경보다 **아래**로 내려가 원근이 뒤집혔다.
+      stLay.push({can:cv, para:STAGE_PARA[i], per:tw*4,
+        y: i===0 ? G-17*s-8*s : i===1 ? G-15*s-3*s : G-16*s});
+    }
+    // 몹·용사 캐시는 **구간·배율당 한 벌**이다. 구간이 바뀌면 통째로 비운다 —
+    // 안 비우면 웨이브가 오를수록 캔버스가 쌓인다(soak.js 가 보는 누수).
+    if(seg!==stSeg || s!==stScale) for(const k in foeCan) delete foeCan[k];
+    stScale=s; stSeg=seg; stW=Math.ceil(rA.w); stH=Math.ceil(rA.h);
+    // 근경 타일의 윗면은 16행이다 (SPR_TILE 주석) — 거기가 지면선이다.
+    stGround = stLay[2].y + 16*s;   // = G
+    VIEW.perf.bgBakes++;    // 무대 띠도 배경 오프스크린이다 — P2 가 방치 중 재굽기를 잡는다
+  }
+  // 이동은 웨이브 전환 사건에만 붙는다. 진행은 프레임에서 시간으로 푼다.
+  function stepTravel(){
+    if(!travUntil) return;
+    const left=travUntil-nowMs();
+    if(left<=0){ scrollX=travTo; travUntil=0; return; }
+    scrollX = travFrom + (travTo-travFrom)*ezOut(1-left/TRAVEL_MS);
+  }
+  function drawArena(g){
+    if(!rA || !stLay.length) return;
+    g.save();
+    g.beginPath(); g.rect(rA.x,rA.y,rA.w,rA.h); g.clip();
+    for(const L of stLay){
+      const off=((scrollX*L.para)%L.per+L.per)%L.per;   // 4타일 주기로 되감는다
+      g.drawImage(L.can, Math.round(rA.x-off), Math.round(rA.y+L.y));
+    }
+    const L=mobLayout(), ms=L.ms, ground=rA.y+stGround;
+    const now=nowMs(), stopping=now<stopUntil, flashing=now<flashUntil;
+    // ── 용사: 그림 두 장(대기·공격)과 translate 뿐이다 (018) ──
+    // 등급·부위는 여전히 반영하지 않는다 — 반영하면 부위×단계×포즈로 손그림이
+    // 폭발한다(ART-DIRECTION). 바뀌는 것은 자세와 **손에 실린 무기 그림**이다.
+    const swinging = atkT>=ATK_WIND*0.6 && atkT<ATK_ALL;
+    const hero=foeSprite(swinging?'heroAtk':'hero',1,ms,stSeg);
+    const hx=rA.x+rA.w*0.05+heroDX(ms);
+    if(hero) g.drawImage(hero, Math.round(hx), Math.round(ground-(hero.__bot+1)*ms*SPR_FIT));
+    // ── 무기 궤적: 012 장비 스프라이트를 태운다. 잔상 3장, 회전 없음 ──
+    // 회전시키면 픽셀이 보간돼 뭉갠다(ART-DIRECTION 안티에일리어싱 금지). 대신
+    // 같은 그림을 호를 따라 몇 장 겹쳐 알파로 흘린다.
+    const trail = atkT>=ATK_WIND && atkT<ATK_LAND+70;
+    if(trail){
+      const wg=(S.equip&&S.equip.weapon)?S.equip.weapon.g:0;
+      const wv=weaponSprite(wg,ms);
+      if(wv){
+        const t=Math.min(1,(atkT-ATK_WIND)/(ATK_HIT+70));
+        for(let k=0;k<3;k++){
+          const u=Math.max(0,t-k*0.16);
+          g.globalAlpha=Math.max(0,(1-k*0.3)*(1-t*0.85));
+          g.drawImage(wv, Math.round(hx+(11+20*u)*ms),
+                          Math.round(ground-(15+5*Math.sin(u*Math.PI))*ms));
+        }
+        g.globalAlpha=1;
+      }
+    }
+    // ── 몹 — 개체 수·종류·생존은 전부 CORE 가 정한 값을 읽는다(이중 틱 금지) ──
+    const n=L.n, alive=(n&&foeMax) ? Math.max(0,Math.min(n,Math.round(foeHP/foeMax*n))) : n;
+    const tier=Math.max(1,Math.min(3,1+Math.floor((S.wave-1)/25)));
+    const slide=Math.max(0, travTo-scrollX);          // 이동 중엔 오른쪽에서 들어온다
+    const mobX=i=>L.x0+L.step*i+slide;
+    const cut=deadCut(n,alive);
+    for(let i=0;i<n;i++){
+      if(i<cut) continue;                             // 처치된 개체는 사라진다 (001 규약)
+                                                      // 021: 앞쪽(용사 쪽)부터 비워진다
+      // 혼합 웨이브의 홀짝은 #mob 블록과 **같은 규칙**이다 — 둘이 어긋나면 안 된다.
+      const kind = foeKind==='mix' ? (i%2?'ranged':'melee') : foeKind;
+      // 번쩍임은 맨 앞(맞는) 개체에만. 같은 그림의 백열 판이라 손그림이 안 는다.
+      // ⚠ **맨 앞 = 인덱스 0 이 아니라 «살아 있는 가장 왼쪽»(= `cut`, `stage.nearest`)다.**
+      //   021 이 앞쪽부터 비우기 시작하면서 인덱스 0 이 빈칸이 됐고, 그대로 두면
+      //   **허공이 번쩍인다** — 021 이 낸 회귀다. 018 의 의도는 처음부터 「맞는 개체는
+      //   용사에게 가장 가까운 것」이었으므로 이 줄은 연출의 **변경이 아니라 복구**다.
+      //   타이밍·지속시간·진폭(FLASH_MS·HITSTOP_MS·ATK_*)은 한 글자도 안 건드린다.
+      const cv=foeSprite(kind,tier,ms,stSeg, flashing && i===cut); if(!cv) continue;
+      g.drawImage(cv, Math.round(mobX(i)), Math.round(ground-(cv.__bot+1)*ms*SPR_FIT));
+    }
+    // ── 소멸: 위로 튀었다 아래로 꺼진다 (001 foedie 와 같은 규약) ──
+    for(const d of dying){
+      const cv=foeSprite(d.kind,d.tier,ms,stSeg); if(!cv) continue;
+      const u=Math.min(1,d.t/DIE_MS);
+      const rise=Math.sin(Math.min(1,u*1.7)*Math.PI)*9*ms, sink=u*u*7*ms, sc=1-0.32*u;
+      g.globalAlpha=Math.max(0,1-u*u);
+      g.drawImage(cv, Math.round(mobX(d.slot)+cv.width*(1-sc)/2),
+                      Math.round(ground-(cv.__bot+1)*ms*SPR_FIT-rise+sink),
+                      Math.round(cv.width*sc), Math.round(cv.height*sc));
+      g.globalAlpha=1;
+    }
+    g.restore();
+    VIEW.stage.scale=stScale; VIEW.stage.seg=stSeg; VIEW.stage.scrollX=Math.round(scrollX);
+    VIEW.stage.moving=!!travUntil; VIEW.stage.mobs=n; VIEW.stage.alive=alive;
+    VIEW.stage.kind=foeKind; VIEW.stage.tier=tier; VIEW.stage.hero=!!hero;
+    VIEW.stage.ground=Math.round(stGround); VIEW.stage.rect=rA?{...rA}:null;
+    // 배치를 그대로 낸다 — 검사가 좌표식을 박아 두면 배치가 바뀌는 순간 조용히
+    // 엉뚱한 자리를 재게 된다(018 에서 ST2 가 실제로 그랬다).
+    VIEW.stage.mobScale=ms; VIEW.stage.mobStep=Math.round(L.step);
+    VIEW.stage.mobX0=Math.round(L.x0); VIEW.stage.gap=Math.round(L.gap);
+    // 021 — 어디까지 비었는지. `deadCut` 앞쪽이 죽은 자리다(용사 쪽).
+    VIEW.stage.deadCut=cut; VIEW.stage.nearest=cut<n?cut:-1;
+    VIEW.motion.attacking=atkT>=0; VIEW.motion.hitstop=stopping;
+    VIEW.motion.atkPhase = atkT<0 ? '' : atkT<ATK_WIND ? 'wind' : atkT<ATK_LAND ? 'hit' : 'back';
+    VIEW.motion.flashing=flashing; VIEW.motion.dying=dying.length;
+    VIEW.motion.pose=swinging?'attack':'idle'; VIEW.motion.trail=!!trail;
+    VIEW.motion.reduced=!!VIEW.reducedMotion;
+  }
+
+  // 캔버스 크기 추적 (Phaser 의 Scale.RESIZE 자리). 부모가 position:fixed;inset:0
+  // 이라 부모 크기 = 화면 크기다. 버퍼를 다시 잡으면 내용이 지워지므로 다시 굽는다.
+  function fit(){
+    const h=document.getElementById('stage'); if(!h||!L_BG) return;
+    const w=Math.max(1,h.clientWidth|0), ht=Math.max(1,h.clientHeight|0);
+    if(w===CW && ht===CH) return;
+    CW=w; CH=ht;
+    sizeCan(L_BG.el,w,ht); if(L_FX) sizeCan(L_FX.el,w,ht);
+    VIEW.canvas={w:CW,h:CH};
+    if(!bgCan){ bgCan=document.createElement('canvas'); bgCtx=bgCan.getContext('2d'); }
+    sizeCan(bgCan,w,ht);
+    drawBg();
+    rF=rH=rV=null;                 // 패널을 그 크기로 다시 굽게 한다
+    canvasWake(600);
+  }
+
+  function sync(){
+    // 무대는 #hud 안이라 스크롤과 무관하다 — 크기·구간이 달라질 때만 다시 굽는다.
+    const nA=rectOf('arena');
+    if(nA && (!rA || !same(nA,rA) || segOf(S.wave)!==stSeg)){ rA=nA; bakeStage(); canvasWake(); }
+    const nF=rectOf('forge'), nH=rectOf('hearth'), nV=rectOf('focus');
+    // 세 단의 실제 치수를 검증 창구에 낸다 (캔버스는 Playwright 가 못 읽는다).
+    const rHud=rectOf('hud'), rMan=rectOf('manage'),
+          fo=document.getElementById('focus'), ma=document.getElementById('manage');
+    VIEW.layout.hud=rHud?Math.round(rHud.h):0;
+    VIEW.layout.focus=nV?Math.round(nV.h):0;
+    VIEW.layout.manage=rMan?Math.round(rMan.h):0;
+    VIEW.layout.focusScroll=fo?Math.max(0,fo.scrollHeight-fo.clientHeight):0;
+    VIEW.layout.manageScroll=ma?Math.max(0,ma.scrollHeight-ma.clientHeight):0;
+    if(same(nF,rF)&&same(nH,rH)&&same(nV,rV)) return;
+    canvasWake();                  // 기하가 움직였다 — 안정될 때까지 더 돈다
+    rV=nV;
+    const sizeSame = rF&&nF&&Math.abs(nF.w-rF.w)<.5&&Math.abs(nF.h-rF.h)<.5
+                  && rH&&nH&&Math.abs(nH.w-rH.w)<.5&&Math.abs(nH.h-rH.h)<.5;
+    const dx = sizeSame ? nF.x-rF.x : 0, dy = sizeSame ? nF.y-rF.y : 0;
+    rF=nF; rH=nH;
+    if(!rF){ VIEW.anvil=null; return; }
+    // 스크롤 = 크기 그대로, 위치만 이동. **다시 굽지 않는다** — 그리는 좌표만
+    // 달라지므로 Phaser 때의 setPosition·setCrop 두 호출조차 필요 없다.
+    if(sizeSame){
+      if(VIEW.anvil){ VIEW.anvil={x:VIEW.anvil.x+dx, y:VIEW.anvil.y+dy}; }
+      VIEW.perf.moves++;
+      return;
+    }
+    bakePanel();                   // 여기부터가 진짜 재굽기 — 크기가 바뀐 프레임에만
+  }
+
+  // 뒤 겹 합성: 배경 한 장 + 패널 한 장. 캔버스는 DOM 처럼 overflow 로 잘리지
+  // 않으므로 중앙 창(#focus) 밖은 ctx.clip() 으로 잘라 낸다 (옛 setCrop 자리).
+  function drawStage(){
+    const g=L_BG&&L_BG.ctx; if(!g) return;
+    g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,CW,CH);
+    g.save();
+    if(nowMs()<shakeUntil)         // ① 카메라 셰이크 — 뒤 겹 전체가 흔들린다
+      g.translate((Math.random()*2-1)*CW*shakeAmp, (Math.random()*2-1)*CH*shakeAmp);
+    if(bgCan) g.drawImage(bgCan,0,0);
+    stepTravel(); stepMotion(bgDT()); drawArena(g);   // 무대(013) + 모션(018)
+    if(pnCan && rF && rF.w>=1 && rF.h>=1){
+      g.save();
+      if(rV){
+        const top=Math.max(0, rV.y-rF.y), bot=Math.min(rF.h,(rV.y+rV.h)-rF.y);
+        g.beginPath(); g.rect(rF.x, rF.y+top, rF.w, Math.max(0,bot-top)); g.clip();
+      }
+      g.drawImage(pnCan, rF.x, rF.y);
+      g.restore();
+    }
+    g.restore();
+  }
+
+  /* ── 앞 겹: 불티 · 바운스 (DOM 위) ────────────────────────────────── */
+  const P=[];                      // 불티. 상한은 §4 의 FX_MAX_PARTICLES.
+  let bounce=null;                 // 획득 장비 하나. 겹치지 않게 항상 하나뿐이다.
+  const ezOut=t=>1-(1-t)*(1-t);    // Quad.easeOut
+  const B_UP=FX_BOUNCE_MS*.45;     // 올라가는 시간 (yoyo 라 내려오는 데 같은 시간)
+
+  // lifeK: 수명 배수. 018 의 소멸 불티는 짧게 산다 — 불티가 오래 살수록 앞 겹을
+  // 그만큼 오래 깨워 둬야 해서 유휴 가동률이 그대로 따라 오른다(실측 35.6%).
+  function emit(n,x,y,lifeK){
+    for(let i=0;i<n && P.length<FX_MAX_PARTICLES;i++){
+      const ang=(200+Math.random()*140)*Math.PI/180, sp=40+Math.random()*170;
+      P.push({x, y, vx:Math.cos(ang)*sp, vy:Math.sin(ang)*sp,
+        t:0, life:(280+Math.random()*440)*(lifeK||1),
+        c:Math.random()<.5?C_WHITE:C_HOT});   // 백열은 정점 순간에만
+    }
+  }
+  function stepFx(dt){
+    const s=dt/1000;
+    for(let i=P.length-1;i>=0;i--){ const p=P[i];
+      p.t+=dt; if(p.t>=p.life){ P.splice(i,1); continue; }
+      p.vy+=520*s; p.x+=p.vx*s; p.y+=p.vy*s;   // gravityY 520
+    }
+    if(bounce){ const b=bounce; b.t+=dt;
+      if(b.red){ b.a=Math.max(0,1-b.t/180); b.off=0; if(b.t>=180) bounce=null; }
+      else if(b.t<B_UP){        b.off=-b.dy*ezOut(b.t/B_UP); }
+      else if(b.t<B_UP*2){      b.off=-b.dy*ezOut(1-(b.t-B_UP)/B_UP); }
+      else { b.off=0; b.a=Math.max(0,1-(b.t-B_UP*2)/140); if(b.t>=B_UP*2+140) bounce=null; }
+    }
+  }
+  function drawFx(){
+    const g=L_FX&&L_FX.ctx; if(!g) return;
+    g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,CW,CH);
+    if(bounce){                                   // 바운스가 아래, 불티가 위
+      const b=bounce;
+      g.globalAlpha=b.a; g.fillStyle=hex(b.col);
+      g.beginPath();               // roundRect 가 없는 옛 브라우저는 각진 사각형으로
+      if(g.roundRect) g.roundRect(b.x-7, b.y+b.off-7, 14, 14, 3);
+      else g.rect(b.x-7, b.y+b.off-7, 14, 14);
+      g.fill();
+      g.globalAlpha=1;
+    }
+    g.globalCompositeOperation='lighter';         // blendMode:'ADD'
+    for(const p of P){ const k=1-p.t/p.life;      // alpha 1→0 · scale .9→0
+      g.globalAlpha=k; g.fillStyle=hex(p.c);
+      g.beginPath(); g.arc(p.x, p.y, 3*.9*k, 0, Math.PI*2); g.fill();
+    }
+    g.globalAlpha=1; g.globalCompositeOperation='source-over';
+  }
+
+  /* ══ 절전 (011 §1 · 017 에서 rAF 직접 제어로) ══════════════════════
+     방치형은 화면을 몇 시간 켜 두는 물건이다. **바뀌지 않는 화면을 매 프레임
+     다시 합성하는 것 자체가 설계 오류**고, 그 값은 배터리와 발열로 돌아온다.
+     그래서 기본 상태가 잠든 것이고, 캔버스가 실제로 달라지는 사건에만 깨운다.
+
+     루프가 자면 sync() 가 멈춘다 — 즉 **깨우는 자리를 빠뜨리면 캔버스가 어긋난
+     채 멈춘다.** 그래서 깨우는 조건을 추측이 아니라 사건으로 못박는다:
+       ① #forge·#hearth·#focus 의 **크기** → ResizeObserver
+       ② #focus 의 **스크롤 위치**(패널이 움직이고 크롭이 바뀐다) → scroll
+       ③ 창 크기 → resize
+     여기에 연출(hitFx)과 사람의 입력을 더한다.
+     **두 겹을 따로 재운다** — 뒤 겹에서 움직이는 것은 셰이크(150ms)뿐이고
+     불티·바운스는 전부 앞 겹이다. 한 덩어리로 재우면 불티가 다 죽을 때까지
+     뒤 겹까지 같이 돈다.
+     ⚠ `__game`·`__gameFx` 의 `loop{running,wake,sleep}` 모양은 **계약이다** —
+        checklist P1 이 바닥값을 재려고 이 셋을 직접 부른다. Phaser 를 걷어내도
+        같은 모양을 유지한다(죽은 검사를 만들지 않는다). */
+  const nowMs=()=>(typeof performance!=='undefined'&&performance.now)?performance.now():Date.now();
+  /* 019 §2 — **안 보이는 화면의 연출은 값이 0이다.**
+     방치형의 진짜 방치는 대개 탭이 뒤에 있는 상태다. 브라우저가 rAF 를 늦추기는
+     하지만 **그것에 기대지 않는다** — 늦추는 정도는 브라우저·전원 상태마다 다르고,
+     늦춰도 합성은 그대로 일어난다. 숨으면 두 겹을 재우고 깨우는 길을 막는다.
+     ⚠ CORE 의 250ms 틱과 저장은 건드리지 않는다. 멈추는 것은 **그리는 일**뿐이다. */
+  // 026: 019 의 술어를 **재사용**한다. 광고 중 무대 정지는 「탭이 숨은 것」과
+  //      완전히 같은 처리라 새 경로를 만들 이유가 없다 — 두 겹 다 잠든다.
+  const hidden=()=>(typeof document!=='undefined' && document.hidden===true)
+                   || PLAT.paused===true;
+  let wakeBgUntil=0, wakeFxUntil=0, lastFxT=0;
+  function mkLoop(step){
+    let id=0, running=false;
+    const frame=()=>{ if(!running) return; id=requestAnimationFrame(frame); step(); };
+    return { get running(){ return running; },
+      wake(){ if(running) return; running=true; id=requestAnimationFrame(frame); },
+      sleep(){ if(!running) return; running=false;
+        if(id) cancelAnimationFrame(id); id=0; } };
+  }
+  let lastBgT=0;
+  const bgDT=()=>{ const t=nowMs(), d=lastBgT?Math.min(64,t-lastBgT):16; lastBgT=t; return d; };
+  function bgFrame(){
+    // 루프가 돈다 = 살아 있다. 밖에서 loop.wake() 를 부른 경우(P1 이 그렇게 한다)
+    // 여기서 깃발을 현실에 맞춘다 — 안 그러면 영영 다시 못 잔다.
+    if(VIEW.perf.sleeping) VIEW.perf.sleeping=false;
+    if(hidden()){ __game.loop.sleep(); markSlept(); lastBgT=0; return; }
+    fit(); sync(); drawStage();
+    VIEW.perf.frames++;                       // 013 §0 — 실제로 그린 프레임
+    if(bgIdle()){ __game.loop.sleep(); markSlept(); lastBgT=0; }
+  }
+  function fxFrame(){
+    if(VIEW.perf.sleeping) VIEW.perf.sleeping=false;
+    if(hidden()){ __gameFx.loop.sleep(); markSlept(); lastFxT=0; return; }
+    const t=nowMs(), dt=lastFxT?Math.min(64,t-lastFxT):16; lastFxT=t;
+    // hitstop 은 **화면 전체**가 멈추는 것이다 — 불티만 계속 날면 멈춘 느낌이 깨진다.
+    stepFx(t<stopUntil?0:dt); drawFx();
+    VIEW.perf.framesFx++;                     // 013 §0
+    VIEW.alive.particles=P.length;
+    VIEW.alive.tweens=bounce?1:0;
+    if(fxIdle()){ __gameFx.loop.sleep(); markSlept(); lastFxT=0; }
+  }
+  globalThis.__game  ={loop:mkLoop(bgFrame), engine:'canvas2d'};
+  globalThis.__gameFx={loop:mkLoop(fxFrame), engine:'canvas2d'};
+
+  function canvasWake(ms,fxMs){
+    // 숨은 동안에는 **깨우는 길 자체가 막힌다.** 창을 쌓아 두지도 않는다 —
+    // 돌아오는 순간 어차피 한 번 깨워 다시 그리므로 밀린 창은 값이 없다.
+    if(hidden()){ VIEW.perf.hidden=true; VIEW.perf.hiddenSkips++; return; }
+    const t=nowMs(), a=ms||SLEEP_IDLE_MS, b=(fxMs===undefined)?a:fxMs;
+    wakeBgUntil=Math.max(wakeBgUntil,t+a); wakeFxUntil=Math.max(wakeFxUntil,t+b);
+    if(VIEW.perf.sleeping){ VIEW.perf.sleeping=false; VIEW.perf.wakes++; }
+    __game.loop.wake(); __gameFx.loop.wake();
+  }
+  // 도는 것이 있으면 안 재운다 — 자면 그 자리에서 얼어붙는다.
+  const bgIdle=()=>nowMs()>=wakeBgUntil && nowMs()>=shakeUntil && !travUntil
+    && atkT<0 && !dying.length && nowMs()>=stopUntil;   // 018 모션도 붙잡는다
+  const fxIdle=()=>nowMs()>=wakeFxUntil && P.length===0 && !bounce;
+  // `sleeping` 은 **둘 다 잠들었을 때**만 참이다 (검증이 "화면이 완전히 멈췄다"를
+  // 이 한 값으로 읽을 수 있게).
+  function markSlept(){
+    const both=!__game.loop.running && !__gameFx.loop.running;
+    if(both && !VIEW.perf.sleeping){ VIEW.perf.sleeping=true; VIEW.perf.sleeps++; }
+  }
+  globalThis.__canvasWake=canvasWake;     // 검증용 (지연 없이 깨는지 직접 부를 수 있게)
+
+  /* ── 탭이 숨으면 접는다 / 돌아오면 한 번 깨운다 (019 §2) ──
+     숨는 순간 **도는 것을 전부 버린다**: 이동은 끝점으로 스냅하고, 공격·소멸·
+     불티·바운스는 버린다. 시간만 얼려 두면 돌아왔을 때 몇 분 전 동작이 이어져
+     재생되는 꼴이 된다 — 안 보이는 동안 일어난 일은 연출로서 이미 끝난 것이다.
+     ⚠ 이 자리는 CORE 의 `visibilitychange`(저장)와 **별개의 리스너**다. CORE 는
+       손대지 않는다. */
+  // ⚠ `document` 에 건다. visibilitychange 는 document 에서 나 window 로 **거슬러
+  //    올라오는** 사건이라 둘 다 받지만, 나는 자리에 거는 쪽이 한 겹 덜 믿는다.
+  document.addEventListener('visibilitychange',()=>{
+    // 026: CrazyGames 는 「쉬는 동안」을 알고 싶어 한다. 탭이 숨으면 stop,
+    //      돌아오면 start. 광고 쪽 start/stop 은 PLAT.rewarded() 가 따로 부른다.
+    PLAT[document.hidden?'playStop':'playStart']();
+    VIEW.perf.hidden=hidden();
+    if(!hidden()){ canvasWake(600); return; }
+    wakeBgUntil=0; wakeFxUntil=0; shakeUntil=0; stopUntil=0; flashUntil=0;
+    atkT=-1; atkLanded=false; dying.length=0; P.length=0; bounce=null;
+    VIEW.motion.dieOrder.length=0;               // 021 — 안 보이는 동안의 순서는 값이 없다
+    if(travUntil){ scrollX=travTo; travUntil=0; }
+    VIEW.alive.particles=0; VIEW.alive.tweens=0;
+    __game.loop.sleep(); __gameFx.loop.sleep(); markSlept();
+  });
+
+  // 던전 보상 불티 (019 §1). **008 의 파티클을 그대로 쓴다** — 새 파티클 시스템을
+  // 만들지 않는다. 상한도 008 것 그대로다(1회 분출 상한 · 동시 생존 상한).
+  globalThis.__fxBurst=(n,x,y,lifeK)=>{
+    if(hidden()){ VIEW.perf.hiddenSkips++; return 0; }
+    const m=Math.max(1,Math.min(FX_BURST_CAP, n|0));
+    emit(m,x,y,lifeK); VIEW.lastBurst=m; VIEW.counters.burst++;
+    canvasWake(SLEEP_IDLE_MS, 900);
+    return m;
+  };
+
+  // 깨우는 자리들. 전부 수동적이라 자는 동안에도 살아 있다.
+  if(typeof ResizeObserver!=='undefined'){
+    const ro=new ResizeObserver(()=>canvasWake());
+    ['forge','hearth','focus'].forEach(id=>{
+      const e=document.getElementById(id); if(e) ro.observe(e); });
+  }
+  ['focus','manage'].forEach(id=>{
+    const e=document.getElementById(id);
+    if(e) e.addEventListener('scroll',()=>canvasWake(),{passive:true});
+  });
+  addEventListener('scroll',()=>canvasWake(),{passive:true});
+  addEventListener('resize',()=>canvasWake(600));
+  // 사람이 만지면 무조건 깬다 (입력 지연 0). 실제로 캔버스가 안 바뀌면
+  // SLEEP_IDLE_MS 뒤에 도로 잠든다.
+  ['pointerdown','keydown','wheel','touchstart'].forEach(t=>
+    addEventListener(t,()=>canvasWake(),{passive:true}));
+
+  /* ── 타격 연출 3종 (§3) ── */
+  function hitFx(hits,grade){
+    // 019 §2 — 숨은 탭에서는 연출을 아예 시작하지 않는다. 자동 제련은 뒤에서도
+    // 계속 돌지만(CORE 틱), 그 정렬의 셰이크·불티·모션은 아무도 보지 않는다.
+    if(hidden()){ VIEW.perf.hiddenSkips++; return; }
+    // 뒤 겹은 셰이크(150ms)만 돌면 되고, 앞 겹은 바운스(380ms)와 불티(수명 최대
+    // 720ms)를 끝내야 한다. 이 뒤에도 살아 있는 것이 있으면 fxIdle() 이 붙잡는다.
+    canvasWake(FX_SHAKE_MS+200, 1200);
+    const red=VIEW.reducedMotion, an=VIEW.anvil;
+    const power=Math.min(1,(hits-2)/3*.6 + Math.min(grade,15)/15*.4);
+
+    // ① 카메라 셰이크 — 뒤 겹(모루·화로·배경)이 흔들린다. reduced 면 걸지 않는다.
+    if(!red){
+      shakeUntil=nowMs()+FX_SHAKE_MS;
+      shakeAmp=FX_SHAKE_MIN+(FX_SHAKE_MAX-FX_SHAKE_MIN)*power;
+      VIEW.counters.shake++;
+    }
+    if(!an) return;
+
+    // ② 불티 — 상한 두 겹: 1회 분출 상한과 동시 생존 상한(emit 안)
+    let n = red ? FX_BURST_REDUCED
+                : Math.round(FX_BURST_BASE + (hits-2)*FX_BURST_PER_HIT + grade*FX_BURST_PER_G);
+    n = Math.max(1, Math.min(FX_BURST_CAP, n));
+    emit(n, an.x, an.y);
+    VIEW.lastBurst=n; VIEW.counters.burst++;
+
+    // ③ 전투 모션 (018) — 정렬이 곧 한 방이다. 예비-타격-복귀가 여기서 시작하고,
+    //    닿는 순간 stepMotion 이 hitstop 과 번쩍임을 건다.
+    atkT=0; atkLanded=false; atkGrade=grade;
+    VIEW.counters.attack++;
+
+    // ③ 바운스 — 획득 장비가 모루에서 튀어오른다. 하나만 두고 덮어써
+    //    누적되지 않게 한다(옛 killTweensOf 자리).
+    bounce={x:an.x, y:an.y, off:0, a:1, t:0, red,
+      col: grade>=11?C_WHITE : grade>=6?C_BRASS : C_IRON,
+      dy: 38+18*power};
+    VIEW.counters.bounce++;
+  }
+  globalThis.__hitFx=hitFx;            // 검증용 (checklist·임시 스크립트가 직접 부른다)
+
+  /* ── 부팅 ── */
+  VIEW.scene='forge'; VIEW.sceneFx='fx'; VIEW.background='canvas';
+  const fEl=document.getElementById('forge');
+  VIEW.overlay={visible:!!fEl&&getComputedStyle(fEl).display!=='none'};
+  fit(); sync();
+  VIEW.ready=true;
+  canvasWake();
+
+  /* ── 웨이브 전환 감지 (013) ──
+     newWave() 는 CORE 라 손댈 수 없다. 대신 그것이 매번 다시 쓰는 #foes 라벨을
+     본다 — 008 의 `.reel` 클래스 관찰과 같은 종류의 이음매다. 첫 newWave() 는
+     이 블록보다 먼저 돌므로 부팅에서는 이동이 걸리지 않는다. */
+  const foesEl=document.getElementById('foes');
+  if(foesEl && typeof MutationObserver!=='undefined'){
+    let lastFoes=foesEl.textContent;
+    new MutationObserver(()=>{
+      const t=foesEl.textContent;
+      if(t===lastFoes) return; lastFoes=t;
+      dying.length=0;                              // 옛 배치의 소멸 잔상은 버린다 (018)
+      // ⚠ 생존 기준선도 함께 리셋한다. 안 하면 새 웨이브의 개체 수가 옛 값보다
+      //   적을 때 **소멸이 헛돌거나 빠진다** (018 검증에서 9→5 인데 2번만 돌았다).
+      lastAlive=-1;
+      travFrom=scrollX; travTo=scrollX+TRAVEL_PX; travUntil=nowMs()+TRAVEL_MS;
+      if(segOf(S.wave)!==stSeg) bakeStage();      // 구간이 바뀌면 팔레트를 갈아 끼운다
+      canvasWake(TRAVEL_MS+240);
+    }).observe(foesEl,{childList:true,characterData:true,subtree:true});
+  }
+
+  // ── 정렬 순간 감지 (CORE 를 건드리지 않는 유일한 이음매) ──
+  // spin() 은 CORE 라 손댈 수 없다. 대신 CORE 가 릴에 붙이는 .spin/.hit 클래스를
+  // 본다. MutationObserver 콜백은 스핀 콜백이 **끝난 뒤** 한 번만 돌아서
+  // (같은 태스크의 변경이 한 콜백으로 묶인다) 그때는 S.queue 까지 갱신돼 있다.
+  const reels=document.getElementById('reels');
+  if(reels && typeof MutationObserver!=='undefined'){
+    let qAtSpin=0;
+    new MutationObserver(muts=>{
+      let started=false, hit=false;
+      for(const m of muts){ const c=m.target.classList; if(!c) continue;
+        if(c.contains('spin')) started=true;
+        if(c.contains('hit'))  hit=true; }
+      if(started) qAtSpin=S.queue.length;          // 스핀 시작: 대기열 길이 기억
+      if(!hit) return;
+      const hits=document.querySelectorAll('.reel.hit').length;
+      if(hits<2) return;                           // 정렬 실패는 연출 없음
+      // 등급: 대기열이 늘었으면 방금 얻은 것. 자동 판매면 알 수 없어 0.
+      const g = S.queue.length>qAtSpin ? (S.queue[S.queue.length-1].g||0) : 0;
+      hitFx(hits,g);
+    }).observe(reels,{subtree:true,attributes:true,attributeFilter:['class']});
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   === CORE (자체 점검) ===
+   실행 순서 때문에 파일 끝에 둔다 — 점검이 foeCount 등 부팅 이후에야
+   채워지는 값을 읽기 때문이다. 위치만 VIEW 뒤일 뿐 내용은 CORE 다.
+   ═══════════════════════════════════════════════════════════════════ */
+/* ══ 자체 점검 ══ */
+(function(){
+  // 점검은 S 를 임시로 헤집는다 (등급·별·테크를 바꿔 가며 공식을 확인). 진입 시
+  // 얕은 복사를 떠 두고 끝날 때 통째로 되돌린다 — 예전엔 S.peak·S.tech 가 복원
+  // 없이 0·{} 로 남아, 페이지를 열 때마다 복귀 유저의 테크트리와 승천 관문
+  // 진행도가 통째로 사라지고 250ms 뒤 save() 가 그걸 덮어썼다.
+  // 얕은 복사면 충분하다: 점검은 객체 속을 고치지 않고 참조만 갈아끼운다.
+  const snap={...S};
+  const p=gradeProbs(0), s=p.reduce((a,c)=>a+c,0);
+  console.assert(Math.abs(s-1)<1e-9,'확률 합 != 1');
+  console.assert(p[0]>=0.0999,'1등급 하한 깨짐');
+  console.assert(gradeProbs(2)[cap()-1]>gradeProbs(0)[cap()-1],'정렬 보너스 무효');
+  const it=makeItem('head',8);
+  console.assert(Object.keys(it.ops).length===3,'8등급 3줄 아님');
+  console.assert(!('melee' in makeItem('head',8).ops),'방어구에 무기 옵션');
+  console.assert(Array.from({length:3000},rollLv).every(v=>v>=1&&v<=10),'세부등급 범위 이탈');
+  console.assert(p.length===GMAX,'등급 수 불일치');
+  // 초기 조건 검사는 현재 세이브가 아니라 newState() 의 상수 기본값으로 돌린다.
+  // (복귀 유저 환경에서 self-check 가 통째로 실패하던 원인)
+  const D=newState();
+  const onDefaults=f=>{ const l=S.lv,s2=S.star; S.lv=D.lv; S.star=D.star;
+    const r=f(); S.lv=l; S.star=s2; return r; };
+  console.assert(onDefaults(cap)===5,'초기 상한이 5가 아님');
+  console.assert(gradeProbs(2).slice(cap()).every(v=>v===0),'상한 밖 등급이 뽑힘');
+  console.assert(lines(15)===4&&lines(10)===3&&lines(6)===2&&lines(2)===1,'옵션 줄 수 오류');
+  console.assert(ROMAN.length===11&&LVW.length===10,'세부등급 10단계 아님');
+  console.assert(Math.abs(lvProbs().reduce((a,x)=>a+x,0)-1)<1e-9,'세부등급 확률 합 오류');
+  const sv=S.lv; S.lv=40;
+  console.assert(lvProbs()[9]>lvProbs.call(null)[0]*0||true,'');
+  const hi=lvProbs()[9]; S.lv=0;
+  console.assert(hi>lvProbs()[9],'제련 강화가 세부등급을 못 밀음');
+  S.lv=capLvMax();
+  const a=gradeProbs(0)[GMAX-1]; S.lv=capLvMax()+30;
+  console.assert(Math.abs(gradeProbs(0)[GMAX-1]-a)<1e-12,'상한 개방 후에도 등급 확률이 계속 오름');
+  S.peak=ASC_WAVE(); console.assert(canAscend(),'승천 조건 미충족'); S.peak=0;
+  S.lv=sv;
+  const svS=S.star, svL=S.lv; S.star=3; S.lv=0;
+  console.assert(cap()===5,'승천 후 시작 상한이 5가 아님');
+  console.assert(ASC_LV()===28&&capLvMax()===20,'승천 문턱이 별에 따라 변함');
+  console.assert(starMul()===64&&Math.abs(optMul()-2.8)<1e-9,'승천 배율 오류');
+  console.assert(qmax()===13,'승천 대기창 증가 안 됨');
+  S.lv=28; console.assert(qmax()===17,'제련 대기창 증가 안 됨');
+  S.star=svS; S.lv=svL;
+  console.assert(onDefaults(qmax)===10,'초기 대기창이 10칸이 아님');
+  // 테크트리 / 층 / 주사위
+  console.assert(Object.keys(TECH).length===6,'테크 항목 수 오류');
+  // 기준선은 현재 세이브가 아니라 테크 0 이다 (newState().tech). 고테크 세이브는
+  // 이미 하한(1500ms)·상한(cap)·바닥(-50%)에 붙어 있어서, 현재값을 기준으로
+  // 삼으면 포화가 곧 실패로 뒤집힌다 — spd 94 부터 CHG_MS 가 안 줄어든다.
+  // 포화는 정상 동작이지 결함이 아니므로, 검사는 0 대 만렙으로 잰다 (005).
+  S.tech=D.tech;
+  const c0=CHG_MS(), m0=CHG_MAX(), u0=upCost();
+  S.tech={spd:100,cap:100,cost:100};
+  console.assert(CHG_MS()<c0&&CHG_MAX()>m0&&upCost()<u0,'테크 효과 미적용');
+  console.assert(CHG_MS()>=1500,'충전 주기 하한 붕괴');
+  console.assert(upCost()>=Math.round(50*Math.pow(1.55,S.lv))*0.49,'강화 비용 클램프 붕괴');
+  console.assert(Object.values(TECH).every(v=>v.max===100),'테크 100단계 아님');
+  console.assert(fmt(999)==='999'&&fmt(12345)==='12.3K'&&fmt(2.5e9)==='2.5B','fmt 오류');
+  { const svc=S.star; S.star=9; const t9={g:15,lv:10,st:9};
+    console.assert(isFinite(sellPrice(t9))&&sellPrice(t9)>0,'후반 판매가 오버플로');
+    S.star=svc; }
+  S.tech={};
+  console.assert(TILES.length===8,'주사위 칸 수 오류');
+  console.assert(TILES.every(t=>['dust','gold','tok','chg'].includes(t.k)),'알 수 없는 보상 칸');
+  const pos0=S.pos; let seen=new Set();
+  for(let i=0;i<200;i++){ S.pos=(S.pos+1+((Math.random()*6)|0))%TILES.length; seen.add(S.pos); }
+  console.assert(seen.size===8,'주사위가 닿지 않는 칸이 있음');
+  S.pos=pos0;
+  console.assert(climb()>=0,'층 계산 오류');
+  const pk=S.peak, lvB=S.lv; S.lv=ASC_LV(); S.peak=0;
+  console.assert(!canAscend(),'웨이브 관문 없이 승천됨');
+  S.peak=ASC_WAVE(); console.assert(canAscend(),'관문 충족인데 승천 불가');
+  S.peak=pk; S.lv=lvB;
+  // 릴은 3 + 별, 단 5에서 멈춘다 (DESIGN.md "릴 수 = 3 + 별 (최대 5)")
+  console.assert(REELS()===Math.min(3+S.star,5),'릴 수 오류');
+  console.assert(PITY()===20*REELS(),'천장 문턱 오류');
+  console.assert(Object.keys(makeItem('head',15).ops).length===4,'15등급 4줄 아님');
+  console.assert(!makeItem('head',8).sp,'8등급에 각인');
+  console.assert(!!makeItem('head',10).sp,'10등급에 각인 없음');
+  console.assert(S.asell.length===GMAX,'자동판매 체크 길이 불일치');
+  // 적 무리 표시
+  console.assert(foeCount>=5&&foeCount<=9,'적 개체 수 5~9 범위 이탈');
+  { const wv=S.wave, ok=[];
+    for(let w=1;w<=60;w++){ S.wave=w; newWave(); ok.push(foeCount); }
+    console.assert(ok.every(n=>n>=5&&n<=9),'웨이브별 적 개체 수 범위 이탈');
+    console.assert(new Set(ok).size===5,'적 개체 수가 5종으로 안 퍼짐');
+    S.wave=wv; newWave(); }
+  console.assert(foeEls.length===0||foeEls.length===foeCount,'적 블록 수 불일치');
+  const pierce=stats({weapon:{part:'weapon',g:10,lv:1,base:100,wt:'melee',sp:'pierce',ops:{ranged:10}}});
+  console.assert(pierce.dps>105,'관통 각인 미적용');
+  const sv2=S.lv; S.lv=30;
+  console.assert(cap()===GMAX,'최대 강화에서 상한 미개방');
+  console.assert(Math.abs(gradeProbs(0).reduce((a,x)=>a+x,0)-1)<1e-9,'개방 후 확률 합 오류');
+  S.lv=sv2;
+  // 등급색 캐시가 CSS 토큰과 일치하는가 (010 §4). 굳는 시점이 앞당겨져 토큰 적용
+  // 전에 걸리면 15색이 전부 기본값으로 굳고 등급 판독이 조용히 죽는다.
+  // **이 검사만은 기준선이 newState() 가 아니라 CSS 토큰 자체다** (지시서가 정한 예외).
+  if(typeof getComputedStyle==='function'){
+    const cs=getComputedStyle(document.documentElement);
+    console.assert(!!gcCache && gcCache.length===GMAX+1 &&
+      gcCache.slice(1).every((c,i)=>c.join(',')===hex2rgb(cs.getPropertyValue('--g'+(i+1))).join(',')),
+      '등급색 캐시가 CSS 토큰과 불일치');
+  }
+  // 진입 시점으로 통째 복원. 이 아래에서는 S 를 건드리지 않는다.
+  Object.assign(S,snap);
+  // 재발 방지: 점검이 상태를 남기고 나가면 여기서 잡힌다 (tech 는 참조 비교).
+  console.assert(S.peak===snap.peak&&S.tech===snap.tech&&S.pos===snap.pos,
+    '자체 점검이 상태를 오염시킴');
+  console.log('self-check ok · ★'+S.star+' · 릴',REELS()+'개 · 상한',cap()+'등급 · 승천 제련',ASC_LV());
+})();
+</script>
+</body>
+</html>

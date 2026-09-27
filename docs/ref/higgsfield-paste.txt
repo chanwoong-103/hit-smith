@@ -1,0 +1,60 @@
+힉스필드에 붙여 넣을 프롬프트 — 한 번에 한 칸씩 (2026-09-14 · 개정 2)
+
+읽지 말고 복사할 것. ===== 줄 사이의 내용만 통째로 붙여 넣는다.
+문서를 통째로 넣으면 한 장만 나온다 — 한 칸이 한 장이다.
+
+■ 무기 3장·장갑 3장은 1차 생성분으로 확정됐다. 다시 뽑지 않는다.
+  (사용자 판정 2026-09-14: 옆모습 재생성 세 장보다 1차가 낫다. 실측도 같다 —
+   ART-DIRECTION 「실루엣 테스트는 부위끼리」 참고.)
+
+■ 남은 것은 몹 6장 + 용사 1장. 아래 순서대로.
+
+[여백 규칙 — 3차에서 넣었고 효과가 확인됐다]
+2차는 스프라이트가 액자에 닿아 위아래가 잘렸다. "가운데 60%만 쓰고 사방에 여백"을
+넣으니 세 장 모두 안 닿았다. 워터마크도 여백 위에 앉는다. 그대로 유지할 것.
+
+=====  몹 근접 t1 =====
+32x32 pixel art sprite, front view, GRAYSCALE ONLY - no hue, pure black white and grey, exactly 4 value steps: near-black outline, dark tone, mid tone, bright highlight, strong separation between the values, thick hard black outline on every edge, flat fills, light source from upper-left, NO anti-aliasing, NO dithering, NO gradients, NO text, crisp hard pixel edges, 16-bit SNES RPG sprite style, solid flat magenta background #FF00FF, the sprite occupies only the CENTRE 60% of the frame with a WIDE EMPTY MAGENTA MARGIN on all four sides, the sprite must NOT touch any frame edge.
+Subject: a hunched armored brute monster, standing, facing the viewer. COMPLETELY SOLID FILLED silhouette with NO holes anywhere - no gap between the arms and the body, no gap between the legs, the legs merge into one mass at the bottom. Very WIDE heavy shoulders at the top, SHORT thick legs, the body is WIDEST AT THE BOTTOM like a wedge. Arms pressed flat against the torso. Head sunk low between the shoulders. NO horns, NO spikes, NO tail, NO wings, nothing thin sticking out of the outline. Crude ragged hide and bone plates, asymmetric, lumpy.
+=====
+
+=====  몹 근접 t2 =====
+(위 「몹 근접 t1」을 그대로 붙이되, 맨 끝 문장만 아래로 바꾼다)
+Fitted iron plate armor, symmetric, clean banded edges, even riveting.
+=====
+
+=====  몹 근접 t3 =====
+(위 「몹 근접 t1」을 그대로 붙이되, 맨 끝 문장만 아래로 바꾼다)
+EXACTLY the same outer size as a plain brute. Layered engraved armor with dense interior detail. All ornamentation stays INSIDE the silhouette - NO horns, NO spikes, NO crest, nothing added to the outline.
+=====
+
+=====  몹 원거리 t1 =====
+32x32 pixel art sprite, front view, GRAYSCALE ONLY - no hue, pure black white and grey, exactly 4 value steps: near-black outline, dark tone, mid tone, bright highlight, strong separation between the values, thick hard black outline on every edge, flat fills, light source from upper-left, NO anti-aliasing, NO dithering, NO gradients, NO text, crisp hard pixel edges, 16-bit SNES RPG sprite style, solid flat magenta background #FF00FF, the sprite occupies only the CENTRE 60% of the frame with a WIDE EMPTY MAGENTA MARGIN on all four sides, the sprite must NOT touch any frame edge.
+Subject: a gaunt skeletal archer monster, standing tall, facing the viewer. TALL AND NARROW - much taller than it is wide, narrow at the top, thin body. It holds a large bow VERTICALLY in front of its chest, and the bow together with the bowstring forms a FULLY ENCLOSED HOLE through the sprite - the magenta background shows through that hole. The ribcage also shows TWO separate enclosed gaps with magenta background visible through them. Long straight thin legs with a clear gap between them. NO horns, NO wings, NO spikes, NO tentacles, NO cape. Cracked bare bone, crude uneven bow, asymmetric.
+=====
+
+=====  몹 원거리 t2 =====
+(위 「몹 원거리 t1」을 그대로 붙이되, 맨 끝 문장만 아래로 바꾼다)
+Bone wrapped in fitted leather straps, a clean symmetric recurve bow, even detailing.
+=====
+
+=====  몹 원거리 t3 =====
+(위 「몹 원거리 t1」을 그대로 붙이되, 맨 끝 문장만 아래로 바꾼다)
+EXACTLY the same outer size as a plain archer. Engraved bone and layered wraps with dense interior detail. All ornamentation stays INSIDE the silhouette, and the enclosed holes must stay open - NO horns, NO wings, NO spikes.
+=====
+
+
+=====  용사 =====
+32x32 pixel art sprite, front view, GRAYSCALE ONLY - no hue, pure black white and grey, exactly 4 value steps: near-black outline, dark tone, mid tone, bright highlight, strong separation between the values, thick hard black outline on every edge, flat fills, light source from upper-left, NO anti-aliasing, NO dithering, NO gradients, NO text, crisp hard pixel edges, 16-bit SNES RPG sprite style, solid flat magenta background #FF00FF, the sprite occupies only the CENTRE 60% of the frame with a WIDE EMPTY MAGENTA MARGIN on all four sides, the sprite must NOT touch any frame edge.
+Subject: a lone hero knight standing and bracing, facing the viewer. COMPLETELY SOLID FILLED silhouette with NO holes. Stands TALL AND UPRIGHT with NARROW shoulders - clearly taller than wide, the opposite of a hunched brute. Feet planted apart, knees slightly bent, body squared to the viewer. A round shield held flat against the chest as one solid mass. A hooded cloak falling straight down to the ankles. NO weapon in the hands, NO horns, NO wings, NO flaring cape, nothing thin sticking out of the outline.
+=====
+
+
+합격 기준 (계획 세션이 잴 것 — 못 넘기면 다시 뽑는다)
+- 근접 몹: 바깥에서 못 닿는 칸(진짜 구멍) 0칸
+- 원거리 몹: 진짜 구멍 30칸 이상 (015 기준 42칸)
+- 근접과 원거리가 검정 실루엣만으로 갈릴 것 (주축·이심률이 서로 다를 것)
+- 용사: 구멍 0칸이면서 근접 몹과 이심률이 갈릴 것 (몹은 낮고 넓게, 용사는 높고 좁게)
+- t1·t2·t3 경계상자 동일 — **단계끼리 실루엣이 같은 것은 정상이다.** 등급은
+  부피가 아니라 밀도로 오른다. 갈려야 하는 것은 근접↔원거리↔용사 사이다.
+- 모두: 액자에 닿지 않을 것
