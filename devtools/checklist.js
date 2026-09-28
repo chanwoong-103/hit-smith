@@ -128,7 +128,13 @@ const chk = (name, cond, note) => {
 
   // ── 1. 첫 접속 ──
   const chg = await page.textContent('#chg');
-  chk('1a 첫 접속 충전 30', +chg >= 29 && +chg <= 31, 'chg=' + chg);
+  /* 032: 시작 충전 30 → **가득 찬 화로**. 값을 다시 박는 대신 페이지가 말하는
+     `CHG_MAX()` 와 대조한다 — 그래야 `CHG_MAX` 의 기본값이 바뀌어도 이 검사가 같이
+     따라가고, 「기본 상태가 상한보다 적다」는 032 의 결함이 되돌아오면 **운다**.
+     느슨해진 것이 아니다: 예전 판정은 「30 언저리」였고 지금은 「상한과 같다」다. */
+  const chgMax = await page.evaluate(() => CHG_MAX());
+  chk('1a 첫 접속 충전 = 가득 (CHG_MAX)', Math.abs(+chg - chgMax) <= 1,
+    'chg=' + chg + ' · CHG_MAX()=' + chgMax + ' (032 전에는 30)');
   chk('1b 스핀 즉시 가능', !(await page.isDisabled('#spin')));
   // 첫 화면에 **실제로 보이는 글자**만 훑는다. page.textContent('body') 를 쓰면
   // 인라인 <script> 소스가 통째로 딸려 들어와, 코드 주석에 "타이머"라고만 써도
@@ -1221,7 +1227,13 @@ const chk = (name, cond, note) => {
     pg.on('pageerror', e => tbErrs.push('pageerror: ' + e.message));
     await pg.addInitScript(a => { try {
       localStorage.setItem('forge', JSON.stringify(Object.assign({ wave: 1, top: a.top, gold: 0,
-        tok: 2, lv: 0, star: 0, charge: 30, queue: [], equip: {},
+        // 032 제안 ⑵(검증 세션 판정): 씨앗의 충전을 **첫 화면과 같은 600** 으로 올렸다.
+        //   30 으로 두면 TB8 의 35칸이 «제련 30» 이라는, 새 플레이어가 한 번도 안 보는
+        //   좁은 라벨을 재게 된다 — 「보이는가」를 보는 식구에서 그건 최악 조건이 아니다.
+        //   TB·LG·GR 어느 항목도 충전 «값»으로 판정하지 않으므로(그 검사들은 각자
+        //   S.charge 를 따로 심는다) 이 값을 올려도 판정이 안 흔들린다 — 031+032
+        //   검증에서 전 항목 재실행으로 확인했다.
+        tok: 2, lv: 0, star: 0, charge: 600, queue: [], equip: {},
         asell: new Array(15).fill(false), t: Date.now() }, a.extra || {})));
     } catch (e) {} }, { top, extra: extra || null });
     await pg.goto(URL);
@@ -1232,12 +1244,12 @@ const chk = (name, cond, note) => {
   const tbFailAll = why => {
     chk('TB1 탭바 게이팅 (웨이브 10 전 탭바 없음 · 도달 시 제련·던전·테크 **정확히 셋**)', false, why);
     chk('TB2 탭 전환 — 누른 탭만 켜지고 보인다 (380 · 1280)', false, why);
-    chk('TB3 팝업 넷 열림 · 닫기 버튼과 배경 탭 둘 다로 닫힘', false, why);
+    chk('TB3 팝업 전부 열림 · 닫기 버튼과 배경 탭 둘 다로 닫힘', false, why);
     chk('TB4 팝업이 열린 동안 전투력·웨이브·골드가 보인다', false, why);
-    chk('TB5 팝업 넷 도달성 (세 크기 · 넘칠 때 끝까지 · 위쪽 잘림 없음)', false, why);
+    chk('TB5 팝업 전부 도달성 (세 크기 · 넘칠 때 끝까지 · 위쪽 잘림 없음)', false, why);
     chk('TB6 빈 설정 팝업은 없다 (톱니 유무 두 벌)', false, why);
     chk('TB7 팝업 입구를 실제로 눌러서 연다 (세 크기 · 자리·도달·제목)', false, why);
-    chk('TB8 첫 화면에 굴리기 전 강화·승천·제련이 보인다 (크기 8)', false, why);
+    chk(`TB8 첫 화면에 굴리기 전 강화·승천·제련이 보인다 (크기 ${TB8_SIZES.length})`, false, why);
   };
 
   // ⚠ 이 블록은 **016 골격이 없는 트리에서도 죽지 않아야 한다.** 검사가 터져 죽으면
@@ -1368,9 +1380,9 @@ const chk = (name, cond, note) => {
         if (shut) bad.push(`${k}: 배경 탭으로 안 닫힘`);
         await pg.evaluate(() => { try { if (typeof closePop === 'function') closePop(); } catch (e) {} });
       }
-      chk('TB3 팝업 넷 열림 · 닫기 버튼과 배경 탭 둘 다로 닫힘', bad.length === 0,
+      chk('TB3 팝업 전부 열림 · 닫기 버튼과 배경 탭 둘 다로 닫힘', bad.length === 0,
         bad.length ? bad.slice(0, 4).join(' · ')
-          : `${POP_KEYS.length}종(확률표·옵션상세·자동판매·승천) 전부 열리고 두 방법으로 닫힌다`);
+          : `${POP_KEYS.length}종(${POP_KEYS.join("·")}) 전부 열리고 두 방법으로 닫힌다 — 027 B-3 이 설정 절을 걷어낸 뒤로는 셋이다`);
       await pg.close();
     }
 
@@ -1439,7 +1451,7 @@ const chk = (name, cond, note) => {
         }
         await pg.close();
       }
-      chk('TB5 팝업 넷 도달성 (세 크기 · 넘칠 때 끝까지 · 위쪽 잘림 없음)', bad.length === 0,
+      chk('TB5 팝업 전부 도달성 (세 크기 · 넘칠 때 끝까지 · 위쪽 잘림 없음)', bad.length === 0,
         bad.length ? bad.slice(0, 4).join(' · ')
           : `${REACH.length}크기 × ${POP_KEYS.length}팝업 = ${REACH.length * POP_KEYS.length}조합 · ` +
             `강제로 넘치게 해도 끝까지 도달 · 위쪽 잘림 0 (자연 상태 넘침 ${natMax}px — 그래서 강제한다)`);
@@ -1695,6 +1707,90 @@ const chk = (name, cond, note) => {
     chk('TB-예외 탭·팝업 검사가 완주했다', false, '조작 중 예외: ' + String((e && e.message) || e));
   } }
 
+  /* ── GR1 : 장비 격자(#gear)가 최악 조건에서도 가로로 안 넘친다 ────────────────
+     031 제안 ⑴ 이 남긴 자리다(검증 세션이 세운다). 031 §3 이 **11px 로 올리자마자**
+     `#gear` 에 «가로» 넘침이 생겼다 — 380×820 11px · 821×462 14px · 800×450 23px.
+     고친 방법은 여백 셋(격자 간격 5→2 · 칸 좌우 여백 4→2 · `.op` 말줄임→두 줄)인데,
+     **그 셋 중 하나만 되돌아가도 넘침이 그대로 돌아온다.** 그런데 이 자리를 보는
+     검사가 하나도 없었다 — TB8 은 「보이는가」(세로)만 보고 가로는 안 본다.
+
+     ⚠ **최악 조건을 박아 둔다 — 무작위로 뽑으면 조용히 통과한다.** 031 검증에서
+       3줄짜리 아이템이 뽑혀 통과했다가, 4줄로 고정하자 넘쳤다. 그래서 세이브를
+       직접 심는다:
+         · `g:15`      — 등급 상한. `.gd` 가 「15등급」(두 자리)으로 가장 넓다.
+         · `lv:8`      — `ROMAN[8]='VIII'`. 세부등급 열 단계 중 **글자가 가장 긴 것**.
+         · 옵션 4개   — `lines(15)=4`. `.op` 가 가장 길어지는 수.
+         · 여섯 칸 전부 — 한 칸만 채우면 1fr 이 안 좁아진다.
+       이 셋 중 하나라도 무르게 하면 검사는 살아 있는 척만 한다.
+
+     ⚠ **세 가지를 따로 잰다.** 「가로 넘침」은 한 값이 아니다:
+       ⑴ `#gear` 자신의 `scrollWidth − clientWidth` (격자가 제 상자를 넘었나)
+       ⑵ 칸(`.slot`)이 `#gear` 의 «내용 상자» 밖으로 나갔나 (padding 을 뺀 폭)
+       ⑶ 칸 «안»의 글자(`.gd`·`.op`)가 칸 밖으로 나갔나 — ⑴·⑵ 는 `overflow:hidden`
+          이 잘라 주면 0 이 되는데, 그때도 **글자는 이미 잘려 있다.**
+       셋 중 가장 큰 값을 넘침으로 삼는다. 문턱은 **0.5px**(서브픽셀 반올림 몫).
+     ⚠ 크기 목록은 `TB8_SIZES` 를 그대로 읽는다 — 한 곳에서만 고친다. */
+  try {
+    const GR_OPS  = { crit: 9.9, cdmg: 9.9, aspd: 9.9, hp: 9.9 };          // 4줄
+    const GR_OPSW = { crit: 9.9, cdmg: 9.9, melee: 9.9, ranged: 9.9 };     // 무기 4줄
+    const grEquip = {};
+    for (const p of ['weapon', 'head', 'body', 'hand', 'leg', 'acc'])
+      grEquip[p] = Object.assign({ part: p, g: 15, lv: 8, base: 999999, sp: 'pierce',
+        ops: p === 'weapon' ? GR_OPSW : GR_OPS }, p === 'weapon' ? { wt: 'melee' } : {});
+    const grBad = [], grRows = [];
+    let grWorst = 0, grWorstAt = '';
+    for (const vp of TB8_SIZES) {
+      const pg = await tbOpen(12, vp.w, vp.h, { equip: grEquip });
+      const r = await pg.evaluate(() => {
+        const b = document.getElementById('tbForge'); if (b) b.click();
+        const g = document.getElementById('gear');
+        if (!g) return { err: '#gear 가 없다' };
+        const cs = getComputedStyle(g), gr = g.getBoundingClientRect();
+        const inL = gr.left + parseFloat(cs.paddingLeft || 0);
+        const inR = gr.right - parseFloat(cs.paddingRight || 0);
+        const slots = [...g.querySelectorAll('.slot')];
+        let out = 0, at = '';
+        const bump = (v, w) => { if (v > out) { out = v; at = w; } };
+        bump(g.scrollWidth - g.clientWidth, '#gear scrollWidth');
+        slots.forEach((s, i) => {
+          const sr = s.getBoundingClientRect();
+          bump(Math.max(sr.right - inR, inL - sr.left), `.slot[${i}] 가 #gear 내용상자 밖`);
+          for (const c of s.children) {
+            const cr = c.getBoundingClientRect();
+            bump(Math.max(cr.right - sr.right, sr.left - cr.left),
+              `.slot[${i}] > .${String(c.className || c.tagName).split(' ')[0]} 가 칸 밖`);
+          }
+        });
+        const gd = g.querySelector('.slot .gd'), op = g.querySelector('.slot .op');
+        return { slots: slots.length, out: Math.round(Math.max(0, out) * 10) / 10, at,
+          gearW: Math.round(gr.width * 10) / 10,
+          gd: gd ? gd.textContent.trim() : '(없다)',
+          op: op ? op.textContent.replace(/​/g, '').trim() : '(없다)' };
+      });
+      await pg.close();
+      if (r.err) { grBad.push(`${vp.nm}: ${r.err}`); continue; }
+      if (r.slots !== 6) grBad.push(`${vp.nm}: 칸이 6개가 아니다 (${r.slots}) — 세이브를 못 심었다, 검사 잘못`);
+      grRows.push(`${vp.nm} ${r.out}px(#gear ${r.gearW}px)`);
+      if (r.out > grWorst) { grWorst = r.out; grWorstAt = `${vp.nm} — ${r.at}`; }
+      if (r.out > 0.5) grBad.push(`${vp.nm}: 가로 ${r.out}px 넘침 (${r.at})`);
+      if (r.gd !== '15등급 VIII')
+        grBad.push(`${vp.nm}: 최악 조건이 안 걸렸다 — .gd 가 「${r.gd}」다 (「15등급 VIII」이어야 한다)`);
+      if (r.op.split('·').length !== 4)
+        grBad.push(`${vp.nm}: 최악 조건이 안 걸렸다 — .op 가 「${r.op}」로 4줄이 아니다`);
+    }
+    chk(`GR1 #gear 가로 넘침 0 (15등급·VIII·옵션 4줄 최악 · 크기 ${TB8_SIZES.length})`,
+      grBad.length === 0,
+      (grBad.length
+        ? `${grBad.length}건 — ${grBad.join(' · ')}` +
+          `  ⚠ 031 §3 의 여백 셋(간격 5→2 · 칸 여백 4→2 · .op 말줄임→두 줄) 중 하나라도 되돌아가면 여기가 운다`
+        : `9크기 전부 0px (최대 ${grWorst}px${grWorstAt ? ' · ' + grWorstAt : ''})`) +
+      `  · 최악 조건 고정: 여섯 칸 전부 15등급 · 세부등급 VIII · 옵션 4줄` +
+      `  · 잰 값 셋의 최대: #gear scrollWidth / 칸이 내용상자 밖 / 글자가 칸 밖` +
+      `  · 크기별: ${grRows.join(' · ')}`);
+  } catch (e) {
+    chk('GR1-예외 #gear 가로 넘침 검사가 완주했다', false, '조작 중 예외: ' + String((e && e.message) || e));
+  }
+
   /* ── LG1 : 보이는 글자 중 가장 작은 것 ≥ 11px (DPR 1) ────────────────────────
      031 이 열릴 자리다(030 제안 ⑴ · 계획 세션 판정 ⑴). CrazyGames 요건이
      「`devicePixelRatio:1` 에서 글자와 그림이 읽힐 것」을 적고 있는데, 이 화면의
@@ -1801,6 +1897,158 @@ const chk = (name, cond, note) => {
         : `최소 ${lgMin}px (${lgMinAt}) — 전 크기 11px 이상`) + ` · ${skipTxt}` + unseenTxt);
   } catch (e) {
     chk('LG1-예외 글자 크기 검사가 완주했다', false, '조작 중 예외: ' + String((e && e.message) || e));
+  }
+
+  /* ── LG2 : 팝업을 «연» 상태에서도 보이는 글자 ≥ 11px ─────────────────────────
+     031 검증에서 **LG1 의 눈먼 자리**를 찾았다. LG1 은 「보이는 글자」만 보는데,
+     `#pop` 의 절들은 평소 `display:none` 이라 정의상 ⑴로 빠진다 — 즉 **팝업 안의
+     글자는 LG1 이 한 번도 안 본다.** 실측으로 증명했다: `render()` 의 인라인
+     `style="…font-size:11px"`(각인 줄) 하나만 10px 로 되돌린 변이에서
+       · LG1(팝업 닫힘) → **9크기 전부 PASS** (못 잡는다)
+       · 이 검사(팝업 열림) → 9크기 전부 FAIL, 「10px span [팝업 안]」
+     그래서 팝업을 실제로 열고 같은 정의로 다시 잰다. 팝업 목록은 페이지의 `POPS`
+     에서 읽는다 — 하드코딩하면 절이 늘거나 줄 때 조용히 죽는다(027 B-3 이 `set` 을
+     걷어낸 뒤 이 파일의 「팝업 넷」 이름들이 실제로 그렇게 상했다).
+
+     ⚠ **세이브를 채워서 연다.** 빈 세이브로 열면 세 절이 거의 빈 통이라
+       (`#stats` 의 각인 줄·`#ascTxt` 가 아예 안 그려진다) 검사가 살아 있는 척만 한다:
+         · 장비 여섯 칸 `g:15`(→ `it.sp` 가 붙어 각인 줄이 그려진다)
+         · `lv:28 · peak:120`(→ `canAscend()` 가 참이라 `#popAsc` 가 내용을 가진다)
+       절마다 **팝업 안 글자 요소 수**를 판정문에 적는다. 0 이면 그 절은 빈 통이고,
+       그건 PASS 가 아니라 검사 잘못이다 — 그래서 0 이면 FAIL 로 센다. */
+  try {
+    const LG2_OPS = { crit: 9.9, cdmg: 9.9, aspd: 9.9, hp: 9.9 };
+    const lg2Equip = {};
+    for (const p of ['weapon', 'head', 'body', 'hand', 'leg', 'acc'])
+      lg2Equip[p] = Object.assign({ part: p, g: 15, lv: 8, base: 999999, sp: 'pierce',
+        ops: LG2_OPS }, p === 'weapon' ? { wt: 'melee' } : {});
+    const lg2Extra = { lv: 28, peak: 120, top: 120, equip: lg2Equip };
+    let lg2Keys = null, lg2Titles = {};
+    const lg2 = {};   // key → {bad:[], min, at, n, under:Map}
+    for (const vp of TB8_SIZES) {
+      const pg = await tbOpen(120, vp.w, vp.h, lg2Extra);
+      if (!lg2Keys) {
+        const k = await pg.evaluate(() => (typeof POPS === 'object' && POPS)
+          ? { keys: Object.keys(POPS), t: POPS } : { keys: [], t: {} });
+        lg2Keys = k.keys; lg2Titles = k.t;
+        for (const q of lg2Keys) lg2[q] = { bad: [], min: Infinity, at: '', n: 0, under: new Map() };
+      }
+      for (const k of lg2Keys) {
+        const a = lg2[k];
+        const r = await pg.evaluate(async (kk) => {
+          openPop(kk);
+          await new Promise(r2 => setTimeout(r2, 200));
+          const sec = document.getElementById('pop' + kk[0].toUpperCase() + kk.slice(1));
+          const on = document.getElementById('pop').classList.contains('on');
+          const secOn = sec ? getComputedStyle(sec).display !== 'none' : false;
+          const rows = [];
+          for (const e of document.querySelectorAll('*')) {
+            let t = ''; for (const n of e.childNodes) if (n.nodeType === 3) t += n.nodeValue;
+            if (!t.trim()) continue;
+            const cs = getComputedStyle(e);
+            if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+            const r3 = e.getBoundingClientRect();
+            if (r3.width <= 0 || r3.height <= 0) continue;
+            if (r3.bottom <= 0 || r3.top >= innerHeight || r3.right <= 0 || r3.left >= innerWidth) continue;
+            rows.push({ px: +parseFloat(cs.fontSize).toFixed(2), inPop: !!e.closest('#pop'),
+              sel: e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') +
+                (e.className && typeof e.className === 'string' && e.className.trim()
+                  ? '.' + e.className.trim().split(/\s+/).join('.') : ''),
+              t: t.trim().slice(0, 14) });
+          }
+          return { on, secOn, rows, dpr: devicePixelRatio };
+        }, k);
+        if (!r.on || !r.secOn) { a.bad.push(`${vp.nm}: 팝업이 안 열렸다 (#pop.on=${r.on} · 절 보임=${r.secOn})`); continue; }
+        if (r.dpr !== 1) a.bad.push(`${vp.nm}: DPR 이 ${r.dpr} 다`);
+        let inPop = 0;
+        for (const row of r.rows) {
+          if (row.inPop) inPop++;
+          if (row.px < a.min) { a.min = row.px; a.at = `${vp.nm} — ${row.sel}「${row.t}」${row.inPop ? ' [팝업 안]' : ''}`; }
+          if (row.px < 11) a.under.set(`${row.px}px ${row.sel}${row.inPop ? ' [팝업 안]' : ''}`, 1);
+        }
+        a.n += inPop;
+        if (!inPop) a.bad.push(`${vp.nm}: 팝업 «안»에 글자 요소가 0개다 — 빈 통을 재고 있다, 검사 잘못`);
+        if (a.min < 11) a.bad.push(`${vp.nm}: 최소 ${a.min}px`);
+      }
+      await pg.close();
+    }
+    if (!lg2Keys || !lg2Keys.length) {
+      chk('LG2 팝업을 연 상태에서도 보이는 글자 ≥ 11px', false, 'POPS 가 비었다 — 팝업이 하나도 없다');
+    } else {
+      const bad = lg2Keys.filter(k => lg2[k].bad.length);
+      const per = lg2Keys.map(k => {
+        const a = lg2[k];
+        return `«${lg2Titles[k] || k}»(#pop${k[0].toUpperCase()}${k.slice(1)}) 최소 ${a.min === Infinity ? '?' : a.min + 'px'}` +
+          ` · 팝업 안 글자 ${a.n}개` +
+          (a.under.size ? ` · 11px 미만 ${a.under.size}종: ${[...a.under.keys()].sort().join(', ')}` : '') +
+          (a.bad.length ? ` ⚠ ${a.bad.slice(0, 3).join(' · ')}` : '');
+      });
+      chk(`LG2 팝업을 연 상태에서도 보이는 글자 ≥ 11px (팝업 ${lg2Keys.length}종 × 크기 ${TB8_SIZES.length})`,
+        bad.length === 0,
+        (bad.length ? `${bad.length}/${lg2Keys.length}종 FAIL` : `${lg2Keys.length}종 전부 11px 이상`) +
+        `  · LG1 은 팝업을 못 본다(닫힌 절은 display:none 이라 정의상 빠진다) — 그 눈먼 자리를 여기서 덮는다` +
+        lg2Keys.map((k, i) => `\n        · ${per[i]}`).join(''));
+    }
+  } catch (e) {
+    chk('LG2-예외 팝업 글자 크기 검사가 완주했다', false, '조작 중 예외: ' + String((e && e.message) || e));
+  }
+
+  /* ── IT1~IT2 : 조작이 없는 동안 화면이 상태를 따라가는가 (031 §5 신설) ──────
+     사용자 실기기가 「웨이브 8 최고 6」을 보여 줬다 — **최고가 현재 웨이브보다 낮다.**
+     원인은 갱신 «자리»다: `S.top` 은 CORE 의 `tick()` 이 웨이브를 깰 때마다 올리는데
+     「최고」 숫자를 그리는 `setNum('top', …)` 이 `render()` 안에만 있었다. 조작이
+     없는 동안 실제로 도는 경로는 250ms 틱의 `tick(); renderFast();` 뿐이라
+     화면의 「최고」가 첫 조작 시점 값에 그대로 굳는다.
+
+     ⚠ **이 검사가 없어서 아무도 안 보고 있었다.** 앞선 검사는 전부 조작을 한 번은
+       한다(클릭·`render()`). 「조작을 하지 않는다」가 이 검사의 본체다.
+     ⚠ 그래서 **실제 틱과 똑같은 순서로만** 돈다: `tick(); renderFast();` — `render()`
+       를 부르면 검사가 제 손으로 답을 만들어 주고, 그 순간 우는 능력을 잃는다.
+       페이지의 `setInterval` 은 끄고 우리가 돈다(우리 루프와 섞이면 몇 번 돌았는지
+       못 세고 판정이 환경 속도에 물린다).
+     ⚠ IT2 는 같은 원인이 웨이브 10 탭바 게이트(`S.top` 파생)에도 걸리는지 보는
+       자리다. 실측으로는 **걸리지 않는다** — `gateUI()` 가 `renderFast()` 의 첫
+       줄이라 031 전에도 PASS 다. 「PASS 라서 지운다」가 아니라, 게이트를 `render()`
+       쪽으로 옮기는 변경이 오면 **여기서 울려야 하기에** 남긴다. */
+  try {
+    const itPg = await tbOpen(0, 380, 820);
+    const it = await itPg.evaluate(async N => {
+      if (typeof S !== 'object' || typeof tick !== 'function' || typeof renderFast !== 'function')
+        return { skel: false };
+      for (let i = 1; i < 99999; i++) clearInterval(i);   // 페이지 틱을 끄고 우리가 돈다
+      render();                                           // 시작점 = 「조작 직후」의 화면
+      const shown = () => (document.getElementById('top').textContent || '').trim();
+      const tabs = () => getComputedStyle(document.getElementById('tabs')).display;
+      const start = { top: S.top | 0, shown: shown(), tabs: tabs() };
+      // 웨이브가 실제로 넘어가게 장비를 준다 — 전투 수식(CORE)은 건드리지 않는다
+      for (const k of ['weapon', 'head', 'body', 'legs', 'hands', 'feet']) S.equip[k] = makeItem(k, 15);
+      let n = 0;
+      for (; n < 600 && (S.top | 0) < N; n++) { tick(); renderFast(); }
+      const after = { top: S.top | 0, wave: S.wave, shown: shown(), tabs: tabs(),
+        btns: document.querySelectorAll('#tabs button').length,
+        wv: (document.getElementById('wv').textContent || '').trim() };
+      render();                                           // 조작 한 번 — 원인을 지목하는 참고값
+      return { skel: true, start, after, ticks: n, afterRender: shown() };
+    }, 14);
+    if (!it.skel || it.after.top < 14) {
+      const why = !it.skel ? 'S·tick·renderFast 가 없다'
+        : `틱 ${it.ticks}번에 S.top 이 ${it.after.top} 까지만 올랐다 — 측정 불가`;
+      chk('IT1 조작 없이 웨이브가 넘어가도 화면의 「최고」 = S.top', false, why);
+      chk('IT2 조작 없이 웨이브 10 을 넘기면 탭바가 보인다', false, why);
+    } else {
+      const ok1 = it.after.shown === String(it.after.top);
+      chk('IT1 조작 없이 웨이브가 넘어가도 화면의 「최고」 = S.top', ok1,
+        `틱 ${it.ticks}번(조작 0) — S.top ${it.after.top} · 웨이브 ${it.after.wave}` +
+        ` · 화면 「최고」 "${it.after.shown}" · 화면 웨이브 "${it.after.wv}"` +
+        (ok1 ? '' : `  ⚠ 갱신 자리가 render() 뿐이다 — 조작 한 번 뒤엔 "${it.afterRender}" 로` +
+          ` 따라잡힌다 (시작 화면 "${it.start.shown}")`));
+      chk('IT2 조작 없이 웨이브 10 을 넘기면 탭바가 보인다',
+        it.after.tabs !== 'none' && it.after.btns === 3,
+        `S.top ${it.after.top} · 탭바 display:${it.after.tabs} · 버튼 ${it.after.btns}개` +
+        ` (시작 ${it.start.tabs})`);
+    }
+  } catch (e) {
+    chk('IT-예외 조작 없는 갱신 검사가 완주했다', false, '조작 중 예외: ' + String((e && e.message) || e));
   }
 
   for (const c of tbCtxs) { try { await c.close(); } catch (e) {} }
