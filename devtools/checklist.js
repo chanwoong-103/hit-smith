@@ -338,12 +338,21 @@ const chk = (name, cond, note) => {
     swap.qlen + ' → ' + swap.qAfter);
 
   // ── 6. 대기 가득 → 스핀 정지 → 정리 후 재개 ──
+  // 033: 이 블록은 **「정리」를 끈 판**을 잰다 — 033 이 옛 동작을 그대로 두는지 보는 자리다.
+  // 끄지 않으면 자동 정리가 500ms 대기 사이에 칸을 비워서, 이 검사가 무엇을 재는지
+  // 스스로 없애 버린다(실측: 6c·6d 가 자동 정리 때문에 FAIL). 자동 쪽(켬)의 판정은
+  // 033 의 방치 실측이 따로 든다.
   const full = await page.evaluate(async () => {
+    S.autoRes = false;
     S.queue = []; S.equip = {}; S.lv = 0; S.star = 0; S.charge = 50;
     S.asell = Array(15).fill(false);
     while (S.queue.length < qmax()) S.queue.push(makeItem('head', 3));
-    render();
-    const disabled = document.getElementById('spin').disabled;
+    // 033 ②: 가득일 때 제련 버튼이 하는 말이 「정리」 스위치에 따라 갈린다. 두 판을 다 본다.
+    S.autoRes = true;  render();
+    const onDisabled = document.getElementById('spin').disabled;
+    S.autoRes = false; render();
+    const offBtn = { dis: document.getElementById('spin').disabled,
+                     txt: document.getElementById('spin').textContent.trim() };
     const msg = document.getElementById('msg').textContent;
     const q0 = S.queue.length;
     spinning = false; spin(); await new Promise(r => setTimeout(r, 500));
@@ -351,9 +360,14 @@ const chk = (name, cond, note) => {
     S.queue.shift(); render();
     const reopened = !document.getElementById('spin').disabled;
     spinning = false; spin(); await new Promise(r => setTimeout(r, 500));
-    return { disabled, msg, blocked, reopened, q: S.queue.length, qmax: qmax() };
+    return { onDisabled, offBtn, msg, blocked, reopened, q: S.queue.length, qmax: qmax() };
   });
-  chk('6a 가득 시 스핀 버튼 비활성', full.disabled);
+  /* 033: 이름을 고친다 — 「비활성」은 이제 절반만 맞다. 무르게 한 것이 아니라 **두 판을
+     다 못박는다**: 정리 켬이면 예전대로 비활성이고(곧 자동이 비워 준다), 정리 끔이면
+     버튼이 살아나 「대기열 정리」를 가리킨다. 어느 쪽이든 «가득일 때 제련은 안 굴러간다». */
+  chk('6a 가득 시 제련이 멈춘다 (정리 켬 = 비활성 · 정리 끔 = 「대기열 정리」)',
+    full.onDisabled === true && full.offBtn.dis === false && full.offBtn.txt === '대기열 정리',
+    `켬 disabled=${full.onDisabled} · 끔 disabled=${full.offBtn.dis} 글자 "${full.offBtn.txt}"`);
   chk('6b 가득 안내 문구', /가득/.test(full.msg), full.msg);
   chk('6c 가득 상태에서 스핀 무시', full.blocked);
   chk('6d 정리 후 재개', full.reopened && full.q === full.qmax, 'q=' + full.q + '/' + full.qmax);
@@ -642,7 +656,17 @@ const chk = (name, cond, note) => {
     { w: 800,  h: 450, nm: '800×450 CG모바일',    cg: true },
     { w: 1920, h: 1080, nm: '1920×1080 전체화면', cg: true }
   ];
-  const TB8_SKIP = '380×820 세로/배너/제련';        // 027 판정 ① — TB8 주석의 ⚠⚠
+  /* TB8 의 **이름 붙인 예외**. 한 칸씩, 왜 예외인지를 함께 든다 — 판정문이 매번
+     그 칸과 이유를 출력한다(그래야 「조용히 빠진 칸」이 안 생긴다). */
+  const TB8_SKIPS = [
+    ['380×820 세로/배너/제련',
+     '027 판정 ① — 관문이 열리면 제련이 가장 값없는 동작이라 배너가 미는 것이 우선순위 그대로다'],
+    ['380×820 세로/평범/정리',
+     '033 판정 ⓐ — 이 줄(「대기 N/10」)은 033 전에도 첫 화면 6px 아래였다(top 514 vs #focus 밑 508). ' +
+     '위로 올리면 여유 2px 인 #spin 이 밀린다. 「정리」는 기본 켜짐이라 필수 동작이 아니라 설정이다']
+  ];
+  const TB8_SKIP_KEYS = TB8_SKIPS.map(s => s[0]);
+  const TB8_SKIP = TB8_SKIP_KEYS[0];               // 옛 이름 (다른 곳에서 읽을 때를 위해 남긴다)
   const REACH_TIMEOUT = 8000;
   const reachable = async (sel, timeout = REACH_TIMEOUT) => {
     try { await page.locator(sel).click({ trial: true, timeout }); return true; }
@@ -1651,12 +1675,16 @@ const chk = (name, cond, note) => {
     //   전부 PASS 로 뒤집는다. **FAIL 을 없애려고 문턱을 무르게 풀지 말 것** —
     //   그러면 030 이 무엇을 고쳤는지 아무도 못 본다(027-A 가 박아 둔 경고 그대로).
     //
-    // ⚠⚠ **일부러 빼는 칸이 정확히 하나 있다 — 조용히 빼지 않는다.**
-    //   `380×820 · 승천 배너 켜짐 · #spin`. 027 제안 ⑴에 대한 **계획 세션 판정 ①**
+    // ⚠⚠ **일부러 빼는 칸이 둘 있다 — 조용히 빼지 않는다.**
+    //   ⑴ `380×820 · 승천 배너 켜짐 · #spin`. 027 제안 ⑴에 대한 **계획 세션 판정 ①**
     //   (「그대로 둔다」)이 그 자리다: 관문이 열린 뒤에는 제련이 가장 값없는 동작이라
     //   (026 실측 — 스핀은 병목이 아니다 / 025 실측 — 그 시간 골드는 쓸 데가 없고
     //   장비는 승천에 팔린다) **배너가 제련을 밀어내는 것이 그 순간의 우선순위 그대로**다.
-    //   그래서 이 한 칸은 «결함이 아니라 설계»다. 아래 `SKIP` 이 그 한 칸이고,
+    //   ⑵ `380×820 · 평범 · #autores`(033 판정 ⓐ). 「정리」가 앉은 대기열 줄은 **033
+    //   전에도** 첫 화면 6px 아래였다(줄 top 514 vs `#focus` 밑 508 — 얼린 033 전
+    //   빌드에서 실측). 위로 올리면 여유가 2px 뿐인 `#spin` 이 밀리고, 「정리」는 기본
+    //   켜짐이라 **보고 눌러야 시작되는 동작이 아니라 설정**이다.
+    //   그래서 이 둘은 «결함이 아니라 설계»다. 아래 `TB8_SKIPS` 가 그 칸들이고,
     //   빠졌다는 사실과 이유를 **판정문에 매번 적는다.**
     // (크기 목록과 제외 칸은 바깥 범위로 올렸다 — LG1 과 공유한다)
     {
@@ -1669,11 +1697,14 @@ const chk = (name, cond, note) => {
                  can: (typeof canAscend === 'function') ? canAscend() : null };
       }, { on: TB_ONSCREEN, i: id });
       for (const vp of TB8_SIZES) {
-        // ⑴ 평범한 세이브 — 강화와 제련
+        // ⑴ 평범한 세이브 — 강화와 제련, 그리고 033 의 「정리」
+        //    (033 지시서: `#autores` 를 TB8 에 더할 것. 대기열 줄에 붙은 작은 버튼이라
+        //     아홉 크기에서 **굴리지 않고 보이는지**가 곧 그 자리의 판정이다.)
         const pg = await tbOpen(12, vp.w, vp.h);
-        for (const [id, lab] of [['up', '강화'], ['spin', '제련']]) {
-          const r = await read(pg, id);
+        for (const [id, lab] of [['up', '강화'], ['spin', '제련'], ['autores', '정리']]) {
           const key = `${vp.nm}/평범/${lab}`;
+          if (TB8_SKIP_KEYS.includes(key)) continue;      // ← 이름 붙인 예외. 아래 판정문이 든다
+          const r = await read(pg, id);
           if (r.v.ok) ok.push(key);
           else { bad.push(`${key} #${id}: ${r.v.why}`); (vp.cg ? cgBad : curBad).push(key); }
         }
@@ -1682,7 +1713,7 @@ const chk = (name, cond, note) => {
         const pg2 = await tbOpen(120, vp.w, vp.h, { lv: 28, peak: 120, top: 120 });
         for (const [id, lab] of [['asc', '승천'], ['spin', '제련']]) {
           const key = `${vp.nm}/배너/${lab}`;
-          if (key === TB8_SKIP) continue;                // ← 판정 ①. 위 ⚠⚠ 를 볼 것
+          if (TB8_SKIP_KEYS.includes(key)) continue;      // ← 이름 붙인 예외
           const r = await read(pg2, id);
           if (r.can === false) { bad.push(`${key}: 세이브가 관문을 못 채웠다 — 검사 잘못`);
             (vp.cg ? cgBad : curBad).push(key); continue; }
@@ -1700,7 +1731,8 @@ const chk = (name, cond, note) => {
             (curBad.length ? ` [현행: ${curBad.join(', ')}]` : '') +
             `  ⚠ 030(가로형) 전에는 새 크기 FAIL 이 정상이다 — 예: ${bad[0]}`
           : `${total}칸 전부 굴리기 전에 보인다`) +
-        `  · **제외 1칸: ${TB8_SKIP}** (027 판정 ① — 관문이 열리면 제련이 가장 값없는 동작이라 배너가 미는 것이 우선순위 그대로다. 결함이 아니라 설계다)`);
+        `  · **제외 ${TB8_SKIPS.length}칸(결함이 아니라 설계):** ` +
+        TB8_SKIPS.map(([k, why]) => `**${k}** — ${why}`).join('  /  '));
     }
   } catch (e) {
     // 골격은 있는데 조작 중 터졌다 — 이것도 결함이지 "결과 없음"이 아니다.
@@ -1734,7 +1766,10 @@ const chk = (name, cond, note) => {
     const GR_OPS  = { crit: 9.9, cdmg: 9.9, aspd: 9.9, hp: 9.9 };          // 4줄
     const GR_OPSW = { crit: 9.9, cdmg: 9.9, melee: 9.9, ranged: 9.9 };     // 무기 4줄
     const grEquip = {};
-    for (const p of ['weapon', 'head', 'body', 'hand', 'leg', 'acc'])
+    // ⚠ 부위 id 는 `PARTS` 그대로여야 한다 — 'leg'·'hand'·'acc' 는 **없는 id** 라
+    //   그 칸이 빈 칸으로 그려지고 최악 조건이 반쪽이 된다(031 검증 세션이 심은 오류,
+    //   033 검증에서 잡았다). 실제 id 는 legs·hands·feet 다.
+    for (const p of ['weapon', 'head', 'body', 'legs', 'hands', 'feet'])
       grEquip[p] = Object.assign({ part: p, g: 15, lv: 8, base: 999999, sp: 'pierce',
         ops: p === 'weapon' ? GR_OPSW : GR_OPS }, p === 'weapon' ? { wt: 'melee' } : {});
     const grBad = [], grRows = [];
@@ -1761,22 +1796,28 @@ const chk = (name, cond, note) => {
               `.slot[${i}] > .${String(c.className || c.tagName).split(' ')[0]} 가 칸 밖`);
           }
         });
-        const gd = g.querySelector('.slot .gd'), op = g.querySelector('.slot .op');
-        return { slots: slots.length, out: Math.round(Math.max(0, out) * 10) / 10, at,
-          gearW: Math.round(gr.width * 10) / 10,
-          gd: gd ? gd.textContent.trim() : '(없다)',
-          op: op ? op.textContent.replace(/​/g, '').trim() : '(없다)' };
+        // ⚠ **여섯 칸을 «전부» 확인한다.** 첫 칸만 보면 나머지가 빈 칸이어도 통과한다 —
+        //   031 검증이 없는 부위 id 를 써서 세 칸이 빈 칸이었는데 이 검사가 못 잡았다.
+        const filled = [...g.querySelectorAll('.slot:not(.empty)')];
+        const gds = filled.map(s2 => { const e = s2.querySelector('.gd'); return e ? e.textContent.trim() : '(없다)'; });
+        const ops = filled.map(s2 => { const e = s2.querySelector('.op');
+          return e ? e.textContent.replace(/​/g, '').trim() : '(없다)'; });
+        return { slots: slots.length, filled: filled.length,
+          out: Math.round(Math.max(0, out) * 10) / 10, at,
+          gearW: Math.round(gr.width * 10) / 10, gds, ops,
+          gd: gds[0] || '(없다)', op: ops[0] || '(없다)' };
       });
       await pg.close();
       if (r.err) { grBad.push(`${vp.nm}: ${r.err}`); continue; }
       if (r.slots !== 6) grBad.push(`${vp.nm}: 칸이 6개가 아니다 (${r.slots}) — 세이브를 못 심었다, 검사 잘못`);
+      if (r.filled !== 6) grBad.push(`${vp.nm}: 채워진 칸이 ${r.filled}/6 이다 — 부위 id 가 PARTS 와 안 맞아 빈 칸이 섞였다, 검사 잘못`);
       grRows.push(`${vp.nm} ${r.out}px(#gear ${r.gearW}px)`);
       if (r.out > grWorst) { grWorst = r.out; grWorstAt = `${vp.nm} — ${r.at}`; }
       if (r.out > 0.5) grBad.push(`${vp.nm}: 가로 ${r.out}px 넘침 (${r.at})`);
-      if (r.gd !== '15등급 VIII')
-        grBad.push(`${vp.nm}: 최악 조건이 안 걸렸다 — .gd 가 「${r.gd}」다 (「15등급 VIII」이어야 한다)`);
-      if (r.op.split('·').length !== 4)
-        grBad.push(`${vp.nm}: 최악 조건이 안 걸렸다 — .op 가 「${r.op}」로 4줄이 아니다`);
+      { const badGd = (r.gds || []).filter(x => x !== '15등급 VIII');
+        const badOp = (r.ops || []).filter(x => x.split('·').length !== 4);
+        if (badGd.length) grBad.push(`${vp.nm}: 최악 조건이 ${badGd.length}칸에서 안 걸렸다 — .gd 「${badGd[0]}」 (「15등급 VIII」이어야 한다)`);
+        if (badOp.length) grBad.push(`${vp.nm}: 최악 조건이 ${badOp.length}칸에서 안 걸렸다 — .op 「${badOp[0]}」 가 4줄이 아니다`); }
     }
     chk(`GR1 #gear 가로 넘침 0 (15등급·VIII·옵션 4줄 최악 · 크기 ${TB8_SIZES.length})`,
       grBad.length === 0,
@@ -1784,7 +1825,7 @@ const chk = (name, cond, note) => {
         ? `${grBad.length}건 — ${grBad.join(' · ')}` +
           `  ⚠ 031 §3 의 여백 셋(간격 5→2 · 칸 여백 4→2 · .op 말줄임→두 줄) 중 하나라도 되돌아가면 여기가 운다`
         : `9크기 전부 0px (최대 ${grWorst}px${grWorstAt ? ' · ' + grWorstAt : ''})`) +
-      `  · 최악 조건 고정: 여섯 칸 전부 15등급 · 세부등급 VIII · 옵션 4줄` +
+      `  · 최악 조건 고정: 여섯 칸 «전부» 15등급 · 세부등급 VIII · 옵션 4줄 (칸마다 확인한다)` +
       `  · 잰 값 셋의 최대: #gear scrollWidth / 칸이 내용상자 밖 / 글자가 칸 밖` +
       `  · 크기별: ${grRows.join(' · ')}`);
   } catch (e) {
@@ -1919,7 +1960,10 @@ const chk = (name, cond, note) => {
   try {
     const LG2_OPS = { crit: 9.9, cdmg: 9.9, aspd: 9.9, hp: 9.9 };
     const lg2Equip = {};
-    for (const p of ['weapon', 'head', 'body', 'hand', 'leg', 'acc'])
+    // ⚠ 부위 id 는 `PARTS` 그대로여야 한다 — 'leg'·'hand'·'acc' 는 **없는 id** 라
+    //   그 칸이 빈 칸으로 그려지고 최악 조건이 반쪽이 된다(031 검증 세션이 심은 오류,
+    //   033 검증에서 잡았다). 실제 id 는 legs·hands·feet 다.
+    for (const p of ['weapon', 'head', 'body', 'legs', 'hands', 'feet'])
       lg2Equip[p] = Object.assign({ part: p, g: 15, lv: 8, base: 999999, sp: 'pierce',
         ops: LG2_OPS }, p === 'weapon' ? { wt: 'melee' } : {});
     const lg2Extra = { lv: 28, peak: 120, top: 120, equip: lg2Equip };
@@ -1991,6 +2035,95 @@ const chk = (name, cond, note) => {
     }
   } catch (e) {
     chk('LG2-예외 팝업 글자 크기 검사가 완주했다', false, '조작 중 예외: ' + String((e && e.message) || e));
+  }
+
+  /* ── RS1 : 정리 뒤에도 싸움이 이어진다 (적 체력이 되감기지 않는다) ──────────────
+     033 제안 ⑸ 가 남긴 자리다(검증 세션이 세운다). 033 은 CORE 에서 `resolve()` 끝의
+     `newWave();` 를 **지웠는데**, 그때 **checklist 가 한 항목도 울지 않았다.** 그 줄이
+     있든 없든 검사가 눈을 감고 있었다는 뜻이다 — `foeHP`·`newWave` 를 쓰는 다른 검사는
+     전부 **스스로 판을 차리는** 줄(`S.wave=…; newWave();`)이라 「정리 뒤의 싸움」을
+     아무도 안 본다.
+
+     ⚠ **무엇을 재는가.** `resolve()` 는 장착·판매만 해야 하고 **싸움을 다시 세우면 안
+       된다.** 그래서 `resolve()` 부르기 **직전**과 **직후**의 `foeHP`·`foeMax`·`pHP`·
+       `S.wave` 를 비교한다. 되돌아갔으면(= `foeHP` 가 `foeMax` 로 되감겼으면) FAIL.
+     ⚠ **한 `evaluate` 안에서 동기로 잰다.** 페이지의 250ms 틱과 자동 정리가 두 스냅샷
+       사이에 끼면 그 자체가 노이즈다. 동기 코드 사이에는 못 끼어든다.
+     ⚠ **한 틱에 안 죽는 판을 만든다.** 적을 한 방에 잡으면 `tick()` 이 «정당하게»
+       `newWave()` 를 부르고 `foeHP` 가 차오른다 — 그건 결함이 아니다. 그래서 먼저
+       `foeHP` 를 `foeMax` 의 30~80% 로 깎아 두고, 그 구간에서만 잰다.
+     ⚠ **둘 다 본다** — 손으로 부르는 `resolve()`(정리 끔)와 자동 정리가 부르는
+       `resolve()`(정리 켬). 033 이 고친 자리는 자동 쪽이지만 **CORE 는 한 줄**이라
+       수동도 같이 움직인다. 수동이 깨지면 그게 곧 회귀다.
+     ⚠ **되감김만 보면 반쪽이다.** 되감기지 않더라도 싸움이 «서» 버리면 결함이다.
+       그래서 실제 시간 2.4초를 흘려 **적 체력이 더 줄었는지**도 본다.
+
+     변이: `resolve()` 끝에 `newWave();` 를 도로 넣으면 여기가 운다(033 제안 ⑸). */
+  try {
+    const rsItem = (part, g) => ({ part, g, lv: 3, base: 40, ops: { crit: 1.1 },
+      ...(part === 'weapon' ? { wt: 'melee' } : {}) });
+    const rsExtra = {
+      wave: 17, top: 20, peak: 20,
+      equip: { weapon: { part: 'weapon', g: 6, lv: 3, base: 900, ops: { crit: 1.2 }, wt: 'melee' },
+               body:   { part: 'body',   g: 6, lv: 3, base: 900, ops: { hp: 4.0 } } },
+      queue: [rsItem('head', 4), rsItem('legs', 4), rsItem('hands', 4)]   // 부위 id 는 PARTS 그대로 (legs·hands·feet)
+    };
+    const rsBad = [], rsNote = [];
+    for (const [lab, autoRes] of [['수동(정리 끔)', false], ['자동 정리(정리 켬)', true]]) {
+      const pg = await tbOpen(20, 380, 820, rsExtra);
+      // ① 한 틱에 안 죽는 구간으로 적 체력을 깎아 둔다 — 그 다음 한 evaluate 안에서 잰다
+      const r = await pg.evaluate((auto) => {
+        S.autoRes = auto;
+        S.wave = 17; newWave();                       // 판을 차린다 (검사 자신의 준비)
+        let guard = 0;
+        while (foeHP > foeMax * 0.8 && guard++ < 400) tick();
+        if (foeHP <= foeMax * 0.3 || foeHP > foeMax * 0.8)
+          return { err: `준비 실패 — foeHP ${Math.round(foeHP)}/${Math.round(foeMax)} (틱 ${guard})` };
+        if (!S.queue.length) return { err: '대기열이 비었다 — 검사 잘못' };
+        const before = { foeHP, foeMax, pHP, wave: S.wave, q: S.queue.length,
+                         gold: S.gold, pow: power(S.equip) };
+        // ② 정리를 «한 번» 시킨다 — 자동이면 autoResolve(), 수동이면 resolve() 직접
+        let how;
+        if (auto) {
+          while (S.queue.length < qmax()) S.queue.push(JSON.parse(JSON.stringify(S.queue[0])));
+          const q0 = S.queue.length; autoResolve(); how = 'autoResolve()';
+          if (S.queue.length === q0) return { err: '자동 정리가 아무것도 안 했다 — 검사 잘못' };
+        } else {
+          resolve('sell'); how = "resolve('sell')";
+        }
+        const after = { foeHP, foeMax, pHP, wave: S.wave, q: S.queue.length,
+                        gold: S.gold, pow: power(S.equip) };
+        return { before, after, how };
+      }, autoRes);
+      if (r.err) { rsBad.push(`${lab}: ${r.err}`); await pg.close(); continue; }
+      const b = r.before, a = r.after;
+      const rewound = a.foeHP > b.foeHP + 0.01;               // 조금이라도 «차오르면» 되감김이다
+      const full = Math.abs(a.foeHP - a.foeMax) < 0.01;
+      if (rewound)
+        rsBad.push(`${lab}: ${r.how} 뒤 적 체력이 ${Math.round(b.foeHP)} → ${Math.round(a.foeHP)} 로 ` +
+          `**되감겼다**${full ? '(가득)' : ''} — resolve() 가 싸움을 다시 세우고 있다`);
+      if (a.wave !== b.wave)
+        rsBad.push(`${lab}: ${r.how} 뒤 웨이브가 ${b.wave} → ${a.wave} 로 바뀌었다`);
+      if (a.pHP > b.pHP + 0.01)
+        rsBad.push(`${lab}: ${r.how} 뒤 내 체력이 ${Math.round(b.pHP)} → ${Math.round(a.pHP)} 로 공짜로 찼다`);
+      // ③ 되감기지 않았더라도 싸움이 «서» 버리면 결함이다 — 실제 시간으로 본다
+      await pg.waitForTimeout(2400);
+      const c = await pg.evaluate(() => ({ foeHP, foeMax, wave: S.wave, top: S.top || 0 }));
+      const moved = (c.wave > a.wave) || (c.foeHP < a.foeHP - 0.01);
+      if (!moved)
+        rsBad.push(`${lab}: 정리 뒤 2.4초 동안 싸움이 멈췄다 — 적 체력 ${Math.round(a.foeHP)} 그대로 · 웨이브 ${c.wave}`);
+      rsNote.push(`${lab} ${r.how}: 적 ${Math.round(b.foeHP)}/${Math.round(b.foeMax)} → ` +
+        `${Math.round(a.foeHP)} (웨이브 ${b.wave}→${a.wave} · 내 체력 ${Math.round(b.pHP)}→${Math.round(a.pHP)} · ` +
+        `대기 ${b.q}→${a.q} · 골드 +${a.gold - b.gold}) → 2.4초 뒤 적 ${Math.round(c.foeHP)} · 웨이브 ${c.wave}`);
+      await pg.close();
+    }
+    chk('RS1 정리 뒤에도 싸움이 이어진다 (적 체력이 안 되감긴다 · 수동·자동 두 벌)',
+      rsBad.length === 0,
+      (rsBad.length ? `${rsBad.length}건 — ${rsBad.join(' · ')}` : '두 벌 다 안 되감기고 싸움이 이어진다') +
+      `  · ${rsNote.join('  /  ')}` +
+      `  · 033 이 지운 \`resolve()\` 끝의 \`newWave();\` 를 도로 넣으면 여기가 운다 (033 제안 ⑸)`);
+  } catch (e) {
+    chk('RS1-예외 정리 뒤 전투 검사가 완주했다', false, '조작 중 예외: ' + String((e && e.message) || e));
   }
 
   /* ── IT1~IT2 : 조작이 없는 동안 화면이 상태를 따라가는가 (031 §5 신설) ──────

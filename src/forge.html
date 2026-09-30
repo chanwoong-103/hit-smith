@@ -159,6 +159,14 @@ button:disabled{opacity:.35;cursor:default;box-shadow:none}
   box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 0 12px rgba(255,107,44,.4);
 }
 #spin,#ad,#dad{display:flex;align-items:center;justify-content:center;gap:7px}
+#spin>span:empty{display:none}
+/* 033 ①-b: 대기열 줄 = 글자 왼쪽 · 「정리」 버튼 오른쪽. 줄이 넘치지 않게 글자 쪽만
+   줄바꿈을 허용하고(min-width:0), 버튼은 안 줄인다(flex:none). 글자는 `.dim` 의
+   11px 을 그대로 쓴다(031 의 문턱 — 더 작게 만들지 말 것). 높이 28px 은 손가락으로
+   누를 수 있는 최소선이고, 켜짐 표시는 #auto 와 **같은** `.hot` 이다. */
+.qrow{display:flex;align-items:center;gap:8px;margin-top:8px}
+.qrow>span{flex:1 1 auto;min-width:0}
+#autores{flex:none;font-size:11px;padding:5px 10px;min-height:28px;letter-spacing:.06em}
 
 /* ── 아이콘 공통 (부위 심볼 = 강철 채움 + 등급색 스트로크) ── */
 #sprite{display:none}
@@ -594,10 +602,14 @@ button:disabled{opacity:.35;cursor:default;box-shadow:none}
      ⚠⚠ `min-height:0` **만** 두면 TB8 의 「배너/제련」 칸 둘이 깨진다(실측: 821×462
        #spin 세로 76%만 · 800×450 44%만). 강제 높이가 사라지자 패널이 내용만큼 «자라서»
        짧은 창에서는 `#focus` 밖으로 넘친다 — 예전에는 `min-height:100%` 가 패널을 칸
-       높이에 **묶어** 두어 화로가 100·92px 로 눌리며 자리를 내줬다. 그래서 하한을 0 으로
-       내리는 동시에 **상한을 칸 높이로 올린다**: 남으면 내용만큼, 모자라면 칸 안에서
-       눌린다. 821×462 화로 118→100px · 800×450 118→92px 로 예전과 똑같이 양보하고
-       #spin 은 100% 안에 들어온다. */
+       높이에 **묶어** 두어 화로가 100·92px 까지 눌리며 자리를 내줬다. 그래서 하한을 0 으로
+       내리는 동시에 **상한을 칸 높이로 올린다**: 남으면 내용만큼, 모자라면 칸 안에서 눌린다.
+     ⚠⚠⚠ 031 검증 제안 ① — **여기서 눌리는 것은 화로가 아니다**(033 에서 정정).
+       화로는 하한 **118px 에 그대로 서 있고**(실측: 배너 세이브 아홉 크기 전부 118px),
+       대신 **패널 전체가 상한에 걸려** 줄어든다 — `#forge` 297 → **279px**(821×462) ·
+       **267px**(800×450). 100·92px 은 **031 전**의 화로 값이지 지금 값이 아니다.
+       방향을 거꾸로 읽고 `#hearth{min-height:118px}` 을 걷어내면 TB8 이 아니라
+       **릴만 남은 빈 화로**가 돌아온다. */
   #focus>#forge{min-height:0;max-height:100%}
   #hearth{min-height:118px}
   /* 화로는 «남는 세로를 먹는» 요소(013)라 왼칸이 길어지면 240px 까지 늘어나고,
@@ -728,11 +740,16 @@ button:disabled{opacity:.35;cursor:default;box-shadow:none}
   </div>
   <div id="msg"></div>
   <div class="row">
-    <button id="spin" class="primary" style="flex:2">제련 <span class="num" id="chg">0</span></button>
+    <!-- 033 ②: 대기열이 가득 차고 「정리」가 꺼져 있으면 이 버튼의 **글자만** 「대기열 정리」로
+         바뀐다. 자리·크기·색(flex:2 · .primary)은 그대로라 TB8·AD6 이 보는 좌표가 안 움직인다.
+         #chg 는 지우지 않고 숨긴다 — checklist 1a 가 그 자리를 읽는다. -->
+    <button id="spin" class="primary" style="flex:2"><span id="spinlbl">제련</span><span class="num" id="chg">0</span><span id="spinq"></span></button>
     <button id="auto" style="flex:1">자동</button>
   </div>
   <button id="ad" style="width:100%;margin-top:6px"><svg class="ci"><use href="#s-flame"/></svg><span id="adtxt">화로 지피기 — 충전 가득 + 배속</span></button>
-  <div class="dim" style="margin-top:8px">대기 <span class="num" id="qn">0</span>/<span class="num" id="qm">10</span> · 릴을 눌러 고정 (<svg class="ci" style="color:var(--ember)"><use href="#s-token"/></svg>1)</div>
+  <!-- 033 ①-b: 「정리」는 **대기열 줄 옆**이다(사용자 판정). 제련 줄은 한 픽셀도 안 건드린다.
+       대기 숫자 바로 옆이라 무엇을 정리하는지가 한눈에 읽힌다. -->
+  <div class="dim qrow"><span>대기 <span class="num" id="qn">0</span>/<span class="num" id="qm">10</span> · 릴을 눌러 고정 (<svg class="ci" style="color:var(--ember)"><use href="#s-token"/></svg>1)</span><button id="autores">정리</button></div>
   <button id="open" style="width:100%;margin-top:6px;display:none"></button>
 </div>
 </div><!-- /#focus -->
@@ -937,10 +954,13 @@ const OPTKEYS=Object.keys(OPT);
 //     `CHG_MAX` 의 기본값 600 을 고치면 **이 줄도 같이 고칠 것.**
 function newState(){ return {
   wave:1,gold:0,tok:2,lv:0,star:0,charge:600,queue:[],asell:Array(15).fill(false),
-  equip:{},lockIdx:-1,auto:false,t:Date.now(),
+  equip:{},lockIdx:-1,auto:false,autoRes:true,t:Date.now(),          // 033: 자동 정리 기본 켜짐
   dust:0,tech:{},tk:2,tkDay:'',pos:0,best:0}; }
 const S=JSON.parse(localStorage.getItem('forge')||'null')||newState();
 S.star=S.star||0; S.pity=S.pity||0; S.peak=S.peak||0; S.top=S.top||0; S.dust=S.dust||0; S.tech=S.tech||{}; S.pos=S.pos||0; S.best=S.best||0;
+// 033: 옛 세이브에는 이 필드가 없다 → 켜짐으로 본다. `||` 가 아니라 `??` 인 이유는
+// **끈 사람의 `false` 를 덮지 않기 위해서**다(`false||true` 는 true 가 된다).
+S.autoRes = S.autoRes ?? true;
 // 티켓은 하루 2장. 날짜만 비교하면 끝이라 서버가 필요 없다.
 const today=()=>new Date().toISOString().slice(0,10);
 if(S.tkDay!==today()){ S.tkDay=today(); S.tk=2; }
@@ -1125,7 +1145,13 @@ ${old.g-nw.g}등급 낮습니다. 계속할까요?`)) return;
     S.gold += sellPrice(nw);
     if(nw.g>=cap()-2) S.tok++;   // 상위 3등급을 팔 때만 토큰
   }
-  newWave(); render(); openCmp();
+  // 033 판정 ⓑ — 여기 있던 `newWave();` 를 **지웠다**(CORE 한 줄, 사용자 승인).
+  // 원래 의도는 「장비가 바뀌었으니 싸움을 다시 세운다」였는데, `tick()` 이 매 틱
+  // `stats(S.equip)` 를 다시 읽고 `pHP` 를 `s.hp` 로 자르므로 **필요가 없었다.**
+  // 있는 동안에는 자동 정리(033)가 거의 매 틱 `resolve()` 를 불러 적 체력이 계속
+  // 원위치돼 웨이브가 서 있었다(실측: 2분 방치 newWave 246회 · 웨이브 1).
+  // VIEW 에서 `foeHP`·`pHP` 를 떴다 되돌리는 편법은 쓰지 않는다 — 결함은 여기 있었다.
+  render(); openCmp();
 }
 
 // 승천: 상한을 다 열고 제련을 더 올리면 전부 팔고 별 하나. 릴이 늘고 시작 상한이 오른다.
@@ -1953,7 +1979,19 @@ function renderFast(){
   document.getElementById('dust').textContent=fmt(S.dust);
   document.getElementById('tk').textContent=S.tk;
   document.getElementById('up').disabled=S.gold<upCost();
-  document.getElementById('spin').disabled=S.charge<1||S.queue.length>=qmax();
+  /* 033 ②: 대기열이 가득 찼을 때 제련 버튼이 하는 말이 갈린다.
+       「정리」 켬 → 자동 정리가 곧 비워 주므로 예전 그대로 **비활성**.
+       「정리」 끔 → 글자가 「대기열 정리」가 되고 **누를 수 있다**(누르면 #cmp).
+     글자만 바뀐다 — 버튼의 자리·크기·색은 그대로다(TB8·AD6 좌표 불변). */
+  const qFull=S.queue.length>=qmax(), qClear=qFull&&!S.autoRes;
+  // 숨기지 않고 **비운다**: `display:none` 인 글자도 `textContent` 에는 남아서 버튼의
+  // 글자를 읽는 쪽에 「제련 50대기열 정리」로 보인다(실측). 빈 span 은 CSS 가 자리에서
+  // 뺀다(`#spin>span:empty{display:none}`) — 간격도 안 생긴다.
+  document.getElementById('spinlbl').textContent=qClear?'':'제련';
+  if(qClear) document.getElementById('chg').textContent='';
+  document.getElementById('spinq').textContent=qClear?'대기열 정리':'';
+  document.getElementById('spin').disabled=qClear?false:(S.charge<1||qFull);
+  document.getElementById('autores').className=S.autoRes?'hot':'';
   document.getElementById('tower').disabled=S.tk<1;
   document.getElementById('open').style.display=S.queue.length?'block':'none';
   document.getElementById('open').textContent=`정리하기 (${S.queue.length})`;
@@ -2301,8 +2339,18 @@ function buildReels(){
 primeGrades();
 buildReels();
 
-document.getElementById('spin').onclick=spin;
+/* 033 ②: 같은 버튼이 두 말을 한다. 가득 + 「정리」 끔 이면 **비교 팝업을 연다**
+   (기존 `openCmp` — 새 팝업을 만들지 않는다). 그 밖에는 예전 그대로 `spin()`.
+   `spin()` 자신이 가득일 때 아무 일도 안 하므로 이 분기는 «누를 수 있는 버튼이
+   거짓말을 하지 않게» 하는 것뿐이다. */
+document.getElementById('spin').onclick=()=>{
+  if(S.queue.length>=qmax() && !S.autoRes){ openCmp(); return; }
+  spin();
+};
 document.getElementById('auto').onclick=()=>{S.auto=!S.auto;render();};
+/* 033 ①-b: 「정리」는 켜고 끄는 버튼이고 `#auto` 와 **서로 독립**이다. 켜는 순간
+   대기열이 이미 가득이면 다음 틱이 바로 한 칸을 정리한다. */
+document.getElementById('autores').onclick=()=>{S.autoRes=!S.autoRes;render();};
 document.getElementById('open').onclick=openCmp;
 document.getElementById('cclose').onclick=()=>document.getElementById('cmp').classList.remove('on');
 document.getElementById('cmp').onclick=e=>{ if(e.target.id==='cmp') e.target.classList.remove('on'); };
@@ -2378,6 +2426,58 @@ document.getElementById('ascGo').onclick=()=>{
   showTab('tabForge');
 };
 
+/* ══ 033 — 자동 정리 ══════════════════════════════════════════════════════
+   방치하면 **5.3초**에 대기열 10칸이 차서 자동 제련이 선다(032 검증 실측). `days.js`
+   의 `doSpins()` 는 처음부터 「뽑을 때마다 `power()` 로 비교해 장착하거나 판다」를
+   전제로 곡선을 쟀다 — 게임만 5초마다 사람 손을 요구하고 있었다. 그 한 칸을 대신
+   눌러 주는 것이 전부다.
+
+   ⚠ **판정도 보상도 새로 만들지 않는다.** 비교는 `power()` 하나(`days.js`·`#cmp` 와
+     같은 함수), 장착·판매는 수동 버튼이 부르는 `resolve()` 그대로다. 그래서 골드·
+     토큰·천장·자동 판매 규칙이 수동과 한 푼도 다를 수 없다 — **다른 길이 없다.**
+   ⚠ `resolve()` 는 CORE 이고 끝에서 `openCmp()` 를 부른다. 사람이 누른 흐름에서는
+     그게 맞다(고른 뒤 다음 것을 이어서 본다). 자동에는 아니다 — 팝업이 혼자 열리고,
+     그러면 아래 「팝업 존중」 때문에 자동 정리가 그 자리에서 영영 멈춘다. CORE 를
+     고치지 않고 **부르기 전 상태로 되돌린다**(열려 있지 않았으면 닫는다).
+   ⚠ 등급이 2 이상 떨어지는 교체는 `resolve('equip')` 안에서 `confirm()` 을 띄운다.
+     방치 중에 대화상자가 뜨면 게임이 통째로 멈춘다(브라우저가 스크립트를 세운다).
+     `nw.wn` 을 몰래 세워 경고를 죽이지 않는다 — 그건 **사람이 손으로 누를 때** 뜰
+     경고를 영구히 없애는 짓이다. 025 의 승천 호출이 쓰는 방식을 **그대로** 쓴다:
+     부르는 동안만 `globalThis.confirm` 을 바꿔 끼고 `finally` 로 되돌린다. 판정은
+     여전히 `power()` 하나다 — 「오르면 장착」에 예외를 두지 않는다.
+   ⚠ 한 틱에 **대기열 한 칸만**. 연출·판정문이 한꺼번에 쏟아지지 않게.
+   ⚠⚠ 장착은 칸을 **안 비운다** — `resolve('equip')` 은 밀려난 이전 장비를 대기열 맨
+     앞에 도로 넣는다(원칙 8: 판매만이 대기열을 줄인다). 그래서 지시서가 적은 대로
+     **밀려난 이전 장비는 그 자리에서 판다.** 둘은 한 칸에 대한 한 번의 정리다 —
+     들어온 것 하나가 자리를 잡고, 나간 것 하나가 칸을 비운다. 쪼개서 다음 틱으로
+     미루면 그 틱의 스핀이 「가득」으로 막힌다(실측: 100틱에 5회). */
+function autoResolve(){
+  if(!S.autoRes) return;
+  if(S.queue.length<qmax()) return;                       // 막히는 순간에만 손댄다
+  const cmp=document.getElementById('cmp');
+  if(cmp && cmp.classList.contains('on')) return;         // 사람이 고르는 중이다
+  const nw=S.queue[0]; if(!nw) return;
+  const old=S.equip[nw.part]||null;
+  const up=power({...S.equip,[nw.part]:nw})>power(S.equip);
+  const act=up?'equip':'sell';
+  const tag=it=>`${PARTS.find(p=>p.id===it.part).nm} ${it.g}등급 ${ROMAN[it.lv||1]}`;
+  const nwTag=tag(nw), oldTag=old?tag(old):'', gold0=S.gold;
+  // 025 의 승천 호출과 **같은 방식**: 부르는 동안만 confirm 을 바꿔 끼고 finally 로 되돌린다.
+  const c0=globalThis.confirm;
+  let sold=false;
+  try{
+    globalThis.confirm=()=>true;
+    resolve(act);                                         // ← 수동 버튼과 같은 함수
+    if(act==='equip' && old && S.queue[0]===old){ resolve('sell'); sold=true; }
+  } finally { globalThis.confirm=c0; }
+  if(cmp) cmp.classList.remove('on');                     // resolve() 끝의 openCmp() 되돌리기
+  const m=document.getElementById('msg');
+  m.innerHTML = act==='equip'
+    ? `자동 정리 — ${nwTag} 장착${sold?` · ${oldTag} 판매 ${ciGold()}${fmt(S.gold-gold0)}`:''}`
+    : `자동 정리 — ${nwTag} 판매 ${ciGold()}${fmt(S.gold-gold0)}`;
+  m.className='';
+}
+
 // 오프라인 = 타임스탬프 델타 한 줄. 시뮬레이션 없음.
 S.charge=Math.min(CHG_MAX(),S.charge+(Date.now()-S.t)/CHG_MS());
 newWave(); render();
@@ -2386,7 +2486,11 @@ setInterval(()=>{
   // 충전도 자동 제련도 전투도 멈춘다 — 광고 길이만큼 시간이 얼어붙을 뿐이다.
   if(PLAT.paused) return;
   S.charge=Math.min(CHG_MAX(),S.charge+250/CHG_MS()*(boosted()?1.5:1));
-  if(S.auto) spin(); tick(); renderFast(); save(); },250);
+  // 033: `autoResolve()` 는 `S.auto` 와 **무관**하게 돈다 — 손으로 제련하면서 정리만
+  // 맡기는 판도 있다(사용자 판정). 스핀 **앞**에 둔다: 뒤에 두면 이번 틱의 스핀이
+  // 「가득」으로 막힌 뒤에야 칸이 비어, 방치 30초에 막힌 스핀이 40회나 쌓였다(실측).
+  // 앞에 두면 칸을 먼저 비우고 굴리므로 **막힌 스핀이 0** 이 된다.
+  if(S.autoRes) autoResolve(); if(S.auto) spin(); tick(); renderFast(); save(); },250);
 
 
 /* ══ 2D 캔버스 렌더 (007 뼈대 · 008 타격 연출 · 017 에서 Phaser 제거) ══ */
