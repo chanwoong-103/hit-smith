@@ -47,3 +47,10 @@ Thumbs.db
 # 올릴 때마다 src/forge.html 에서 새로 만드는 임시 묶음. 저장소에 두 벌을 두지 않는다.
 /upload/
 *.zip
+
+# ── CrazyGames 제출 자산 (035, 검증 세션 제안 · 계획 세션 판정 2026-10-02) ──
+# 영상은 무겁고 다시 찍을 때마다 역사에 쌓이며 Pages 가 공개로 서빙한다.
+# 레시피(record-preview.js)·README 는 추적한다. 표지 PNG 는 다시 못 뽑는 원본이라 추적한다.
+/submission/*.mp4
+/submission/take-*/
+/submission/cover-slot-*.png
