@@ -55,7 +55,13 @@ if (!pw) {
 }
 const { chromium } = pw;
 
-const URL = 'file://' + path.join(__dirname, '..', 'src', 'forge.html');
+/* 034: 언어를 **못박는다.** 페이지는 `navigator.language` 로 언어를 고르는데,
+   Playwright 기본값은 en-US 라 아무 것도 안 붙이면 검사가 통째로 영어판을 본다.
+   판정문에 한국어가 박힌 항목(예: 6b 「가득」)이 그 순간 조용히 뒤집힌다.
+   기본은 ko, `--en` 을 주면 영어판을 돈다. 두 언어를 각각 한 번씩 돌리는 것이
+   034 의 완료 조건이다. */
+const LANG_Q = process.argv.includes('--en') ? '?lang=en' : '?lang=ko';
+const URL = 'file://' + path.join(__dirname, '..', 'src', 'forge.html') + LANG_Q;
 const ai = process.argv.indexOf('--shots');
 const SHOTS = ai > -1 ? process.argv[ai + 1] : os.tmpdir();
 
@@ -172,10 +178,13 @@ const chk = (name, cond, note) => {
   const foe = await page.evaluate(() => {
     const m = document.getElementById('mob');
     return { n: m.children.length, mobW: m.getBoundingClientRect().width,
-             text: document.getElementById('foes').textContent };
+             text: document.getElementById('foes').textContent,
+             // 034: 무리 이름을 한국어로 박지 않는다 — 셋 중 하나와 같은지만 본다.
+             kinds: [t('foe.melee'), t('foe.ranged'), t('foe.mix')] };
   });
   chk('V1 적 블록 5~9개', foe.n >= 5 && foe.n <= 9, 'n=' + foe.n);
-  chk('V2 무리 종류 표시', /근접|원거리|혼합/.test(foe.text), foe.text);
+  chk('V2 무리 종류 표시 (t(foe.*) 셋 중 하나)',
+    foe.kinds.some(k => foe.text.includes(k)), foe.text + ' / ' + foe.kinds.join('·'));
   chk('V3 무리 폭이 화면 안', foe.mobW <= 380, foe.mobW + 'px');
 
   // 근접/원거리/혼합 색 구분 (웨이브 %3 으로 종류가 갈린다)
@@ -289,10 +298,14 @@ const chk = (name, cond, note) => {
   // 3b — 화면 라벨은 DESIGN.md 「천장 게이지」가 확정한 제련 용어다.
   // 진행 중 `화로압 n/N` · 가득 `▣ 임계압`. 내부 명칭 "천장"은 화면에 절대
   // 노출하지 않는다 (원칙 7). 옛 검사는 `천장` 포함을 요구해서 규약과 정반대였다.
-  chk('3b 진행 중 라벨 `화로압 n/N`',
-    pity.mid.includes('화로압') && pity.mid.includes(pity.half + '/' + pity.max),
-    pity.mid);
-  chk('3b2 가득 라벨 `▣ 임계압`', /▣\s*임계압/.test(pity.txt), pity.txt);
+  /* 034: 라벨을 한국어로 박아 두면 en 판에서 조용히 뒤집힌다. 페이지가 가진
+     `t()` 로 **같은 키를 풀어** 견준다 — 두 언어에서 같은 뜻을 지킨다. */
+  const pityWant = await page.evaluate(({ h, m }) =>
+    ({ mid: t('ui.pity', h, m), full: t('ui.pityFull') }), { h: pity.half, m: pity.max });
+  chk('3b 진행 중 라벨 `t(ui.pity)` = 「' + pityWant.mid + '」',
+    pity.mid.trim() === pityWant.mid.trim(), pity.mid);
+  chk('3b2 가득 라벨 `t(ui.pityFull)` = 「' + pityWant.full + '」',
+    pity.txt.trim() === pityWant.full.trim(), pity.txt);
   chk('3b3 화면에 내부 용어 노출 0', !/천장|pity|슬롯|잭팟|룰렛|베팅/i.test(pity.txt + ' ' + pity.mid),
     pity.txt + ' / ' + pity.mid);
   chk('3c 강제 전릴 정렬 발동', pity.forced.startsWith('▣'), pity.forced);
@@ -323,16 +336,23 @@ const chk = (name, cond, note) => {
     document.getElementById('bEquip').onclick();           // 교체 — 경고 1회
     const open2 = document.getElementById('cmp').classList.contains('on');
     const d2 = document.querySelector('#cNew .delta').textContent;
-    const head = document.getElementById('cmp').textContent.includes('전투력');
+    // 034: 「전투력」을 박지 않는다 — 두 언어 모두 `ui.stat` 이 그리는 줄이다.
+    // ⚠ 034 검증: 원래 여기 `|| #cstat.textContent.length > 0` 가 붙어 있었다. 그 갈래는
+    //   **글자가 무엇이든 비어 있지만 않으면 통과**시켜 항목 이름이 말하는 것을 안 봤다.
+    //   첫 갈래만으로 두 언어 다 통과하는 것을 실측해서 걷어냈고(무르게 한 것의 반대다),
+    //   항목 이름대로 **전투력·웨이브 두 라벨과 비지 않은 줄** 셋을 다 본다.
+    const cst = document.getElementById('cstat').textContent;
+    const head = cst.includes(t('ui.power')) && cst.includes(t('ui.wave')) && cst.trim().length > 0;
     document.getElementById('bEquip').onclick();           // 되돌리기
     document.getElementById('bEquip').onclick();           // 다시 — 경고 없어야 함
     const qlen = S.queue.length;
     document.getElementById('bSell').onclick();            // 판매로 종결
-    return { d1, d2, open1, open2, head, qlen, qAfter: S.queue.length };
+    return { d1, d2, open1, open2, head, cst, qlen, qAfter: S.queue.length };
   });
   chk('5a 팝업이 교체 후에도 유지', swap.open1 && swap.open2);
   chk('5b 델타 반전(+/-)', swap.d1[0] !== swap.d2[0], swap.d1 + ' → ' + swap.d2);
-  chk('5c 팝업에 전투력·웨이브·골드 표시', swap.head);
+  chk('5c 팝업에 전투력·웨이브·골드 표시 (t(ui.power)·t(ui.wave) 둘 다)', swap.head,
+    '#cstat = "' + swap.cst + '"');
   chk('5d 낮은 등급 경고 1회만', dialogs.length === 1, dialogs.length + '회');
   chk('5e 판매만이 대기열을 줄임', swap.qlen === 1 && swap.qAfter === 0,
     swap.qlen + ' → ' + swap.qAfter);
@@ -352,7 +372,8 @@ const chk = (name, cond, note) => {
     const onDisabled = document.getElementById('spin').disabled;
     S.autoRes = false; render();
     const offBtn = { dis: document.getElementById('spin').disabled,
-                     txt: document.getElementById('spin').textContent.trim() };
+                     txt: document.getElementById('spin').textContent.trim(),
+                     want: t('ui.sortQueue') };          // 034: 말은 표가 정한다
     const msg = document.getElementById('msg').textContent;
     const q0 = S.queue.length;
     spinning = false; spin(); await new Promise(r => setTimeout(r, 500));
@@ -360,15 +381,17 @@ const chk = (name, cond, note) => {
     S.queue.shift(); render();
     const reopened = !document.getElementById('spin').disabled;
     spinning = false; spin(); await new Promise(r => setTimeout(r, 500));
-    return { onDisabled, offBtn, msg, blocked, reopened, q: S.queue.length, qmax: qmax() };
+    return { onDisabled, offBtn, msg, msgWant: t('ui.queueFull'),
+             blocked, reopened, q: S.queue.length, qmax: qmax() };
   });
   /* 033: 이름을 고친다 — 「비활성」은 이제 절반만 맞다. 무르게 한 것이 아니라 **두 판을
      다 못박는다**: 정리 켬이면 예전대로 비활성이고(곧 자동이 비워 준다), 정리 끔이면
      버튼이 살아나 「대기열 정리」를 가리킨다. 어느 쪽이든 «가득일 때 제련은 안 굴러간다». */
   chk('6a 가득 시 제련이 멈춘다 (정리 켬 = 비활성 · 정리 끔 = 「대기열 정리」)',
-    full.onDisabled === true && full.offBtn.dis === false && full.offBtn.txt === '대기열 정리',
+    full.onDisabled === true && full.offBtn.dis === false && full.offBtn.txt === full.offBtn.want,
     `켬 disabled=${full.onDisabled} · 끔 disabled=${full.offBtn.dis} 글자 "${full.offBtn.txt}"`);
-  chk('6b 가득 안내 문구', /가득/.test(full.msg), full.msg);
+  chk('6b 가득 안내 문구 = t(ui.queueFull)', full.msg.trim() === full.msgWant.trim(),
+    `"${full.msg}" vs "${full.msgWant}"`);
   chk('6c 가득 상태에서 스핀 무시', full.blocked);
   chk('6d 정리 후 재개', full.reopened && full.q === full.qmax, 'q=' + full.q + '/' + full.qmax);
 
@@ -400,11 +423,18 @@ const chk = (name, cond, note) => {
     const shown = document.getElementById('asc').style.display === 'block';
     const label = document.getElementById('asc').textContent;
     S.peak = 0; S.lv = 0; render();
-    return { hid1, hid2, shown, leg1, leg2, label };
+    // 034: 진행 문구의 «말»은 표가 정한다. 검사는 그 키가 실제로 쓰였는지만 본다.
+    return { hid1, hid2, shown, leg1, leg2, label,
+      want1: t('up.next'), want1b: t('up.next2'),
+      want2a: t('up.needWave'), want2b: t('up.needWave2', 0).slice(0, 12) };
   });
   chk('8a 조건 미달 시 승천 버튼 숨김', asc.hid1 && asc.hid2);
-  chk('8b 상한 개방 진행 문구', /개방/.test(asc.leg1), asc.leg1.slice(-40));
-  chk('8c 웨이브 관문 진행 문구', /도달 필요|현재 최고/.test(asc.leg2), asc.leg2.slice(-46));
+  chk('8b 상한 개방 진행 문구 (t(up.next…))',
+    asc.leg1.includes(asc.want1.trim()) && asc.leg1.includes(asc.want1b.trim()),
+    asc.leg1.slice(-40));
+  chk('8c 웨이브 관문 진행 문구 (t(up.needWave…))',
+    asc.leg2.includes(asc.want2a.trim()) && asc.leg2.includes(asc.want2b.trim()),
+    asc.leg2.slice(-46));
   chk('8d 조건 충족 시 노출', asc.shown, asc.label);
 
   // ── 9. 층 → 주사위 → 재굴림 2회 제한 → 보상 ──
@@ -1328,7 +1358,8 @@ const chk = (name, cond, note) => {
       // 예전 판은 `every(id => ids.includes(id))` 라 넷째 탭이 생겨도 통과했다 —
       // 「탭은 셋」은 원칙 4·7 에 붙은 규칙이지 취향이 아니므로 개수와 이름을 못박는다.
       const WANT_IDS = ['tbForge', 'tbTower', 'tbTech'];
-      const WANT_LBL = ['제련', '던전', '테크'];
+      // 034: 라벨은 표가 정한다 — 한국어를 박으면 en 판에서 뒤집힌다.
+      const WANT_LBL = await page.evaluate(() => [t('tab.forge'), t('tab.dungeon'), t('tab.tech')]);
       const idsOk = JSON.stringify(b1.ids) === JSON.stringify(WANT_IDS);
       const lblOk = JSON.stringify(b1.labels) === JSON.stringify(WANT_LBL);
       const openOk = b1.bar === true && b1.n === 3 && idsOk && lblOk;
@@ -1421,7 +1452,8 @@ const chk = (name, cond, note) => {
           openPop(key);
           const ps = document.getElementById('pstat');
           const txt = (ps && V(ps)) ? ps.textContent : '';
-          return { vis: !!(ps && V(ps)), pw: /전투력/.test(txt), wv: /웨이브/.test(txt),
+          // 034: 「전투력」·「웨이브」를 박지 않는다 — 표의 `ui.power`·`ui.wave` 가 그 말이다.
+          return { vis: !!(ps && V(ps)), pw: txt.includes(t('ui.power')), wv: txt.includes(t('ui.wave')),
             n: (txt.match(/\d/g) || []).length, txt: txt.slice(0, 60) };
         }, { key: k, vis: TB_VIS });
         if (!r.vis || !r.pw || !r.wv || r.n < 3) bad.push(`${k}: "${r.txt}"`);
@@ -1644,11 +1676,15 @@ const chk = (name, cond, note) => {
           const got = await pg.evaluate(({ key, vis }) => { const V = eval(vis);
             return { open: V(document.getElementById('pop')),
               title: (document.getElementById('ptitle') || {}).textContent || '',
-              want: (typeof POPS === 'object' && POPS) ? POPS[key] : '',
+              // 034: POPS 의 값은 이제 **표의 키**다. 화면 제목은 그 키를 옮긴 말이라
+              //   페이지의 t() 로 풀어서 견준다 — 검사가 언어를 모르는 채 한국어를
+              //   기대하면 en 판에서 조용히 뒤집힌다.
+              want: (typeof POPS === 'object' && POPS)
+                ? (typeof t === 'function' ? t(POPS[key]) : POPS[key]) : '',
               on: [...document.querySelectorAll('.popsec')].filter(V).map(e2 => e2.id) };
           }, { key: k, vis: TB_VIS });
           if (!got.open) bad.push(`${vp.nm}/${k}: #${e.id} 를 눌러도 팝업이 안 뜬다`);
-          else if (got.title !== got.want) bad.push(`${vp.nm}/${k}: 제목이 "${got.title}" (POPS 는 "${got.want}")`);
+          else if (got.title !== got.want) bad.push(`${vp.nm}/${k}: 제목이 "${got.title}" (t(POPS[k]) 는 "${got.want}")`);
           else if (got.on.length !== 1) bad.push(`${vp.nm}/${k}: 절이 ${got.on.length}개 켜짐 ${JSON.stringify(got.on)}`);
           else if (vp === REACH[0]) note.push(`${k}←#${e.id}(${e.home})`);
           await pg.evaluate(() => { try { if (typeof closePop === 'function') closePop(); } catch (x) {} });
@@ -1805,6 +1841,9 @@ const chk = (name, cond, note) => {
         return { slots: slots.length, filled: filled.length,
           out: Math.round(Math.max(0, out) * 10) / 10, at,
           gearW: Math.round(gr.width * 10) / 10, gds, ops,
+          // 034: 「15등급 VIII」은 ko 의 말이다. 최악 조건의 «내용»은 그대로 두고
+          //   기대하는 글자만 표에서 받는다 — en 판에서는 「Grade 15 VIII」 이다.
+          gdWant: t('ui.grade', 15) + ' VIII',
           gd: gds[0] || '(없다)', op: ops[0] || '(없다)' };
       });
       await pg.close();
@@ -1814,9 +1853,9 @@ const chk = (name, cond, note) => {
       grRows.push(`${vp.nm} ${r.out}px(#gear ${r.gearW}px)`);
       if (r.out > grWorst) { grWorst = r.out; grWorstAt = `${vp.nm} — ${r.at}`; }
       if (r.out > 0.5) grBad.push(`${vp.nm}: 가로 ${r.out}px 넘침 (${r.at})`);
-      { const badGd = (r.gds || []).filter(x => x !== '15등급 VIII');
+      { const badGd = (r.gds || []).filter(x => x !== r.gdWant);
         const badOp = (r.ops || []).filter(x => x.split('·').length !== 4);
-        if (badGd.length) grBad.push(`${vp.nm}: 최악 조건이 ${badGd.length}칸에서 안 걸렸다 — .gd 「${badGd[0]}」 (「15등급 VIII」이어야 한다)`);
+        if (badGd.length) grBad.push(`${vp.nm}: 최악 조건이 ${badGd.length}칸에서 안 걸렸다 — .gd 「${badGd[0]}」 (「${r.gdWant}」이어야 한다)`);
         if (badOp.length) grBad.push(`${vp.nm}: 최악 조건이 ${badOp.length}칸에서 안 걸렸다 — .op 「${badOp[0]}」 가 4줄이 아니다`); }
     }
     chk(`GR1 #gear 가로 넘침 0 (15등급·VIII·옵션 4줄 최악 · 크기 ${TB8_SIZES.length})`,
@@ -2035,6 +2074,206 @@ const chk = (name, cond, note) => {
     }
   } catch (e) {
     chk('LG2-예외 팝업 글자 크기 검사가 완주했다', false, '조작 중 예외: ' + String((e && e.message) || e));
+  }
+
+  /* ── I18N1 : en 화면에 한글 0자 · 금지어 0 · 표에서 빠진 키 노출 0 ──────────────
+     034 제안 ① 이 남긴 자리다(검증 세션이 세운다). 034 는 화면 글자를 전부 표로 모았는데,
+     **`t()` 를 안 거치고 한국어를 직접 쓰는 자리를 막는 검사가 없다.** 누가 다시 리터럴을
+     심으면 ko 에서는 아무 일도 없고 **en 판에서만 조용히 드러난다** — 검사가 없으면
+     아무도 안 본다(034 가 실제로 `climbFx()` 의 `floor+'층'` 한 자리를 훑기로 찾아냈다).
+
+     ⚠ **이 항목은 실행 언어와 무관하게 «자기 창을 en 으로 연다».** `--en` 을 안 줘도
+       en 보증이 지켜져야 하기 때문이다. 그래서 두 언어 run 에서 **같은 항목 하나**다
+       (항목 수가 run 마다 달라지면 두 run 을 대조할 수 없다).
+     ⚠ 재는 것은 **보이는 글자**다(display:none·visibility:hidden 제외) + 사람이 읽는
+       속성(`title`·`aria-label`·`placeholder`·`alt`) + `<title>`.
+     ⚠ 금지어는 **단어 경계**로 본다(원칙 7 의 영어판). `\bspin\w*` 꼴이라
+       「spinning」도 잡고 「respin」은 안 잡는다 — 내부 변수명은 화면에 안 나간다.
+     ⚠ 키 노출은 **토큰 단위**로 본다. 표의 키(`ui.sortNow` 꼴)가 글자로 새 나오면
+       그 자리가 표에서 빠진 것이다. `t()` 가 모르는 키를 **키 이름 그대로** 돌려주기
+       때문에 이 검사가 성립한다 — 빈칸으로 삼키게 고치면 이 검사가 죽는다.
+     ⚠ ko 에서도 **금지어와 키 노출**은 본다(한글만 허용한다). */
+  try {
+    const I_BAN = ['spin', 'slot', 'reel', 'jackpot', 'bet', 'gamble', 'lucky', 'casino', 'payout', 'win big'];
+    const I_STATES = [
+      ['제련 탭', `{ var b=document.getElementById('tbForge'); if(b) b.click(); render(); }`],
+      ['대기열 가득·정리 끔', `{ S.autoRes=false; while(S.queue.length<qmax()) S.queue.push(makeItem('hands',3)); render(); }`],
+      ['비교 팝업', `{ S.autoRes=false; if(!S.queue.length) S.queue.push(makeItem('head',7)); openCmp(); }`],
+      ['팝업 확률표', `{ openPop('odds'); }`],
+      ['팝업 수치상세', `{ S.equip={weapon:makeItem('weapon',12),body:makeItem('body',11)}; render(); openPop('stats'); }`],
+      ['팝업 승천', `{ S.lv=28; S.peak=120; S.top=120; render(); openPop('asc'); }`],
+      ['던전 탭', `{ var b=document.getElementById('tbTower'); if(b) b.click(); render(); }`],
+      ['주사위판', `{ var b=document.getElementById('tbTower'); if(b) b.click(); S.pos=7; S.best=7; render();
+          if(typeof openDice==='function') openDice(); render(); }`],
+      ['테크 탭', `{ var b=document.getElementById('tbTech'); if(b) b.click(); S.dust=5000; renderTech(); render(); }`],
+      ['승천 배너', `{ S.lv=28; S.peak=120; S.top=120; S.wave=40;
+          ['weapon','head','body','legs','hands','feet'].forEach(function(p){ S.equip[p]=makeItem(p,15); });
+          var b=document.getElementById('tbForge'); if(b) b.click(); render(); }`],
+      ['자동 정리 판정문', `{ S.autoRes=true; S.equip={}; S.queue=[];
+          while(S.queue.length<qmax()) S.queue.push(makeItem('hands',13));
+          S.equip.hands=makeItem('hands',15); S.equip.hands.base=1; autoResolve(); }`],
+      ['제련 판정문', `{ S.charge=600; S.queue=[]; S.lockIdx=-1; S.pity=0; spinning=false;
+          S.asell=new Array(15).fill(false); spin(); }`]
+    ];
+    const I_SCAN = `(function(ban){
+      var rows=[];
+      function walk(n,path){
+        if(n.nodeType===3){ if(n.nodeValue.trim()) rows.push({p:path,t:n.nodeValue}); return; }
+        if(n.nodeType!==1) return;
+        var cs=getComputedStyle(n); if(cs.display==='none'||cs.visibility==='hidden') return;
+        var s=n.tagName.toLowerCase()+(n.id?'#'+n.id:'');
+        for(var i=0;i<n.childNodes.length;i++) walk(n.childNodes[i], path?path+'>'+s:s);
+      }
+      walk(document.body,'');
+      document.querySelectorAll('[title],[aria-label],[placeholder],[alt]').forEach(function(e){
+        ['title','aria-label','placeholder','alt'].forEach(function(a){
+          var v=e.getAttribute(a); if(v&&v.trim()) rows.push({p:(e.id?'#'+e.id:e.tagName.toLowerCase())+'['+a+']',t:v}); }); });
+      rows.push({p:'<title>',t:document.title});
+      var keys=(typeof STR==='object'&&STR&&STR.ko)?Object.keys(STR.ko):[];
+      var keyset={}; for(var i=0;i<keys.length;i++) keyset[keys[i]]=1;
+      var HAN=/[\\uAC00-\\uD7A3\\u1100-\\u11FF\\u3130-\\u318F]/;
+      var han=[], bad=[], keyhit=[];
+      for(var r=0;r<rows.length;r++){ var x=rows[r].t;
+        if(HAN.test(x)) han.push(rows[r].p+' 「'+x.trim().slice(0,34)+'」');
+        for(var b=0;b<ban.length;b++){
+          var re=new RegExp('\\\\b'+ban[b].replace(' ','\\\\s+')+'\\\\w*','i');
+          var m=re.exec(x); if(m) bad.push(rows[r].p+' 「'+m[0]+'」 in 「'+x.trim().slice(0,34)+'」'); }
+        var tk=x.split(/[^A-Za-z0-9._]+/);
+        for(var k=0;k<tk.length;k++) if(tk[k]&&keyset[tk[k]]) keyhit.push(rows[r].p+' 「'+tk[k]+'」'); }
+      return { n:rows.length, nKeys:keys.length, han:han, bad:bad, keyhit:keyhit,
+               lang:document.documentElement.lang, title:document.title };
+    })`;
+    const BASE = URL.split('?')[0];
+    const iOpen = async (lang, w, h) => {
+      const c = await browser.newContext({ viewport: { width: w, height: h } });
+      const p = await c.newPage();
+      const es = [];
+      p.on('pageerror', e => es.push('pageerror: ' + e.message));
+      p.on('console', m => { if (m.type() === 'error' || m.type() === 'assert') es.push(m.text()); });
+      p.on('dialog', d => d.accept().catch(() => {}));
+      await p.addInitScript(() => { try { localStorage.setItem('forge', JSON.stringify(
+        { wave: 12, top: 14, gold: 98765, tok: 5, lv: 6, star: 2, charge: 600, queue: [], equip: {},
+          asell: new Array(15).fill(false), t: Date.now(), auto: false, autoRes: true,
+          dust: 4321, tech: {}, tk: 2, pos: 3, best: 5, peak: 14 })); } catch (e) {} });
+      await p.goto(BASE + '?lang=' + lang);
+      await p.evaluate(() => { try { window.save = () => {}; } catch (e) {} });
+      await p.waitForTimeout(2000);
+      p.__es = es; p.__c = c; return p;
+    };
+    const iSweep = async (lang) => {
+      const acc = { n: 0, nKeys: 0, han: [], bad: [], keyhit: [], lang: '', title: '', err: [], errs: [] };
+      for (const [w, h] of [[380, 820], [821, 462]]) {
+        const p = await iOpen(lang, w, h);
+        for (const [sn, body] of I_STATES) {
+          const r = await p.evaluate(({ body, S2, B }) => {
+            try { (new Function(body))(); } catch (e) { return { err: String(e && e.message || e) }; }
+            return eval(S2)(B);
+          }, { body, S2: I_SCAN, B: I_BAN });
+          if (r.err) { acc.err.push(`${lang}/${w}×${h}/${sn}: ${r.err}`); continue; }
+          acc.n += r.n; acc.nKeys = r.nKeys; acc.lang = r.lang; acc.title = r.title;
+          r.han.forEach(x => acc.han.push(`${w}×${h}/${sn} — ${x}`));
+          r.bad.forEach(x => acc.bad.push(`${w}×${h}/${sn} — ${x}`));
+          r.keyhit.forEach(x => acc.keyhit.push(`${w}×${h}/${sn} — ${x}`));
+        }
+        acc.errs.push(...p.__es);
+        await p.__c.close();
+      }
+      return acc;
+    };
+    const EN = await iSweep('en'), KO = await iSweep('ko');
+    const u = a => [...new Set(a)];
+    const bad = [];
+    if (!EN.nKeys) bad.push('페이지에 글자 표(STR)가 없다 — 검사가 볼 것이 없다');
+    if (EN.lang !== 'en') bad.push(`en 으로 열었는데 <html lang> 이 "${EN.lang}" 다`);
+    if (KO.lang !== 'ko') bad.push(`ko 으로 열었는데 <html lang> 이 "${KO.lang}" 다`);
+    if (EN.han.length) bad.push(`en 화면에 한글 ${u(EN.han).length}종: ${u(EN.han).slice(0, 4).join(' · ')}`);
+    if (EN.bad.length) bad.push(`en 금지어 ${u(EN.bad).length}종: ${u(EN.bad).slice(0, 4).join(' · ')}`);
+    if (KO.bad.length) bad.push(`ko 금지어 ${u(KO.bad).length}종: ${u(KO.bad).slice(0, 4).join(' · ')}`);
+    if (EN.keyhit.length) bad.push(`en 키 노출 ${u(EN.keyhit).length}종: ${u(EN.keyhit).slice(0, 4).join(' · ')}`);
+    if (KO.keyhit.length) bad.push(`ko 키 노출 ${u(KO.keyhit).length}종: ${u(KO.keyhit).slice(0, 4).join(' · ')}`);
+    if (EN.err.length || KO.err.length) bad.push(`상태 차리기 실패: ${u(EN.err.concat(KO.err)).slice(0, 2).join(' · ')}`);
+    chk(`I18N1 en 화면 한글 0자 · 금지어 0 · 표에서 빠진 키 노출 0 (상태 ${I_STATES.length} × 크기 2 × 두 언어)`,
+      bad.length === 0,
+      (bad.length ? `${bad.length}건 — ${bad.join(' · ')}` : '전부 0건')
+      + `  · 표 키 ${EN.nKeys}개 · 잰 글자 조각 en ${EN.n}개 / ko ${KO.n}개`
+      + `  · <title> en "${EN.title}" / ko "${KO.title}"`
+      + `  · 금지어 목록(단어 경계): ${I_BAN.join('·')}`
+      + `  · ko 에서는 한글을 허용하고 금지어·키 노출만 본다`
+      + `  · ⚠ 이 항목은 --en 여부와 무관하게 자기 창을 en 으로 연다`
+      + (EN.errs.length + KO.errs.length ? `  · 콘솔 ${EN.errs.length + KO.errs.length}건` : '  · 콘솔 0건'));
+  } catch (e) {
+    chk('I18N1-예외 두 언어 화면 글자 검사가 완주했다', false, '조작 중 예외: ' + String((e && e.message) || e));
+  }
+
+  /* ── SPC1 : 「제련 600」 — 글자는 textContent 로, 자리는 좌표로 **따로** 잰다 ────
+     034 제안 ⑹ 이 남긴 자리다(검증 세션이 세운다). 033 이 `#spinlbl`·`#chg` 를 쪼개면서
+     버튼 글자가 **「제련600」**이 됐는데, 034 의 「ko 무변경 대조 0건」이 그것을 **통과시켰다.**
+     원인은 측정 도구다 — `innerText` 는 flex 간격(`#spin{gap:7px}`)을 **공백으로 넣어 주므로**
+     「제련600」과 「제련 600」이 같은 글자로 읽힌다. 눈에는 띄지 않지만 복사하면 붙어 있고
+     읽어 주는 기계도 붙여 읽는다.
+
+     ⚠ **그래서 둘을 따로 잰다 — 이것이 이 검사의 전부다.**
+       ⑴ **글자**: `#spin.textContent` 가 「라벨 + 공백문자 + 숫자」인가. `textContent` 는
+          CSS 간격을 안 메워 주므로 진짜 글자만 본다. `innerText` 를 쓰면 이 검사는
+          **그 자리에서 공허해진다** — 절대 바꾸지 말 것.
+       ⑵ **자리**: `#spinlbl` 오른쪽 끝과 `#chg` 왼쪽 끝 사이의 **실제 간격 > 0**.
+          글자 공백이 있어도 CSS 가 겹치게 밀면 화면에서는 붙는다 — 글자로는 안 보인다.
+       둘 중 하나만 보면 반쪽이다: ⑴만 보면 CSS 가 겹친 것을 놓치고, ⑵만 보면 033 의
+       회귀(글자는 붙었는데 간격은 있던 것)를 **그대로 다시 놓친다.**
+     ⚠ 라벨 말은 표가 정한다(`t('ui.forge')`) — 두 언어에서 같은 못이다.
+     ⚠ 대기열이 가득 차고 「정리」가 꺼지면 라벨이 「대기열 정리」로 바뀌고 숫자가 빈다
+       (033 ②). 그 상태는 이 검사의 대상이 아니므로 **대기열을 비워 두고** 잰다.
+     ⚠ 크기는 `TB8_SIZES` 를 그대로 읽는다 — 한 곳에서만 고친다. */
+  try {
+    const spcBad = [], spcRows = [];
+    for (const vp of TB8_SIZES) {
+      const pg = await tbOpen(12, vp.w, vp.h, { queue: [], charge: 600 });
+      const r = await pg.evaluate(() => {
+        S.queue = []; S.charge = 600; render();
+        const sp = document.getElementById('spin');
+        const lb = document.getElementById('spinlbl');
+        const ch = document.getElementById('chg');
+        if (!sp || !lb || !ch) return { err: '#spin·#spinlbl·#chg 중 하나가 없다' };
+        const lr = lb.getBoundingClientRect(), cr = ch.getBoundingClientRect();
+        const row = sp.parentElement, qr = document.querySelector('.qrow');
+        return {
+          // ⑴ 글자 — textContent 그대로 (innerText 금지)
+          text: sp.textContent,
+          inner: sp.innerText,                 // 참고로만 찍는다 (판정에 안 쓴다)
+          lbl: lb.textContent, chg: ch.textContent,
+          want: t('ui.forge'),
+          // ⑵ 자리 — 좌표
+          gapPx: Math.round((cr.left - lr.right) * 10) / 10,
+          spinRowY: row ? Math.round(row.getBoundingClientRect().y * 10) / 10 : null,
+          qrowY: qr ? Math.round(qr.getBoundingClientRect().y * 10) / 10 : null,
+          spinY: Math.round(sp.getBoundingClientRect().y * 10) / 10
+        };
+      });
+      await pg.close();
+      if (r.err) { spcBad.push(`${vp.nm}: ${r.err}`); continue; }
+      // ⑴ 글자: 라벨 + **공백문자** + 숫자
+      const re = new RegExp('^' + r.want.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s+\\d');
+      if (!re.test(r.text))
+        spcBad.push(`${vp.nm}: 글자 — textContent 가 「${r.text}」다. 「${r.want}」 뒤에 ` +
+          `**공백 문자**가 없다 (innerText 로는 「${r.inner}」로 보여 안 드러난다)`);
+      if (!/\s$/.test(r.lbl))
+        spcBad.push(`${vp.nm}: 글자 — #spinlbl 이 「${JSON.stringify(r.lbl)}」로 끝에 공백이 없다`);
+      // ⑵ 자리: 눈에 보이는 간격
+      if (!(r.gapPx > 0))
+        spcBad.push(`${vp.nm}: 자리 — #spinlbl 과 #chg 사이 간격이 ${r.gapPx}px 다 (0 보다 커야 한다)`);
+      if (r.qrowY !== null && r.spinRowY !== null && !(r.qrowY > r.spinRowY))
+        spcBad.push(`${vp.nm}: 자리 — 대기열 줄(y ${r.qrowY})이 제련 줄(y ${r.spinRowY}) 위로 올라왔다`);
+      spcRows.push(`${vp.nm} 「${r.text}」 간격 ${r.gapPx}px · 제련줄 y${r.spinRowY} · 대기열줄 y${r.qrowY}`);
+    }
+    chk(`SPC1 「${'제련'}/Forge + 공백 + 숫자」 — 글자는 textContent · 자리는 좌표 (크기 ${TB8_SIZES.length})`,
+      spcBad.length === 0,
+      (spcBad.length ? `${spcBad.length}건 — ${spcBad.join(' · ')}` +
+          `  ⚠ 033 이 만든 「제련600」 회귀다. 034 판정 ⓑ 가 라벨 끝 공백으로 되돌렸다`
+        : `9크기 전부 — 글자에 공백 문자가 있고(textContent) 자리에도 간격이 있다(좌표)`) +
+      `  · 두 측정은 독립이다: innerText 는 flex 간격을 공백으로 메워 주므로 판정에 쓰지 않는다 (034 제안 ⑹)` +
+      `  · 크기별: ${spcRows.join(' · ')}`);
+  } catch (e) {
+    chk('SPC1-예외 제련 버튼 글자·자리 검사가 완주했다', false, '조작 중 예외: ' + String((e && e.message) || e));
   }
 
   /* ── RS1 : 정리 뒤에도 싸움이 이어진다 (적 체력이 되감기지 않는다) ──────────────
@@ -2984,7 +3223,7 @@ const chk = (name, cond, note) => {
               requestAd(t,cb){__stub.t=t;setTimeout(()=>{cb.adStarted&&cb.adStarted();
                 setTimeout(()=>{${mode === 'ok' ? 'cb.adFinished&&cb.adFinished();' : "cb.adError&&cb.adError('no fill');"}},200);},30);}},
           data:{getItem:k=>localStorage.getItem(k),setItem:(k,v)=>localStorage.setItem(k,v),removeItem(){},clear(){}}}};` }));
-      await p5.goto(URL + '?cg=1');
+      await p5.goto(URL + '&cg=1');
       await p5.evaluate(() => { try { window.save = () => {}; } catch (e) {} });
       await p5.waitForTimeout(1200);
       const r5 = await p5.evaluate(async () => {
@@ -3051,7 +3290,7 @@ const chk = (name, cond, note) => {
               requestAd(t,cb){setTimeout(()=>{cb.adStarted&&cb.adStarted();
                 setTimeout(()=>{cb.adFinished&&cb.adFinished();},2200);},30);}},
           data:{getItem:k=>localStorage.getItem(k),setItem:(k,v)=>localStorage.setItem(k,v),removeItem(){},clear(){}}}};` }));
-      await p6.goto(URL + '?cg=1');
+      await p6.goto(URL + '&cg=1');
       await p6.evaluate(() => { try { window.save = () => {}; } catch (e) {} });
       await p6.waitForTimeout(1400);
       const xy = await p6.evaluate(() => { S.charge = 50; S.boost = 0; S.adN = 0; S.adAt = 0; renderFast();

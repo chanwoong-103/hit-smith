@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Hit Smith — 터져라! 대장간</title>
+<title data-s="doc.title">Hit Smith — 터져라! 대장간</title>
 <!-- 027 B-6: 브라우저는 시키지 않아도 /favicon.ico 를 긁어 간다. 그게 없으면
      콘솔에 404 가 한 건 남고, 022 배포 확인의 「콘솔 에러 0건」과 CrazyGames QA
      첫인상에 그대로 걸린다. 빈 data URI 한 줄이면 **요청 자체가 안 나간다** —
@@ -687,9 +687,9 @@ button:disabled{opacity:.35;cursor:default;box-shadow:none}
 
 <div class="panel">
   <div class="row">
-    <div><span class="dim">웨이브</span> <b class="num gv" id="wv">1</b><span id="wvg"></span>
+    <div><span class="dim" data-s="ui.wave">웨이브</span> <b class="num gv" id="wv">1</b><span id="wvg"></span>
       <span id="star" style="color:var(--g14)"></span>
-      <span class="dim num" style="font-size:11px"> 최고 <b id="top">0</b></span></div>
+      <span class="dim num" style="font-size:11px"> <span data-s="ui.best">최고</span> <b id="top">0</b></span></div>
     <div class="num" style="font-size:12px">
       <span style="color:var(--brass)"><svg class="ci"><use href="#s-gold"/></svg> <span id="gold">0</span></span>
       &nbsp;<span style="color:var(--ember)"><svg class="ci"><use href="#s-token"/></svg> <span id="tok">0</span></span>
@@ -715,7 +715,7 @@ button:disabled{opacity:.35;cursor:default;box-shadow:none}
      잰 「관문이 열린 뒤 승천까지의 죽은 꼬리 22시간」 가운데 일부는 **승천할 수
      있다는 걸 몰라서** 생겼을 수 있다. 조건이 찼을 때만, 굴리지 않고 보이는 자리에
      둔다. 누르면 확인은 016 의 상세 팝업 통(#popAsc)을 **그대로** 쓴다. -->
-<button id="asc" class="hot" style="width:100%;display:none">승천</button>
+<button id="asc" class="hot" style="width:100%;display:none" data-s="ui.ascend">승천</button>
 <div class="panel" id="forge">
   <!-- 화로 압력계: 바늘이 스핀마다 오르고 적색 구간에 닿으면 강제 정렬 -->
   <div id="pity">
@@ -743,13 +743,13 @@ button:disabled{opacity:.35;cursor:default;box-shadow:none}
     <!-- 033 ②: 대기열이 가득 차고 「정리」가 꺼져 있으면 이 버튼의 **글자만** 「대기열 정리」로
          바뀐다. 자리·크기·색(flex:2 · .primary)은 그대로라 TB8·AD6 이 보는 좌표가 안 움직인다.
          #chg 는 지우지 않고 숨긴다 — checklist 1a 가 그 자리를 읽는다. -->
-    <button id="spin" class="primary" style="flex:2"><span id="spinlbl">제련</span><span class="num" id="chg">0</span><span id="spinq"></span></button>
-    <button id="auto" style="flex:1">자동</button>
+    <button id="spin" class="primary" style="flex:2"><span id="spinlbl">제련 </span><span class="num" id="chg">0</span><span id="spinq"></span></button>
+    <button id="auto" style="flex:1" data-s="ui.auto">자동</button>
   </div>
-  <button id="ad" style="width:100%;margin-top:6px"><svg class="ci"><use href="#s-flame"/></svg><span id="adtxt">화로 지피기 — 충전 가득 + 배속</span></button>
+  <button id="ad" style="width:100%;margin-top:6px"><svg class="ci"><use href="#s-flame"/></svg><span id="adtxt" data-s="ui.stoke">화로 지피기 — 충전 가득 + 배속</span></button>
   <!-- 033 ①-b: 「정리」는 **대기열 줄 옆**이다(사용자 판정). 제련 줄은 한 픽셀도 안 건드린다.
        대기 숫자 바로 옆이라 무엇을 정리하는지가 한눈에 읽힌다. -->
-  <div class="dim qrow"><span>대기 <span class="num" id="qn">0</span>/<span class="num" id="qm">10</span> · 릴을 눌러 고정 (<svg class="ci" style="color:var(--ember)"><use href="#s-token"/></svg>1)</span><button id="autores">정리</button></div>
+  <div class="dim qrow"><span><span data-s="ui.queue">대기</span> <span class="num" id="qn">0</span>/<span class="num" id="qm">10</span> · <span data-s="ui.lockHint">릴을 눌러 고정</span> (<svg class="ci" style="color:var(--ember)"><use href="#s-token"/></svg>1)</span><button id="autores" data-s="ui.sort">정리</button></div>
   <button id="open" style="width:100%;margin-top:6px;display:none"></button>
 </div>
 </div><!-- /#focus -->
@@ -761,13 +761,13 @@ button:disabled{opacity:.35;cursor:default;box-shadow:none}
      보는 것이지 누르는 것이 아니라 뒤로 간다. 30vh 자체는 안 건드린다(010 비율). -->
 <div class="panel">
   <div class="row" style="margin-bottom:7px">
-    <span class="dim">제련 등급 <span class="num" id="lv">0</span></span>
-    <button id="up">강화 <svg class="ci" style="color:var(--brass)"><use href="#s-gold"/></svg> <span class="num" id="cost">50</span></button>
+    <span class="dim"><span data-s="ui.forgeLv">제련 등급</span> <span class="num" id="lv">0</span></span>
+    <button id="up"><span data-s="ui.upgrade">강화</span> <svg class="ci" style="color:var(--brass)"><use href="#s-gold"/></svg> <span class="num" id="cost">50</span></button>
   </div>
   <!-- 027 B-2: 승천 관문이 **아직** 안 찼을 때의 진행 문구. 조건이 차면 비고,
        그때는 #focus 의 승천 배너가 대신 말한다. -->
   <div id="ascgate" class="dim"></div>
-  <button id="bOdds" style="width:100%;margin-top:8px">등급 확률표</button>
+  <button id="bOdds" style="width:100%;margin-top:8px" data-s="pop.odds">등급 확률표</button>
   <!-- 027 B-1: 자동 판매 등급 체크. 칸 수가 등급 상한 cap() 을 따라 느는 것이라
        제련 등급과 한 자리가 맞다 — 설정 팝업이 아니라 여기가 제자리였다. -->
   <div id="asell"></div>
@@ -775,11 +775,11 @@ button:disabled{opacity:.35;cursor:default;box-shadow:none}
 
 <div class="panel">
   <div class="row" style="margin-bottom:7px">
-    <span class="dim">장비</span>
-    <span class="dim num">전투력 <b id="pw" style="color:var(--text)">0</b></span>
+    <span class="dim" data-s="ui.gear">장비</span>
+    <span class="dim num"><span data-s="ui.power">전투력</span> <b id="pw" style="color:var(--text)">0</b></span>
   </div>
   <div id="gear"></div>
-  <button id="bStats" style="width:100%;margin-top:8px">옵션 수치 상세</button>
+  <button id="bStats" style="width:100%;margin-top:8px" data-s="pop.stats">옵션 수치 상세</button>
 </div>
 </div><!-- /#manage -->
 </div><!-- /#tabForge -->
@@ -787,20 +787,20 @@ button:disabled{opacity:.35;cursor:default;box-shadow:none}
 <div class="tabpane" id="tabTower">
 <div class="panel" id="pTower" style="display:none">
   <div class="row" style="margin-bottom:7px">
-    <span class="dim">무한의 층 <span style="color:var(--g9)"><svg class="ci"><use href="#s-ticket"/></svg> <b class="num" id="tk">2</b></span></span>
-    <span class="dim num">최고 <b id="best" style="color:var(--text)">0</b>층</span>
+    <span class="dim"><span data-s="tower.title">무한의 층</span> <span style="color:var(--g9)"><svg class="ci"><use href="#s-ticket"/></svg> <b class="num" id="tk">2</b></span></span>
+    <span class="dim num"><span data-s="ui.best">최고</span> <b id="best" style="color:var(--text)">0</b><span data-s="tower.floor">층</span></span>
   </div>
   <!-- 던전 띠 (019): 013 타일 + 015 몹을 팔레트만 갈아 다시 쓴다. 새 그림 0장. -->
-  <div class="dband" id="tband"><i id="tguard"></i><b id="tfloor">미답</b></div>
-  <button id="tower" class="primary" style="width:100%">도전 — 오른 층만큼 별가루</button>
+  <div class="dband" id="tband"><i id="tguard"></i><b id="tfloor" data-s="tower.unvisited">미답</b></div>
+  <button id="tower" class="primary" style="width:100%" data-s="tower.challenge">도전 — 오른 층만큼 별가루</button>
 </div>
 </div><!-- /#tabTower -->
 
 <div class="tabpane" id="tabTech">
 <div class="panel" id="pTech" style="display:none">
   <div class="row" style="margin-bottom:8px">
-    <span class="dim">테크트리</span>
-    <span class="num" style="color:var(--g9)"><svg class="ci"><use href="#s-dust"/></svg> <span id="dust">0</span> 별가루</span>
+    <span class="dim" data-s="tech.title">테크트리</span>
+    <span class="num" style="color:var(--g9)"><svg class="ci"><use href="#s-dust"/></svg> <span id="dust">0</span> <span data-s="tech.dust">별가루</span></span>
   </div>
   <div id="tech"></div>
 </div>
@@ -809,17 +809,17 @@ button:disabled{opacity:.35;cursor:default;box-shadow:none}
 <!-- 하단 탭바. 최고 웨이브 10 전까지 **탭바 자체가 없다** (원칙 7).
      탭이 하나뿐인 탭바는 거짓말이다 — 게이트가 열리는 순간 셋이 함께 나타난다. -->
 <div id="tabs" style="display:none">
-  <button id="tbForge" class="on">제련</button>
-  <button id="tbTower">던전</button>
-  <button id="tbTech">테크</button>
+  <button id="tbForge" class="on" data-s="tab.forge">제련</button>
+  <button id="tbTower" data-s="tab.dungeon">던전</button>
+  <button id="tbTech" data-s="tab.tech">테크</button>
 </div>
 
 <div id="dice">
   <!-- 층 등반 (019): 숫자가 오르는 동안 띠가 한 주기 흐른다. 캔버스를 쓰지 않아
        절전과 무관하고, 색은 층수에서 무대와 같은 공식으로 파생한다. -->
-  <div class="dband" id="dband"><i id="dguard"></i><b id="dfloor">0층</b></div>
+  <div class="dband" id="dband"><i id="dguard"></i><b id="dfloor" data-s="tower.floor0">0층</b></div>
   <div style="text-align:center;margin-bottom:10px">
-    <div class="dim" id="dmsg">주사위를 굴려 보상 칸을 정하세요</div>
+    <div class="dim" id="dmsg" data-s="dice.hint">주사위를 굴려 보상 칸을 정하세요</div>
     <div id="dval">
       <svg class="die" id="ddie" data-v="0" viewBox="0 0 32 32">
         <rect x="2.6" y="2.6" width="26.8" height="26.8" rx="5" fill="#b9c3cf" stroke="#5b6673" stroke-width="1.6"/>
@@ -836,24 +836,24 @@ button:disabled{opacity:.35;cursor:default;box-shadow:none}
   </div>
   <div id="board"></div>
   <div class="row" style="margin-top:12px">
-    <button id="droll" class="primary" style="flex:1">굴리기</button>
-    <button id="dad" style="flex:1"><svg class="ci"><use href="#s-flame"/></svg>재굴림 <span id="dleft">2</span></button>
+    <button id="droll" class="primary" style="flex:1" data-s="dice.roll">굴리기</button>
+    <button id="dad" style="flex:1"><svg class="ci"><use href="#s-flame"/></svg><span data-s="dice.reroll">재굴림</span> <span id="dleft">2</span></button>
   </div>
-  <button id="dtake" style="width:100%;margin-top:6px;display:none">보상 받기</button>
+  <button id="dtake" style="width:100%;margin-top:6px;display:none" data-s="dice.claim">보상 받기</button>
 </div>
 
 <div id="cmp">
   <div class="dim" style="text-align:center;margin-bottom:8px">
-    남은 대기 <span class="num" id="qn2">0</span> · 교체하면 빠진 장비가 맨 앞에 남습니다
+    <span data-s="cmp.left">남은 대기</span> <span class="num" id="qn2">0</span> · <span data-s="cmp.note">교체하면 빠진 장비가 맨 앞에 남습니다</span>
     <div id="cstat" class="num" style="margin-top:4px;color:var(--text)"></div>
   </div>
   <div class="card" id="cOld"></div>
   <div class="card new" id="cNew"></div>
   <div class="row">
-    <button id="bSell" style="flex:1">판매</button>
-    <button id="bEquip" class="primary" style="flex:1">교체</button>
+    <button id="bSell" style="flex:1" data-s="cmp.sell">판매</button>
+    <button id="bEquip" class="primary" style="flex:1" data-s="cmp.swap">교체</button>
   </div>
-  <button id="cclose" style="width:100%;margin-top:6px">닫기 — 화면 확인</button>
+  <button id="cclose" style="width:100%;margin-top:6px" data-s="cmp.close">닫기 — 화면 확인</button>
 </div>
 
 <!-- 026: 광고 중 입력 차단막. 통을 새로 만드는 것이 아니라 «막» 하나다. -->
@@ -862,11 +862,11 @@ button:disabled{opacity:.35;cursor:default;box-shadow:none}
 <!-- ══ 상세 팝업 (016) ══ 통 하나 · 절 넷. 메인에서 덜어낸 표와 상세가 여기 산다.
      절들은 닫혀 있어도 DOM 에 그대로 있어 render() 와 checklist 선택자가 살아 있다. -->
 <div id="pop">
-  <div class="pophead"><b id="ptitle"></b><button id="pclose">닫기</button></div>
+  <div class="pophead"><b id="ptitle"></b><button id="pclose" data-s="pop.close">닫기</button></div>
   <div id="pstat" class="num"></div>
   <div class="popsec" id="popOdds">
-    <div class="odds"><span class="ol">기본</span><div class="obar" id="ob0"></div></div>
-    <div class="odds"><span class="ol">3연</span><div class="obar" id="ob2"></div></div>
+    <div class="odds"><span class="ol" data-s="odds.base">기본</span><div class="obar" id="ob0"></div></div>
+    <div class="odds"><span class="ol" data-s="odds.three">3연</span><div class="obar" id="ob2"></div></div>
     <div id="olegend"></div>
   </div>
   <div class="popsec" id="popStats"><div id="stats"></div></div>
@@ -875,7 +875,7 @@ button:disabled{opacity:.35;cursor:default;box-shadow:none}
        016 의 통 하나를 계속 쓴다. -->
   <div class="popsec" id="popAsc">
     <div class="dim" id="ascTxt"></div>
-    <button id="ascGo" class="hot" style="width:100%;margin-top:10px">승천한다</button>
+    <button id="ascGo" class="hot" style="width:100%;margin-top:10px" data-s="asc.do">승천한다</button>
   </div>
   <div id="popend"></div>
 </div>
@@ -891,6 +891,234 @@ button:disabled{opacity:.35;cursor:default;box-shadow:none}
    **바이트 단위로 보존**한다. 표시·디자인 작업은 이 구획을 만지지 않는다.
    days.js 출력이 바이트 단위로 같아야 한다는 것이 이 구획의 계약이다.
    ═══════════════════════════════════════════════════════════════════ */
+/* ══ 글자 표 (034) ══════════════════════════════════════════════════════════
+   화면에 나가는 모든 글자가 여기 있다. **데이터만** — 여기에 로직을 두지 않는다.
+   ⚠ 이 표는 CORE 맨 앞에 있지만 «계산»에는 한 글자도 안 쓰인다. `days.js` 는
+     하네스에서 CORE 만 돌리는데, 하네스에는 `navigator` 가 없어 LANG 이 'ko' 로
+     떨어진다 — 그래서 기본 출력이 034 전과 바이트 동일하다.
+   ⚠ `{0}` `{1}` 은 자리표다. 말의 **순서**가 언어마다 다르기 때문에 필요하다
+     (ko 「13등급」 ↔ en 「Grade 13」). `t(key, a, b)` 가 순서대로 끼운다.
+   ⚠ 모르는 키는 **키 이름 그대로** 돌려준다(빈칸으로 삼키지 않는다). 화면에 점이
+     찍힌 영어 키가 보이면 그 자리가 표에서 빠진 것이다 — 검사가 그것을 본다.
+   ⚠ 영어 금지어(원칙 7 의 영어판): spin · slot · reel · jackpot · bet · gamble ·
+     lucky · casino · payout · win big. 「릴」은 **item** 으로 옮긴다. */
+const STR={ko:{
+  /* ── 뼈대 ── */
+  'doc.title':'Hit Smith — 터져라! 대장간',
+  'tab.forge':'제련', 'tab.dungeon':'던전', 'tab.tech':'테크',
+  /* ── 부위 ── */
+  'part.weapon':'무기','part.head':'모자','part.body':'상의',
+  'part.legs':'하의','part.hands':'장갑','part.feet':'신발',
+  'wt.melee':'근접','wt.ranged':'원거리',
+  /* ── 각인 ── */
+  'sp.exec.nm':'처형',  'sp.exec.d':'적 체력 25% 이하에 피해 ×1.8',
+  'sp.rage.nm':'광폭',  'sp.rage.d':'내 체력 50% 이하에 피해 ×1.5',
+  'sp.regen.nm':'재생', 'sp.regen.d':'초당 최대 체력 2% 회복',
+  'sp.pierce.nm':'관통','sp.pierce.d':'맞지 않는 피해 옵션도 절반 적용',
+  'sp.label':'각인',
+  /* ── 옵션 (`.s` 는 장비 칸에 들어가는 짧은 꼴) ── */
+  'opt.crit':'치명타 확률',  'opt.crit.s':'치명',
+  'opt.cdmg':'치명타 피해',  'opt.cdmg.s':'치명',
+  'opt.aspd':'공격 속도',    'opt.aspd.s':'공격',
+  'opt.dbl':'더블 어택',     'opt.dbl.s':'더블',
+  'opt.melee':'근접 피해',   'opt.melee.s':'근접',
+  'opt.ranged':'원거리 피해','opt.ranged.s':'원거',
+  'opt.hp':'체력',          'opt.hp.s':'체력',
+  'opt.block':'블록 확률',   'opt.block.s':'블록',
+  'opt.leech':'생명력 흡수', 'opt.leech.s':'생명',
+  'opt.gold':'골드 획득',    'opt.gold.s':'골드',
+  /* ── 테크 ── */
+  'tech.spd.nm':'충전 속도',  'tech.spd.d':'주기 -0.8%',
+  'tech.cap.nm':'저장 한도',  'tech.cap.d':'충전 +30칸',
+  'tech.sell.nm':'판매 금액', 'tech.sell.d':'+1.5%',
+  'tech.cost.nm':'강화 비용', 'tech.cost.d':'-0.5%',
+  'tech.gold.nm':'골드 획득', 'tech.gold.d':'+1.5%',
+  'tech.align.nm':'정렬 보정','tech.align.d':'일치 +0.25%',
+  'tech.title':'테크트리', 'tech.dust':'별가루', 'tech.done':'완료',
+  /* ── 주사위 칸 ── */
+  'tile.dust':'별가루','tile.gold':'골드','tile.tok':'고정 토큰','tile.chg':'충전 가득',
+  'tile.full':'가득',
+  /* ── HUD · 제련 ── */
+  'ui.wave':'웨이브', 'ui.best':'최고', 'ui.power':'전투력',
+  'ui.forge':'제련', 'ui.auto':'자동', 'ui.sort':'정리', 'ui.ascend':'승천',
+  'ui.stoke':'화로 지피기 — 충전 가득 + 배속',
+  'ui.boost':'1.5배속 {0}분 남음',
+  'ui.queue':'대기', 'ui.lockHint':'릴을 눌러 고정',
+  'ui.forgeLv':'제련 등급', 'ui.upgrade':'강화', 'ui.gear':'장비',
+  'ui.grade':'{0}등급', 'ui.base':'기본 {0}',
+  'ui.sortQueue':'대기열 정리', 'ui.sortNow':'정리하기 ({0})',
+  'ui.queueFull':'대기 가득 — 정리해야 계속 제련',
+  'ui.stat':'전투력 {0} · 웨이브 {1} · ',
+  'ui.pityFull':'▣ 임계압 — 다음 제련은 전 릴 정렬',
+  'ui.pity':'화로압 {0}/{1}',
+  'ui.autosellHd':'이 등급은 대기열을 거치지 않고 바로 판매',
+  /* ── 제련 판정문 ── */
+  'msg.item':'{0} {1} {2}',
+  'msg.autosell':'{0} — 자동 판매 ',
+  'msg.pity':'▣ 임계압 정렬 — {0}',
+  'msg.match':'◆ {0}연 정렬 — {1}',
+  'msg.match2':'◇ 2연 — {0}',
+  'msg.sorted.equip':'자동 정리 — {0} 장착',
+  'msg.sorted.sold':' · {0} 판매 ',
+  'msg.sorted.sell':'자동 정리 — {0} 판매 ',
+  /* ── 적 ── */
+  'foe.floor':'{0}층 · {1}',
+  'foe.melee':'근접 무리','foe.ranged':'원거리 무리','foe.mix':'혼합 무리',
+  /* ── 비교 팝업 ── */
+  'cmp.worn':'착용 중','cmp.queued':'대기열','cmp.empty':'비어 있음',
+  'cmp.delta':'교체 시 전투력','cmp.sell':'판매','cmp.swap':'교체',
+  'cmp.equipTry':'교체해서 껴보기','cmp.equip':'장착',
+  'cmp.left':'남은 대기','cmp.note':'교체하면 빠진 장비가 맨 앞에 남습니다',
+  'cmp.close':'닫기 — 화면 확인',
+  /* ── 팝업 ── */
+  'pop.odds':'등급 확률표','pop.stats':'옵션 수치 상세','pop.asc':'승천','pop.close':'닫기',
+  'odds.base':'기본','odds.three':'3연',
+  'odds.title':'{0}등급 {1}%',
+  'stats.atk':'공격력','stats.hp':'체력',
+  /* ── 승천 ── */
+  'asc.capAll':'모든 등급 개방 · 승천까지 제련 ',
+  'asc.needWave':'승천까지 ','asc.needWave2':'웨이브',
+  'asc.reach':' 도달 필요',
+  'asc.curBest':'(현재 최고 {0})',
+  'asc.banner':'승천 ★{0} — 수치 ×{1} · 옵션 상한 ×{2}',
+  'asc.reels':' · 릴 {0}개',
+  'asc.sellAll':'장비 {0}개가 전부 팔리고 제련 등급이 0으로 돌아갑니다.',
+  'asc.again':'등급 상한은 다시 5등급부터 — 같은 길을 더 강한 장비로 다시 오릅니다.',
+  'asc.gain':' · 기본 수치 ×{0}',
+  'asc.gain2':' · 옵션 상한 ×{0} · 대기창 {1}칸',
+  'asc.reels2':' · 릴 {0}개 → {1}개',
+  'asc.do':'승천한다',
+  'asc.confirm':'승천 ★{0}\n\n장비 {1}개가 전부 팔리고 제련 등급이 0으로 돌아갑니다.\n등급 상한은 다시 5등급부터 — 같은 길을 더 강한 장비로 다시 오릅니다.\n\n장비 기본 수치 ×{2}, 옵션 상한 ×{3}, 대기창 {4}칸',
+  'asc.confirmReels':'\n릴 {0}개 → {1}개',
+  'asc.confirmGo':'\n\n계속할까요?',
+  'swap.confirm':'{0}등급을 {1}등급으로 교체합니다.\n{2}등급 낮습니다. 계속할까요?',
+  /* ── 강화 안내 ── */
+  'up.next':'제련 ','up.next2':' 강화 시 ','up.next3':' 개방',
+  'up.canAsc':'승천 가능',
+  'up.capAll':'모든 등급 개방 · 세부등급 상승 중 · 제련 ',
+  'up.needWave':'승천까지 ','up.needWave2':' 도달 필요 (현재 최고 {0})',
+  /* ── 무한의 층 · 주사위 ── */
+  'tower.title':'무한의 층','tower.best':'최고 {0}층','tower.unvisited':'미답',
+  'tower.floor':'층','tower.floor0':'0층',
+  'tower.challenge':'도전 — 오른 층만큼 별가루',
+  'tower.reached':'{0}층 도달 — 주사위를 굴리세요',
+  'dice.hint':'주사위를 굴려 보상 칸을 정하세요',
+  'dice.roll':'굴리기','dice.reroll':'재굴림','dice.claim':'보상 받기',
+  'dice.landed':'{0} {1} — 받거나 광고로 다시 굴리기',
+  'dice.take':'{0} 받기'
+},en:{
+  'doc.title':'Hit Smith',
+  'tab.forge':'Forge', 'tab.dungeon':'Dungeon', 'tab.tech':'Tech',
+  'part.weapon':'Weapon','part.head':'Helm','part.body':'Armor',
+  'part.legs':'Greaves','part.hands':'Gloves','part.feet':'Boots',
+  'wt.melee':'Melee','wt.ranged':'Ranged',
+  'sp.exec.nm':'Execute',  'sp.exec.d':'×1.8 damage below 25% enemy HP',
+  'sp.rage.nm':'Frenzy',   'sp.rage.d':'×1.5 damage below 50% own HP',
+  'sp.regen.nm':'Regen',   'sp.regen.d':'Restore 2% max HP per second',
+  'sp.pierce.nm':'Pierce', 'sp.pierce.d':'Off-type damage stats apply at half',
+  'sp.label':'Rune',
+  'opt.crit':'Crit chance',  'opt.crit.s':'Crit',
+  'opt.cdmg':'Crit damage',  'opt.cdmg.s':'Crit',
+  'opt.aspd':'Attack speed', 'opt.aspd.s':'Speed',
+  'opt.dbl':'Double strike', 'opt.dbl.s':'Double',
+  'opt.melee':'Melee damage','opt.melee.s':'Melee',
+  'opt.ranged':'Ranged damage','opt.ranged.s':'Ranged',
+  'opt.hp':'Health',         'opt.hp.s':'HP',
+  'opt.block':'Block chance','opt.block.s':'Block',
+  'opt.leech':'Lifesteal',   'opt.leech.s':'Leech',
+  'opt.gold':'Gold gain',    'opt.gold.s':'Gold',
+  'tech.spd.nm':'Charge rate', 'tech.spd.d':'Cycle -0.8%',
+  'tech.cap.nm':'Charge cap',  'tech.cap.d':'Charge +30',
+  'tech.sell.nm':'Sell price', 'tech.sell.d':'+1.5%',
+  'tech.cost.nm':'Upgrade cost','tech.cost.d':'-0.5%',
+  'tech.gold.nm':'Gold gain',  'tech.gold.d':'+1.5%',
+  'tech.align.nm':'Match bonus','tech.align.d':'Match +0.25%',
+  'tech.title':'Tech tree', 'tech.dust':'Stardust', 'tech.done':'Maxed',
+  'tile.dust':'Stardust','tile.gold':'Gold','tile.tok':'Lock token','tile.chg':'Full charge',
+  'tile.full':'Full',
+  'ui.wave':'Wave', 'ui.best':'Best', 'ui.power':'Power',
+  'ui.forge':'Forge', 'ui.auto':'Auto', 'ui.sort':'Sort', 'ui.ascend':'Ascend',
+  'ui.stoke':'Stoke the forge — full charge + speed',
+  'ui.boost':'1.5x speed, {0} min left',
+  'ui.queue':'Queue', 'ui.lockHint':'Tap an item to lock',
+  'ui.forgeLv':'Forge level', 'ui.upgrade':'Upgrade', 'ui.gear':'Gear',
+  'ui.grade':'Grade {0}', 'ui.base':'Base {0}',
+  'ui.sortQueue':'Sort queue', 'ui.sortNow':'Sort now ({0})',
+  'ui.queueFull':'Queue full — sort it to keep forging',
+  'ui.stat':'Power {0} · Wave {1} · ',
+  'ui.pityFull':'▣ Critical — next forge matches every item',
+  'ui.pity':'Pressure {0}/{1}',
+  'ui.autosellHd':'These grades sell at once, skipping the queue',
+  'msg.item':'{0} {1} {2}',
+  'msg.autosell':'{0} — auto-sold ',
+  'msg.pity':'▣ Critical match — {0}',
+  'msg.match':'◆ {0} matched — {1}',
+  'msg.match2':'◇ 2 matched — {0}',
+  'msg.sorted.equip':'Sorted: kept {0}',
+  'msg.sorted.sold':' · sold {0} ',
+  'msg.sorted.sell':'Sorted: sold {0} ',
+  'foe.floor':'Floor {0} · {1}',
+  'foe.melee':'Melee pack','foe.ranged':'Ranged pack','foe.mix':'Mixed pack',
+  'cmp.worn':'Equipped','cmp.queued':'In queue','cmp.empty':'Empty',
+  'cmp.delta':'Power after swap','cmp.sell':'Sell','cmp.swap':'Swap',
+  'cmp.equipTry':'Swap and try it','cmp.equip':'Equip',
+  'cmp.left':'Queue left','cmp.note':'Swapping leaves the old piece at the front',
+  'cmp.close':'Back to forge',
+  'pop.odds':'Grade odds','pop.stats':'Stat details','pop.asc':'Ascend','pop.close':'Close',
+  'odds.base':'Base','odds.three':'3 matched',
+  'odds.title':'Grade {0} {1}%',
+  'stats.atk':'Attack','stats.hp':'Health',
+  'asc.capAll':'All grades open · Ascend at Forge Lv ',
+  'asc.needWave':'Reach wave ','asc.needWave2':'',
+  'asc.reach':' to ascend',
+  'asc.curBest':'(best {0})',
+  'asc.banner':'Ascend ★{0} — stats ×{1} · stat cap ×{2}',
+  'asc.reels':' · {0} per forge',
+  'asc.sellAll':'All {0} pieces are sold and forge level returns to 0.',
+  'asc.again':'Grade cap starts at 5 again — the same climb with stronger gear.',
+  'asc.gain':' · base stats ×{0}',
+  'asc.gain2':' · stat cap ×{0} · queue {1}',
+  'asc.reels2':' · per forge {0} → {1}',
+  'asc.do':'Ascend',
+  'asc.confirm':'Ascend ★{0}\n\nAll {1} pieces are sold and forge level returns to 0.\nGrade cap starts at 5 again — the same climb with stronger gear.\n\nBase stats ×{2}, stat cap ×{3}, queue {4}',
+  'asc.confirmReels':'\nItems per forge {0} → {1}',
+  'asc.confirmGo':'\n\nContinue?',
+  'swap.confirm':'Swapping grade {0} for grade {1}.\nThat is {2} grades lower. Continue?',
+  'up.next':'Forge Lv ','up.next2':' opens ','up.next3':'',
+  'up.canAsc':'Ready to ascend',
+  'up.capAll':'All grades open · tiers rising · ascend at Forge Lv ',
+  'up.needWave':'Reach wave ','up.needWave2':' to ascend (best {0})',
+  'tower.title':'Endless Tower','tower.best':'Best floor {0}','tower.unvisited':'Unvisited',
+  'tower.floor':'F','tower.floor0':'Floor 0',
+  'tower.challenge':'Challenge — stardust by floor reached',
+  'tower.reached':'Floor {0} reached — roll the dice',
+  'dice.hint':'Roll the dice to pick a reward',
+  'dice.roll':'Roll','dice.reroll':'Reroll','dice.claim':'Claim',
+  'dice.landed':'{0} {1} — take it, or watch an ad to roll again',
+  'dice.take':'Take {0}'
+}};
+/* 언어는 **기기가 정한다** — 설정 화면을 만들지 않는다(027 이 걷어낸 자리다).
+   `?lang=` 은 시험용 덮어쓰기다. `navigator` 가 없는 환경(하네스)은 ko 로 떨어진다
+   — `days.js` 기본 출력이 034 전과 바이트 동일해야 하기 때문이다. */
+const LANG=(function(){
+  try{
+    if(typeof location!=='undefined'&&location.search){
+      const m=/[?&]lang=(ko|en)/.exec(location.search); if(m) return m[1];
+    }
+    if(typeof navigator!=='undefined'&&navigator.language)
+      return /^ko/i.test(navigator.language)?'ko':'en';
+  }catch(e){}
+  return 'ko';
+})();
+// 모르는 키는 키 이름 그대로 나온다 — 빠진 자리를 화면이 스스로 고발하게 둔다.
+function t(k){
+  const T=STR[LANG]||STR.ko, v=T[k];
+  if(v===undefined) return k;
+  if(arguments.length<2) return v;
+  const a=arguments;
+  return v.replace(/\{(\d)\}/g,function(_,i){ const x=a[+i+1]; return x===undefined?'':x; });
+}
+
 /* ══ 데이터 ══ */
 // id 는 곧 SVG 심볼 이름이다 (#s-<id>-<실루엣 단계>). 이모지 아이콘은 없다.
 const PARTS=[
@@ -1078,13 +1306,14 @@ function spin(){
     if(b>0) els.forEach((e,i)=>{ if(res[i]===part) e.classList.add('hit'); });
     const it=makeItem(PARTS[part].id,rollGrade(b));
     const m=document.getElementById('msg');
-    const tag=`${PARTS[part].nm} ${it.g}등급 ${ROMAN[it.lv]}`;
+    // 034 판정 ⓐ: 문자열 → t() 교체. 뽑힌 부위·등급·세부등급은 그대로다.
+    const tag=t('msg.item',t('part.'+PARTS[part].id),t('ui.grade',it.g),ROMAN[it.lv]);
     if(S.asell[it.g-1]){                 // 자동 판매: 대기열을 거치지 않는다
       S.gold += sellPrice(it);
-      m.innerHTML=`${tag} — 자동 판매 ${ciGold()}${fmt(sellPrice(it))}`; m.className='';
+      m.innerHTML=t('msg.autosell',tag)+ciGold()+fmt(sellPrice(it)); m.className='';
     }else{
       S.queue.push(it);
-      m.textContent = pityHit?`▣ 임계압 정렬 — ${tag}` : b>=2?`◆ ${best}연 정렬 — ${tag}` : b===1?`◇ 2연 — ${tag}` : tag;
+      m.textContent = pityHit?t('msg.pity',tag) : b>=2?t('msg.match',best,tag) : b===1?t('msg.match2',tag) : tag;
       m.className = (pityHit||b>=2)?'big':'';
     }
     S.lockIdx=-1; spinning=false; render();
@@ -1099,8 +1328,9 @@ function newWave(){
   foeMax=120*Math.pow(1.12,S.wave-1); foeHP=foeMax;
   foeKind = S.wave%3===0?'ranged':(S.wave%3===1?'melee':'mix');
   pHP=stats(S.equip).hp;
+  // 034 판정 ⓐ: 문자열 → t() 교체. 수식·분기·순서는 한 글자도 안 바뀌었다.
   document.getElementById('foes').textContent =
-    `${S.wave}층 · ${foeKind==='melee'?'근접 무리':foeKind==='ranged'?'원거리 무리':'혼합 무리'}`;
+    t('foe.floor',S.wave,foeKind==='melee'?t('foe.melee'):foeKind==='ranged'?t('foe.ranged'):t('foe.mix'));
   buildFoes();
 }
 function tick(){
@@ -1132,8 +1362,8 @@ function resolve(action){
   const old=S.equip[nw.part]||null;
   if(action==='equip'){
     if(old && nw.g<=old.g-2 && !nw.wn){
-      if(!confirm(`${old.g}등급을 ${nw.g}등급으로 교체합니다.
-${old.g-nw.g}등급 낮습니다. 계속할까요?`)) return;
+      // 034: 문자열만 표로 옮긴다 — 조건·분기·순서는 한 글자도 안 바뀌었다.
+      if(!confirm(t('swap.confirm',old.g,nw.g,old.g-nw.g))) return;
       nw.wn=1;   // 같은 장비로는 다시 묻지 않는다 (왕복 시 반복 경고 방지)
     }
     S.queue.shift();
@@ -1159,10 +1389,10 @@ const canAscend=()=>cap()===GMAX && S.lv>=ASC_LV() && (S.peak||0)>=ASC_WAVE();
 function ascend(){
   if(!canAscend()) return;
   const list=Object.values(S.equip).concat(S.queue);
-  if(!confirm(`승천 ★${S.star+1}\n\n장비 ${list.length}개가 전부 팔리고 제련 등급이 0으로 돌아갑니다.\n`+
-    `등급 상한은 다시 5등급부터 — 같은 길을 더 강한 장비로 다시 오릅니다.\n\n`+
-    `장비 기본 수치 ×${(4**(S.star+1))}, 옵션 상한 ×${(1+(S.star+1)*0.6).toFixed(1)}, 대기창 ${qmax()+1}칸` +
-    (REELS()<5?`\n릴 ${REELS()}개 → ${REELS()+1}개`:'') + `\n\n계속할까요?`)) return;
+  // 034: 문자열만 표로 옮긴다 — 조건·분기·순서는 한 글자도 안 바뀌었다.
+  if(!confirm(t('asc.confirm',S.star+1,list.length,4**(S.star+1),
+      (1+(S.star+1)*0.6).toFixed(1),qmax()+1)
+    + (REELS()<5?t('asc.confirmReels',REELS(),REELS()+1):'') + t('asc.confirmGo'))) return;
   list.forEach(it=>S.gold+=sellPrice(it));
   S.equip={}; S.queue=[]; S.lv=0; S.star++; S.wave=1; S.peak=0; S.lockIdx=-1;
   buildReels(); newWave(); render();
@@ -1842,7 +2072,7 @@ function plate(part,g){
 // .hit 클래스로 화염·불티 애니메이션이 1회 재생된다.
 function drawReel(el,idx,locked){
   el.innerHTML=`<i class="fl"></i><i class="sk"></i>`
-    + icoPix(PARTS[idx].id,0,REEL_SCALE()) + `<div class="nm">${PARTS[idx].nm}</div>`;
+    + icoPix(PARTS[idx].id,0,REEL_SCALE()) + `<div class="nm">${t('part.'+PARTS[idx].id)}</div>`;
   el.dataset.p=idx; el.classList.toggle('lock',!!locked);
 }
 
@@ -1906,30 +2136,30 @@ function drawFoes(){
 function opRows(it,wt){
   return Object.entries(it.ops).map(([k,v])=>{
     const dead = (k==='melee'&&wt==='ranged')||(k==='ranged'&&wt==='melee');
-    return `<div class="${dead?'dead':''}"><span class="k">${OPT[k].nm}</span>
+    return `<div class="${dead?'dead':''}"><span class="k">${t('opt.'+k)}</span>
       <span class="v num">+${v}%</span></div>`;}).join('');
 }
 function cardHTML(it,label){
-  if(!it) return `<h3>${label}</h3><div class="dim">비어 있음</div>`;
+  if(!it) return `<h3>${label}</h3><div class="dim">${t('cmp.empty')}</div>`;
   const P=PARTS.find(p=>p.id===it.part);
   return `<h3>${label}</h3>
     <div class="hd">${plate(it.part,it.g)}
-      <div class="row" style="flex:1"><span>${P.nm}${it.wt?` · ${it.wt==='melee'?'근접':'원거리'}`:''}</span>
-      <b style="color:${GC[it.g]}">${it.g}등급 <span class="rm">${ROMAN[it.lv||1]}</span></b></div></div>
-    <div class="pw num">기본 ${fmt(it.base)}</div>
+      <div class="row" style="flex:1"><span>${t('part.'+P.id)}${it.wt?` · ${t('wt.'+it.wt)}`:''}</span>
+      <b style="color:${GC[it.g]}">${t('ui.grade',it.g)} <span class="rm">${ROMAN[it.lv||1]}</span></b></div></div>
+    <div class="pw num">${t('ui.base',fmt(it.base))}</div>
     <div class="oplist">${opRows(it,it.wt||(S.equip.weapon&&S.equip.weapon.wt))}</div>
-    ${it.sp?`<div class="sp"><b>각인 · ${SP[it.sp].nm}</b> <span>${SP[it.sp].d}</span></div>`:''}`;
+    ${it.sp?`<div class="sp"><b>${t('sp.label')} · ${t('sp.'+it.sp+'.nm')}</b> <span>${t('sp.'+it.sp+'.d')}</span></div>`:''}`;
 }
 function openCmp(){
   if(!S.queue.length){ document.getElementById('cmp').classList.remove('on'); return; }
   const nw=S.queue[0], old=S.equip[nw.part]||null;
   const after={...S.equip,[nw.part]:nw};
   const d=power(after)-power(S.equip);
-  document.getElementById('cOld').innerHTML=cardHTML(old,'착용 중');
-  document.getElementById('cNew').innerHTML=cardHTML(nw,'대기열')+
-    `<div class="pw">교체 시 전투력 <span class="delta ${d>=0?'up':'down'} num">${d>=0?'+':'-'}${fmt(Math.abs(d))}</span></div>`;
-  document.getElementById('bSell').innerHTML=`판매 ${ciGold()}${fmt(sellPrice(nw))}`;
-  document.getElementById('bEquip').textContent=old?'교체해서 껴보기':'장착';
+  document.getElementById('cOld').innerHTML=cardHTML(old,t('cmp.worn'));
+  document.getElementById('cNew').innerHTML=cardHTML(nw,t('cmp.queued'))+
+    `<div class="pw">${t('cmp.delta')} <span class="delta ${d>=0?'up':'down'} num">${d>=0?'+':'-'}${fmt(Math.abs(d))}</span></div>`;
+  document.getElementById('bSell').innerHTML=`${t('cmp.sell')} ${ciGold()}${fmt(sellPrice(nw))}`;
+  document.getElementById('bEquip').textContent=old?t('cmp.equipTry'):t('cmp.equip');
   document.getElementById('qn2').textContent=S.queue.length;
   document.getElementById('cmp').classList.add('on');
 }
@@ -1987,20 +2217,24 @@ function renderFast(){
   // 숨기지 않고 **비운다**: `display:none` 인 글자도 `textContent` 에는 남아서 버튼의
   // 글자를 읽는 쪽에 「제련 50대기열 정리」로 보인다(실측). 빈 span 은 CSS 가 자리에서
   // 뺀다(`#spin>span:empty{display:none}`) — 간격도 안 생긴다.
-  document.getElementById('spinlbl').textContent=qClear?'':'제련';
+  /* 034 판정 ⓑ: 033 이 「제련600」으로 붙여 놓은 회귀를 되돌린다. `#spin` 의 flex gap
+     은 **눈에만** 간격을 주고 글자에는 공백이 없었다 — 복사하면 「제련600」이고 읽어
+     주는 기계도 그렇게 읽는다. 말 끝에 공백 하나를 둔다(ko 「제련 600」·en 「Forge 600」).
+     ⚠ 이 자리는 `data-s` 를 쓰지 않는다 — i18nDom 이 공백 없는 말로 덮어쓰기 때문이다. */
+  document.getElementById('spinlbl').textContent=qClear?'':t('ui.forge')+' ';
   if(qClear) document.getElementById('chg').textContent='';
-  document.getElementById('spinq').textContent=qClear?'대기열 정리':'';
+  document.getElementById('spinq').textContent=qClear?t('ui.sortQueue'):'';
   document.getElementById('spin').disabled=qClear?false:(S.charge<1||qFull);
   document.getElementById('autores').className=S.autoRes?'hot':'';
   document.getElementById('tower').disabled=S.tk<1;
   document.getElementById('open').style.display=S.queue.length?'block':'none';
-  document.getElementById('open').textContent=`정리하기 (${S.queue.length})`;
-  if(S.queue.length>=qmax()) document.getElementById('msg').textContent='대기 가득 — 정리해야 계속 제련';
+  document.getElementById('open').textContent=t('ui.sortNow',S.queue.length);
+  if(S.queue.length>=qmax()) document.getElementById('msg').textContent=t('ui.queueFull');
   const cs=document.getElementById('cstat');
-  if(cs) cs.innerHTML=`전투력 ${fmt(power(S.equip))} · 웨이브 ${S.wave} · ${ciGold()}${fmt(S.gold)}`;
+  if(cs) cs.innerHTML=t('ui.stat',fmt(power(S.equip)),S.wave)+ciGold()+fmt(S.gold);
   // 상세 팝업도 같은 줄을 든다 — 열려 있는 동안 판단 근거가 화면에서 사라지지 않는다 (016).
   const ps=document.getElementById('pstat');
-  if(ps) ps.innerHTML=`전투력 ${fmt(power(S.equip))} · 웨이브 ${S.wave} · ${ciGold()}${fmt(S.gold)}`;
+  if(ps) ps.innerHTML=t('ui.stat',fmt(power(S.equip)),S.wave)+ciGold()+fmt(S.gold);
   // 화로 압력계 — 폭(막대)과 바늘 각도만 갱신한다. innerHTML 재구성 없음.
   const pv=Math.min(100,S.pity/PITY()*100);
   const pf=document.getElementById('pityfill');
@@ -2008,23 +2242,23 @@ function renderFast(){
   pf.className=S.pity>=PITY()?'full':'';
   document.getElementById('pneedle').style.transform='rotate('+(-80+pv*1.6)+'deg)';
   document.getElementById('pitytxt').textContent=
-    S.pity>=PITY()?'▣ 임계압 — 다음 제련은 전 릴 정렬':`화로압 ${S.pity}/${PITY()}`;
+    S.pity>=PITY()?t('ui.pityFull'):t('ui.pity',S.pity,PITY());
   // 세로 온도계 = 남은 충전 (표시 전용, 수치는 그대로)
   document.getElementById('thermf').style.height=
     Math.min(100,S.charge/CHG_MAX()*100)+'%';
   const ad=document.getElementById('ad'), adt=document.getElementById('adtxt');
   if(boosted()){ ad.className='hot';
-    adt.textContent=`1.5배속 ${Math.ceil((S.boost-Date.now())/60000)}분 남음`; }
+    adt.textContent=t('ui.boost',Math.ceil((S.boost-Date.now())/60000)); }
   // 첫 화면에는 분 단위를 쓰지 않는다 (원칙 7 — 시간 압박 표기 금지).
   // 잔여 분은 배속이 도는 동안에만 위 줄에서 보여 준다.
-  else { ad.className=''; adt.textContent='화로 지피기 — 충전 가득 + 배속'; }
+  else { ad.className=''; adt.textContent=t('ui.stoke'); }
   platUI();                                  // 026 — 광고 버튼의 존재·활성은 여기서만 정한다
 }
 function render(){
   renderFast();
 
   document.getElementById('asell').innerHTML=
-    `<div class="hd">이 등급은 대기열을 거치지 않고 바로 판매</div><div class="ck">`+
+    `<div class="hd">${t('ui.autosellHd')}</div><div class="ck">`+
     GC.slice(1,cap()+1).map((c,i)=>
       `<label class="${S.asell[i]?'on':''}" style="color:${c}" data-g="${i}">${i+1}</label>`
     ).join('')+`</div>`;
@@ -2035,22 +2269,22 @@ function render(){
     const it=S.equip[p.id];
     if(!it) return `<div class="slot empty">${plate(p.id,0)}<div class="gd">—</div></div>`;
     return `<div class="slot">${plate(p.id,it.g)}
-      <div class="gd" style="color:${GC[it.g]}">${it.g}등급 <span class="rm">${ROMAN[it.lv||1]}</span></div>
-      <div class="op">${Object.keys(it.ops).map(k=>OPT[k].nm.slice(0,2)).join('·\u200B')}</div></div>`;
+      <div class="gd" style="color:${GC[it.g]}">${t('ui.grade',it.g)} <span class="rm">${ROMAN[it.lv||1]}</span></div>
+      <div class="op">${Object.keys(it.ops).map(k=>t('opt.'+k+'.s')).join('·\u200B')}</div></div>`;
   }).join('');
 
   // 착용 중 합계. 무기 타입과 안 맞는 옵션은 죽은 표시.
   const s=stats(S.equip);
-  const rows=[['공격력',Math.round(s.dps),''],['체력',Math.round(s.hp),'']];
+  const rows=[[t('stats.atk'),Math.round(s.dps),''],[t('stats.hp'),Math.round(s.hp),'']];
   OPTKEYS.forEach(k=>{
     const v=s.o[k]||0; if(!v) return;
     const dead=(k==='melee'&&s.wt==='ranged')||(k==='ranged'&&s.wt==='melee');
-    rows.push([OPT[k].nm,'+'+v.toFixed(1)+'%',dead?'off':'']);});
+    rows.push([t('opt.'+k),'+'+v.toFixed(1)+'%',dead?'off':'']);});
   document.getElementById('stats').innerHTML=rows.map(([k,v,c])=>
     `<div class="${c}"><span class="k">${k}</span><span class="v">${v}</span></div>`).join('')
     + Object.keys(s.sp).map(k=>
-    `<div style="grid-column:1/-1;color:var(--ember)"><span>각인 · ${SP[k].nm}</span>
-     <span style="color:var(--dim);font-size:11px">${SP[k].d}</span></div>`).join('');
+    `<div style="grid-column:1/-1;color:var(--ember)"><span>${t('sp.label')} · ${t('sp.'+k+'.nm')}</span>
+     <span style="color:var(--dim);font-size:11px">${t('sp.'+k+'.d')}</span></div>`).join('');
 
   drawOdds('ob0',gradeProbs(0)); drawOdds('ob2',gradeProbs(2));
   const c=cap();
@@ -2063,28 +2297,28 @@ function render(){
   const gt=document.getElementById('ascgate');
   if(gt) gt.innerHTML = (cap()<GMAX || canAscend()) ? ''
     : S.lv<ASC_LV()
-      ? `모든 등급 개방 · 승천까지 제련 <b style="color:var(--text)">${ASC_LV()}</b>`
-      : `승천까지 <b style="color:var(--ember)">${ASC_WAVE()}웨이브</b> 도달 필요`
-        + ` <span class="num">(현재 최고 ${S.peak||0})</span>`;
+      ? `${t('asc.capAll')}<b style="color:var(--text)">${ASC_LV()}</b>`
+      : `${t('asc.needWave')}<b style="color:var(--ember)">${ASC_WAVE()}${t('asc.needWave2')}</b>${t('asc.reach')}`
+        + ` <span class="num">${t('asc.curBest',S.peak||0)}</span>`;
   document.getElementById('asc').textContent=
-    `승천 ★${S.star+1} — 수치 ×${4**(S.star+1)} · 옵션 상한 ×${(1+(S.star+1)*0.6).toFixed(1)}`
-    + (REELS()<5?` · 릴 ${REELS()+1}개`:'');
+    t('asc.banner',S.star+1,4**(S.star+1),(1+(S.star+1)*0.6).toFixed(1))
+    + (REELS()<5?t('asc.reels',REELS()+1):'');
   // 승천 확인 팝업 본문 (016). 되돌릴 수 없는 조작이라 잃는 것을 먼저 적는다.
   const at=document.getElementById('ascTxt');
   if(at) at.innerHTML=
-    `장비 ${Object.keys(S.equip).length+S.queue.length}개가 전부 팔리고 제련 등급이 0으로 돌아갑니다.`
-    +`<br>등급 상한은 다시 5등급부터 — 같은 길을 더 강한 장비로 다시 오릅니다.`
-    +`<br><br><b style="color:var(--text)">★${S.star+1}</b> · 기본 수치 ×${4**(S.star+1)}`
-    +` · 옵션 상한 ×${(1+(S.star+1)*0.6).toFixed(1)} · 대기창 ${qmax()+1}칸`
-    + (REELS()<5?` · 릴 ${REELS()}개 → ${REELS()+1}개`:'');
+    t('asc.sellAll',Object.keys(S.equip).length+S.queue.length)
+    +`<br>${t('asc.again')}`
+    +`<br><br><b style="color:var(--text)">★${S.star+1}</b>${t('asc.gain',4**(S.star+1))}`
+    +t('asc.gain2',(1+(S.star+1)*0.6).toFixed(1),qmax()+1)
+    + (REELS()<5?t('asc.reels2',REELS(),REELS()+1):'');
   document.getElementById('olegend').innerHTML=
     gradeProbs(0).slice(0,c).map((p,i)=>
       `<span style="color:${GC[i+1]}">${i+1} <b>${(p*100).toFixed(p<1?3:1)}%</b></span>`).join('')
     + `<span style="width:100%;margin-top:3px">`
-    + (c<GMAX ? `제련 <b>${nextCapAt()}</b> 강화 시 <b style="color:${GC[c+1]}">${c+1}등급</b> 개방`
-       : canAscend() ? `<b style="color:var(--g14)">승천 가능</b>`
-       : S.lv<ASC_LV() ? `모든 등급 개방 · 세부등급 상승 중 · 제련 <b>${ASC_LV()}</b>`
-       : `승천까지 <b style="color:var(--ember)">${ASC_WAVE()}웨이브</b> 도달 필요 (현재 최고 ${S.peak||0})`)
+    + (c<GMAX ? `${t('up.next')}<b>${nextCapAt()}</b>${t('up.next2')}<b style="color:${GC[c+1]}">${t('ui.grade',c+1)}</b>${t('up.next3')}`
+       : canAscend() ? `<b style="color:var(--g14)">${t('up.canAsc')}</b>`
+       : S.lv<ASC_LV() ? `${t('up.capAll')}<b>${ASC_LV()}</b>`
+       : `${t('up.needWave')}<b style="color:var(--ember)">${ASC_WAVE()}${t('asc.needWave2')}</b>${t('up.needWave2',S.peak||0)}`)
     + `</span>`;
 
   renderTech();
@@ -2093,7 +2327,7 @@ function render(){
 
 function drawOdds(id,p){
   document.getElementById(id).innerHTML=p.slice(0,cap()).map((v,i)=>
-    `<i style="width:${v*100}%;background:${GC[i+1]}" title="${i+1}등급 ${(v*100).toFixed(3)}%"></i>`).join('');
+    `<i style="width:${v*100}%;background:${GC[i+1]}" title="${t('odds.title',i+1,(v*100).toFixed(3))}"></i>`).join('');
 }
 
 /* ══ 던전 연출 (019 §1) ══════════════════════════════════════════════
@@ -2164,7 +2398,7 @@ let tbandSeg=-2;
 function dgnPanel(){
   const el=document.getElementById('tband'); if(!el) return;
   const f=S.best|0, lab=document.getElementById('tfloor');
-  if(lab) lab.textContent = f>0 ? `최고 ${f}층` : '미답';
+  if(lab) lab.textContent = f>0 ? t('tower.best',f) : t('tower.unvisited');
   if(segOf(f)===tbandSeg) return;
   tbandSeg=segOf(f); dgnPaint(el,f,'melee');
 }
@@ -2180,12 +2414,12 @@ function climbFx(floor){
     d.band=info.band; d.guard=info.guard; V.counters.climb++; }
   clearInterval(climbT); climbT=0;
   band.classList.remove('climb'); void band.offsetWidth;   // 애니메이션 재시작
-  if(red||floor<=0){ num.textContent=floor+'층'; if(V) V.dungeon.climbing=false; return; }
+  if(red||floor<=0){ num.textContent=floor+t('tower.floor'); if(V) V.dungeon.climbing=false; return; }
   band.classList.add('climb');
   if(V) V.dungeon.climbing=true;
   let i=0; const N=14;
   climbT=setInterval(()=>{
-    i++; num.textContent=Math.round(floor*i/N)+'층';
+    i++; num.textContent=Math.round(floor*i/N)+t('tower.floor');
     if(i<N) return;
     clearInterval(climbT); climbT=0;
     band.classList.remove('climb');
@@ -2202,7 +2436,7 @@ function enterTower(){
   S.tk--; runFloor=climb(); S.best=Math.max(S.best,runFloor);
   rerolls=2; landed=null;
   hopStop();                                   // 지난 굴림의 말이 남아 있지 않게
-  document.getElementById('dmsg').textContent=`${runFloor}층 도달 — 주사위를 굴리세요`;
+  document.getElementById('dmsg').textContent=t('tower.reached',runFloor);
   document.getElementById('ddie').dataset.v='0';
   document.getElementById('dnum').textContent='—';
   document.getElementById('droll').disabled=false;
@@ -2220,14 +2454,15 @@ const TILECOL={dust:'var(--g9)',gold:'var(--brass)',tok:'var(--ember)',chg:'var(
 let hopT=0, hopPos=-1;
 function drawBoard(){
   const walk=hopPos>=0;
-  document.getElementById('board').innerHTML=TILES.map((t,i)=>{
-    const amt=tileAmt(t);
+  // 034: 지역 이름이 `t` 였다 — 표 조회 함수 `t()` 를 가린다. `tl`(tile)로 바꾼다.
+  document.getElementById('board').innerHTML=TILES.map((tl,i)=>{
+    const amt=tileAmt(tl);
     const cls = walk ? (hopPos===i?'here':'')
       : (landed===i ? (globalThis.__view&&globalThis.__view.reducedMotion?'land':'land pop')
         : (S.pos===i&&landed===null?'here':''));
     return `<div class="tile ${cls}">
-      <svg class="ci" style="color:${TILECOL[t.k]}"><use href="#${TILEICO[t.k]}"/></svg>
-      <b>${t.k==='chg'?'가득':fmt(amt)}</b>${t.n}</div>`;}).join('');
+      <svg class="ci" style="color:${TILECOL[tl.k]}"><use href="#${TILEICO[tl.k]}"/></svg>
+      <b>${tl.k==='chg'?t('tile.full'):fmt(amt)}</b>${t('tile.'+tl.k)}</div>`;}).join('');
 }
 function hopStop(){ clearInterval(hopT); hopT=0; hopPos=-1;
   const d=dgnV(); if(d) d.rolling=false; }
@@ -2257,12 +2492,12 @@ function rollDice(){
   S.pos=(S.pos+d)%TILES.length; landed=S.pos;
   document.getElementById('ddie').dataset.v=d;
   document.getElementById('dnum').textContent=d;
-  const t=TILES[landed];
+  const tl=TILES[landed];
   document.getElementById('dmsg').textContent=
-    `${t.n} ${t.k==='chg'?'':fmt(tileAmt(t))} — 받거나 광고로 다시 굴리기`;
+    t('dice.landed',t('tile.'+tl.k),tl.k==='chg'?'':fmt(tileAmt(tl)));
   document.getElementById('droll').disabled=true;
   document.getElementById('dtake').style.display='block';
-  document.getElementById('dtake').textContent=`${t.n} 받기`;
+  document.getElementById('dtake').textContent=t('dice.take',t('tile.'+tl.k));
   hopTo(from,d);
   drawBoard(); render(); dgnSync();
 }
@@ -2308,9 +2543,9 @@ function renderTech(){
   document.getElementById('dad').disabled=!(PLAT.adsOn&&!PLAT.paused&&dadReady());  // 026
   document.getElementById('tech').innerHTML=Object.entries(TECH).map(([k,v])=>{
     const l=T(k), maxed=l>=v.max, c=techCost(k);
-    return `<div class="t"><span class="nm">${v.nm}<i>${v.d}</i></span>
+    return `<div class="t"><span class="nm">${t('tech.'+k+'.nm')}<i>${t('tech.'+k+'.d')}</i></span>
       <span class="lvn">${l}/${v.max}</span>
-      <button data-t="${k}" ${maxed||S.dust<c?'disabled':''}>${maxed?'완료':ciDust()+fmt(c)}</button></div>`;
+      <button data-t="${k}" ${maxed||S.dust<c?'disabled':''}>${maxed?t('tech.done'):ciDust()+fmt(c)}</button></div>`;
   }).join('');
   [...document.querySelectorAll('#tech button[data-t]')].forEach(b=>
     b.onclick=()=>{ const k=b.dataset.t, c=techCost(k);
@@ -2398,13 +2633,13 @@ TABS.forEach(t=>{ const b=tabBtn(t); if(b) b.onclick=()=>showTab(t); });
    통 하나(#pop)에 절 넷. 닫기 버튼과 배경 탭 둘 다로 닫힌다. */
 // 027 B-3: `set` 을 뺐다. 절이 없어졌으므로 키도 없어야 한다 — 남겨 두면
 // openPop('set') 이 «제목만 있고 내용이 없는 창»을 연다(그게 곧 거짓말이다).
-const POPS={odds:'등급 확률표', stats:'옵션 수치 상세', asc:'승천'};
+const POPS={odds:'pop.odds', stats:'pop.stats', asc:'pop.asc'};   // 034: 값은 표의 키다
 function openPop(k){
   Object.keys(POPS).forEach(n=>{
     const e=document.getElementById('pop'+n[0].toUpperCase()+n.slice(1));
     if(e) e.classList.toggle('on',n===k);
   });
-  document.getElementById('ptitle').textContent=POPS[k]||'';
+  document.getElementById('ptitle').textContent=POPS[k]?t(POPS[k]):'';
   document.getElementById('pop').classList.add('on');
   renderFast();                                  // 전투력·웨이브·골드 줄을 최신으로
 }
@@ -2460,7 +2695,7 @@ function autoResolve(){
   const old=S.equip[nw.part]||null;
   const up=power({...S.equip,[nw.part]:nw})>power(S.equip);
   const act=up?'equip':'sell';
-  const tag=it=>`${PARTS.find(p=>p.id===it.part).nm} ${it.g}등급 ${ROMAN[it.lv||1]}`;
+  const tag=it=>t('msg.item',t('part.'+it.part),t('ui.grade',it.g),ROMAN[it.lv||1]);
   const nwTag=tag(nw), oldTag=old?tag(old):'', gold0=S.gold;
   // 025 의 승천 호출과 **같은 방식**: 부르는 동안만 confirm 을 바꿔 끼고 finally 로 되돌린다.
   const c0=globalThis.confirm;
@@ -2473,10 +2708,24 @@ function autoResolve(){
   if(cmp) cmp.classList.remove('on');                     // resolve() 끝의 openCmp() 되돌리기
   const m=document.getElementById('msg');
   m.innerHTML = act==='equip'
-    ? `자동 정리 — ${nwTag} 장착${sold?` · ${oldTag} 판매 ${ciGold()}${fmt(S.gold-gold0)}`:''}`
-    : `자동 정리 — ${nwTag} 판매 ${ciGold()}${fmt(S.gold-gold0)}`;
+    ? t('msg.sorted.equip',nwTag)+(sold?t('msg.sorted.sold',oldTag)+ciGold()+fmt(S.gold-gold0):'')
+    : t('msg.sorted.sell',nwTag)+ciGold()+fmt(S.gold-gold0);
   m.className='';
 }
+
+/* 034: 정적 HTML 의 글자를 한 번에 갈아 끼운다. `data-s` 한 바퀴가 전부다 —
+   글자마다 id 를 붙이거나 innerHTML 을 다시 짜지 않는다. HTML 안의 한국어는
+   **원문 그대로 남겨 둔다**: 표에서 키가 빠지면 그 자리가 키 이름으로 바뀌어
+   검사가 잡고, 스크립트가 죽어도 한국어 화면은 그대로 보인다.
+   ⚠ 테크 버튼이 이미 `data-t`(테크 키)를 쓰고 있다 — 그래서 이 속성은 `data-s` 다. */
+function i18nDom(){
+  try{
+    document.documentElement.lang=LANG;
+    for(const e of document.querySelectorAll('[data-s]')) e.textContent=t(e.dataset.s);
+    document.title=t('doc.title');
+  }catch(e){}
+}
+i18nDom();
 
 // 오프라인 = 타임스탬프 델타 한 줄. 시뮬레이션 없음.
 S.charge=Math.min(CHG_MAX(),S.charge+(Date.now()-S.t)/CHG_MS());
