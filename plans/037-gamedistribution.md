@@ -1,7 +1,7 @@
 # 037 — GameDistribution 출시 (B 경로) · 무거운 변경(광고/플랫폼) · 담당: 사용자(0단계) → 코딩 → 검증
 
-상태: **대기 — 0단계(사용자: Game ID) 뒤 착수.** 착수하면 이 줄을 「진행 중」으로 바꾼다(락).
-빌드 기준: 034 검증 통과본 `9f805e49…` (커밋 18ec052).
+상태: **대기 — 0단계 완료(Game ID 받음 2026-10-08). 040(효과음) 검증 통과 뒤 착수.** 착수하면 이 줄을 「진행 중」으로 바꾼다(락).
+빌드 기준은 착수 시점의 최신 통과 커밋(040 이 먼저 들어가면 그 커밋). 040 이 들어갔다면 **GD 광고 중 소리 0** 을 040 의 S3 로 함께 확인한다.
 
 ## 왜
 
@@ -18,14 +18,17 @@ GameDistribution(Azerion) 요약 — ⚠ 수익 배분은 **제3자 보고서 �
 ## 0단계 — 사용자
 
 1. gamedistribution.com 개발자 가입 → **새 게임 등록**(Hit Smith, HTML5).
-2. 게임의 Upload 탭에서 **Game ID** 를 복사해 계획 세션에 붙여 넣는다 → 계획 세션이 아래 `GD_ID` 칸을 채운다.
+2. 게임의 Upload 탭에서 **Game ID** 를 복사해 계획 세션에 붙여 넣는다 → ✔ 완료: `0ac9b15c90f241d2a672c48aebc1078e` (EDIT: 1280×720 · 데스크톱+모바일 · No Blood · HTTPS Ready).
 3. 게임 설정에서 **Rewarded ads 플래그를 켠다**(공식 위키: 안 켜면 보상형 광고 요청 자체가 안 된다).
+   ⚠ **실측(2026-10-08): 게임 등록 화면에서 이 칸이 비활성이다.** 오른쪽 상태 카드가 `SDK: No` 라 —
+   SDK 가 연결된 빌드를 올려 `SDK: Yes` 가 된 **뒤에** 켜지는 것으로 보인다(추정). → 업로드 뒤에 켠다(아래 「업로드」 3번).
+   그래서 코드는 **플래그가 꺼진 상태로 첫 업로드**되는 것을 전제한다 — ②-b.
 
 ## 변경할 것
 
 ### ① PLAT 에 GameDistribution 백엔드 추가
 
-- 상수 셋: `GD_SDK='https://html5.api.gamedistribution.com/main.min.js'`, `GD_ID='(0단계 값)'`,
+- 상수 셋: `GD_SDK='https://html5.api.gamedistribution.com/main.min.js'`, `GD_ID='0ac9b15c90f241d2a672c48aebc1078e'`,
   `GD_HOSTS=['gamedistribution.com']`(하위 도메인 포함 — `CG_HOSTS` 와 같은 판정식).
 - **싣는 조건**: GD 호스트이거나 `?gd=1`. 그 밖(Pages·로컬·CrazyGames)에서는 **외부 요청 0 그대로.**
   CG 판정과 GD 판정은 서로 배타 — 둘 다 해당하면 CG 우선(일어날 일은 없지만 순서를 못박는다).
@@ -46,6 +49,15 @@ GameDistribution(Azerion) 요약 — ⚠ 수익 배분은 **제3자 보고서 �
   promise 의 then/catch 는 「끝났다」만 알리고 보상 판단에 쓰지 않는다.
 - 기존 반환 계약 그대로: 끝까지 본 경우만 `true`. 기존 `end()`·90초 보루·`ads/done/failed` 카운터를 그대로 쓴다.
 - 기존 상한(`AD_COOL`·`AD_DAY`·`DAD_COOL`)과 보상 내용은 **바꾸지 않는다.**
+
+### ②-b 보상형 버튼은 **보상형이 실제로 준비됐을 때만** 보인다 (GD)
+
+- GD 에서 `#ad`·`#dad` 의 존재 조건은 `PLAT.adsOn` 이 아니라 `PLAT.rewardOn` 이다:
+  `gdsdk.preloadAd('rewarded')` 가 **성공한 뒤에만** true. 실패하면 false 로 두고 5분 뒤 한 번 다시 시도.
+- 이유: 포털 플래그가 꺼진 첫 업로드에서는 보상형 요청이 전부 실패한다. 그때 버튼이 보이면
+  「누르면 매번 실패」 — 026 이 「눌리는데 아무 일도 안 나는 버튼은 최악의 첫인상」이라 막은 바로 그것이다.
+- 미드롤·프리롤(`PLAT.adsOn`)은 이것과 무관하게 돈다. CrazyGames 경로는 지금처럼 `adsOn` 하나로 둔다(`rewardOn=adsOn`).
+- 검사 G6: 가짜 SDK 에서 preload 실패 → `#ad` 요소 숨김, 성공 → 보임. **변이**: preload 결과를 무시하는 빌드 → G6 이 운다.
 
 ### ③ `PLAT.midroll()` 신설 — GD 전용(CG·Pages 에서는 즉시 끝나는 무동작)
 
@@ -98,7 +110,7 @@ GameDistribution(Azerion) 요약 — ⚠ 수익 배분은 **제3자 보고서 �
 
 GD 는 zip 을 받는다(Defold 안내 기준). 028 §1 명령으로 `upload\index.html` → `Compress-Archive` → zip.
 md5 는 037 통과 커밋의 값. 포털 Upload 탭에 zip → 미리보기에서 **광고를 끝까지 한 번 본다**(GD 안내) →
-F12 게임 프레임 콘솔 `__view.plat.env==='gamedistribution'` → **Request Activation**.
+F12 게임 프레임 콘솔 `__view.plat.env==='gamedistribution'` → 상태 카드가 `SDK: Yes` 로 바뀌었는지 → **EDIT 탭에서 Rewarded Ads 체크**(이때 켜지는지 확인, 안 켜지면 GD Support 문의) → 다시 미리보기에서 `__view.plat.rewardOn===true` → **Request Activation**.
 썸네일: `submission/gd/thumb-512x512.png`·`thumb-512x384.png`·`thumb-200x120.png`(계획 세션 작성).
 설명·조작 문구는 028 §2 영어 그대로.
 
