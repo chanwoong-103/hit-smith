@@ -30,6 +30,9 @@ GameDistribution(Azerion) 요약 — ⚠ 수익 배분은 **제3자 보고서 �
 
 - 상수 셋: `GD_SDK='https://html5.api.gamedistribution.com/main.min.js'`, `GD_ID='0ac9b15c90f241d2a672c48aebc1078e'`,
   `GD_HOSTS=['gamedistribution.com']`(하위 도메인 포함 — `CG_HOSTS` 와 같은 판정식).
+  ✔ **실측(2026-10-08, 포털 Upload 탭)**: 업로드한 빌드의 시험 주소는
+  `https://revision.gamedistribution.com/0ac9b15c90f241d2a672c48aebc1078e/?correlator=…` — 호스트 `revision.gamedistribution.com`.
+  이 판정식이 덮는다. 배포본 호스트(승인 뒤)는 아직 모른다 — 업로드 뒤 미리보기 콘솔에서 `location.hostname` 을 「구현 결과」에 적는다.
 - **싣는 조건**: GD 호스트이거나 `?gd=1`. 그 밖(Pages·로컬·CrazyGames)에서는 **외부 요청 0 그대로.**
   CG 판정과 GD 판정은 서로 배타 — 둘 다 해당하면 CG 우선(일어날 일은 없지만 순서를 못박는다).
 - `window.GD_OPTIONS={gameId:GD_ID, onEvent(e){…}}` 를 스크립트 삽입 **전에** 둔다.
@@ -108,7 +111,7 @@ GameDistribution(Azerion) 요약 — ⚠ 수익 배분은 **제3자 보고서 �
 
 ## 업로드 (검증 통과 = 커밋 뒤, 사용자)
 
-GD 는 zip 을 받는다(Defold 안내 기준). 028 §1 명령으로 `upload\index.html` → `Compress-Archive` → zip.
+GD 는 zip 을 받는다(✔ 포털 확인: 「.zip, 루트에 유효한 index.html」, 한도 500MB). 포털 문구: **SDK 가 구현되지 않으면 목록에 오르지도 배포되지도 않는다** — SDK 없는 지금 빌드를 올려 두는 것은 의미가 없다. 028 §1 명령으로 `upload\index.html` → `Compress-Archive` → zip.
 md5 는 037 통과 커밋의 값. 포털 Upload 탭에 zip → 미리보기에서 **광고를 끝까지 한 번 본다**(GD 안내) →
 F12 게임 프레임 콘솔 `__view.plat.env==='gamedistribution'` → 상태 카드가 `SDK: Yes` 로 바뀌었는지 → **EDIT 탭에서 Rewarded Ads 체크**(이때 켜지는지 확인, 안 켜지면 GD Support 문의) → 다시 미리보기에서 `__view.plat.rewardOn===true` → **Request Activation**.
 썸네일: `submission/gd/thumb-512x512.png`·`thumb-512x384.png`·`thumb-200x120.png`(계획 세션 작성).
