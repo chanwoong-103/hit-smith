@@ -1,6 +1,6 @@
 # 028 — CrazyGames Basic Launch 제출 · 담당: 사용자 + 계획 세션
 
-상태: **제출 완료 2026-10-02 — AWAITING REVIEW** (Build ID `01da586a-a4b6-47b8-934a-3e7055d7015f`). 게임 코드는 건드리지 않는다.
+상태: **반려 (REJECTED, 2026-10-08 확인)** — 이전: 제출 2026-10-02 (Build ID `01da586a-a4b6-47b8-934a-3e7055d7015f`). 게임 코드는 건드리지 않는다.
 빌드: **034 검증 통과본**(`9f805e49…`). 제출 뒤에도 파일은 언제든 다시 올릴 수 있다(보통 당일 처리, FAQ).
 
 ## 1. 업로드 묶음 — `index.html` 한 장
@@ -91,3 +91,8 @@ Compress-Archive -Path upload\index.html -DestinationPath hit-smith-upload.zip
   - Billing(Tipalti): 개인 · 국내 계좌 KRW · EU VAT 미등록. 지급 최소 USD 100, 건당 EUR 6.42 + 환전 수수료.
   - 포털 함정: zip 거부(파일 직접) · 저장 질문의 넷째 선택지는 HTML5 를 골라야 생김 · Billing 미등록이면 4단계에 「Error fetching payment details」.
 - **심사 중 원칙**: 심사 결과가 오기 전에는 **새 버전을 올리지 않는다**(심사 대상이 바뀐다). 036·025-2 는 저장소에서 진행하고 결과를 받은 뒤 한 번에 올린다.
+- **계획 세션 2026-10-08 — 반려.** 포털 상태 `REJECTED`. 피드백 원문:
+  「Your submission has been rejected … **The overall quality of the game does not yet meet the expectations of our platform.**」
+  기술 항목(용량·SDK·사이트락·Gameplay Start)은 미리보기에서 전부 통과했다 — **반려 사유는 품질(첫인상·재미) 판정**이다.
+  게임 페이지에 「Submit new version」 버튼이 사라지고 「Remove game」만 남았다. FAQ: 「meaningful improvements」 뒤 재제출 가능, 대기 기간 명시 없음.
+  다음 방향(개선 후 재제출 / 다른 포털 / 정리)은 사용자 판단 대기.
