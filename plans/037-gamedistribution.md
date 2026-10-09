@@ -1,6 +1,6 @@
 # 037 — GameDistribution 출시 (B 경로) · 무거운 변경(광고/플랫폼) · 담당: 사용자(0단계) → 코딩 → 검증
 
-상태: **대기 — 착수 가능** (0단계 완료 2026-10-08 · 사용자 판정 2026-10-08: **037 먼저, 040 은 그 뒤**). 착수하면 이 줄을 「진행 중」으로 바꾼다(락).
+상태: **구현 완료 — 검증 대기** (코딩 세션, 2026-10-09) — `src/forge.html` **락 해제**. (0단계 완료 2026-10-08 · 사용자 판정: **037 먼저, 040 은 그 뒤**.)
 빌드 기준: 034 검증 통과본 `9f805e49…` (커밋 18ec052). 게임에 소리가 없으므로 「광고 중 음소거」는 지금 해당 없음 — 040 이 GD 광고 정지 때 소리 0 을 맡는다.
 
 ## 왜
@@ -113,9 +113,105 @@ GameDistribution(Azerion) 요약 — ⚠ 수익 배분은 **제3자 보고서 �
 
 GD 는 zip 을 받는다(✔ 포털 확인: 「.zip, 루트에 유효한 index.html」, 한도 500MB). 포털 문구: **SDK 가 구현되지 않으면 목록에 오르지도 배포되지도 않는다** — SDK 없는 지금 빌드를 올려 두는 것은 의미가 없다. 028 §1 명령으로 `upload\index.html` → `Compress-Archive` → zip.
 md5 는 037 통과 커밋의 값. 포털 Upload 탭에 zip → 미리보기에서 **광고를 끝까지 한 번 본다**(GD 안내) →
-F12 게임 프레임 콘솔 `__view.plat.env==='gamedistribution'` → 상태 카드가 `SDK: Yes` 로 바뀌었는지 → **EDIT 탭에서 Rewarded Ads 체크**(이때 켜지는지 확인, 안 켜지면 GD Support 문의) → 다시 미리보기에서 `__view.plat.rewardOn===true` → **Request Activation**.
+F12 게임 프레임 콘솔 `__view.plat.env==='gamedistribution'` → 상태 카드가 `SDK: Yes` 로 바뀌었는지 → **EDIT 탭에서 Rewarded Ads 체크**(이때 켜지는지 확인, 안 켜지면 GD Support 문의) → 다시 미리보기에서 `__view.plat.rewardOn===true` →
+**출시 관문(`docs/RELEASE-GATE.md`)** — 시험 주소에서 평가자 다섯 + 첫 사용이므로 18ec052 교정 회차. GD 범위: 첫 1분 블로커와 P2 반려 사유만 고친다 → 통과 뒤 **Request Activation**.
 썸네일: `submission/gd/thumb-512x512.png`·`thumb-512x384.png`·`thumb-200x120.png`(계획 세션 작성).
 설명·조작 문구는 028 §2 영어 그대로.
 
 ## 구현 결과 · 제안 · 검증 기록
 - (각 세션이 기록 — **쓰기 직전에 파일을 다시 읽고 자기 절만 덧붙일 것**)
+
+### 구현 결과 (코딩 세션 · 2026-10-09)
+
+빌드 md5 **`254ce2b2e8744f55e710a61abb652577`** · `src/forge.html` 263,990 → **274,311 B**.
+`devtools/checklist.js` 226,645 → 227,049 B.
+CORE 첫 절 30,711 → **30,893 B** — 늘어난 182 B 는 **⑤의 `STR` 키 넷(ko·en 각 둘)과 그 자리뿐**이다.
+**CORE 자체 점검 절 7,851 B 바이트 동일** · `node tools/days.js` md5 **`81a6288…` 그대로**.
+
+#### 준비 이벤트 — **`SDK_READY`** (추측 아님, 문서 확인)
+
+공식 위키 [GD-HTML5 / SDK Implementation](https://github.com/GameDistribution/GD-HTML5/wiki/SDK-Implementation)
+의 **SDK Events 표**에 `SDK_READY` 가 있고 설명이 「When the SDK is ready.」다.
+같은 표에 `SDK_ERROR`·`SDK_GAME_START`(「When the game should start.」)·`SDK_GAME_PAUSE`·
+`SDK_GDPR_*` 가 함께 있다. ⚠ **`SDK_REWARDED_WATCH_COMPLETE` 는 그 표에 없고** 위키의
+구현 스니펫 `switch` 문에만 나온다 — 그래서 「표에 없다」를 「없는 이벤트」로 읽으면 안 된다.
+
+[Rewarded Ads 위키](https://github.com/GameDistribution/GD-HTML5/wiki/Rewarded-Ads) 에서 확인한 것:
+- `gdsdk.preloadAd('rewarded')` → then = 보여 줄 수 있다 / catch = **보상형 광고가 없다**.
+- `gdsdk.showAd('rewarded')` 의 **reject 에 대해 「Please don't give reward here.」** 라고 못박혀 있고,
+  resolve 도 「광고 절차가 끝났다」일 뿐 보상을 뜻하지 않는다. 보상은 `SDK_REWARDED_WATCH_COMPLETE`
+  에서만 준다(「you can give reward there」).
+- 포털의 Rewarded 플래그가 꺼져 있으면 「your game is unable to request rewarded ads」.
+  → ②-b(버튼의 존재 조건을 `rewardOn` 으로)가 이 문장 때문에 필요하다.
+- 전면(미드롤·프리롤)은 **인자 없는 `gdsdk.showAd()`**.
+
+**배포본 호스트는 아직 모른다.** 지금 코드가 덮는 것은 `gamedistribution.com` 과 그 하위
+도메인(= 포털이 알려 준 `revision.gamedistribution.com`)과 `?gd=1` 이다. 업로드 뒤
+미리보기 콘솔에서 `location.hostname` 을 확인해 이 절에 덧붙일 것.
+
+#### 검사 G1~G6 — **전부 효과로 쟀다** (깃발 아님)
+
+| | 잰 것 | 결과 |
+|---|---|---|
+| **G1** | 광고 중 `#spin` 좌표를 **진짜 마우스로** 눌렀을 때 대기열·충전·프레임 | 0→0 · 300.29→300.29 · 36→36, 좌표 맨 위 «adwall» |
+| **G1b** | 광고가 끝난 뒤 | 막 none · 프레임 36→73 |
+| **G2** | `SDK_REWARDED_WATCH_COMPLETE` **없이** promise 만 resolve | 충전 +0.2 · 배속 false · 하루횟수 0 · failed 1 |
+| **G2** | 이벤트 **있음** | 충전 +595 · 배속 true · 하루횟수 1 · done 1 |
+| **G2b** | 실패 뒤 `#msg` (⑤) | 「Couldn't load an ad — try again shortly」 |
+| **G3** | 도전이 그대로 돌았는가 | 층 0→58 · 티켓 1장 소모 |
+| **G3b** | 미드롤 보상 | 골드·별가루·토큰 무변화 · 보상완주 0 |
+| **G3c** | `MID_COOL` 안의 두 번째 클릭 | mids 1→1 · SDK 전면요청 1회 |
+| **G3d** | 같은 조작을 **광고 없는 판**에서 | 티켓 1장·골드 무변화·미드롤 0회 — GD 판과 결과 동일 |
+| **G4** | `#gdStart` 개수 | Pages 0 · `?cg=1` 0 · `?gd=1` 1 |
+| **G4d** | 차단기(스크립트 실패) | 막은 뜨고 **한 번 눌러** 진입 |
+| **G5** | Pages 외부 요청 | **0건** |
+| **G6** | preload 실패 → `#ad` | `display:none` · rewardOn false (adsOn 은 true) |
+| **G6** | preload 성공 → `#ad` | `display:flex` · rewardOn true |
+
+**변이 둘, 둘 다 물었다.**
+- ㉮ `showAd` 의 then 에서 보상을 주는 빌드 → **G2 가 FAIL**(이벤트 없이도 보상이 나갔다).
+- ㉯ preload 결과를 무시하고 `rewardOn=true` 로 켜는 빌드 → **G6 이 FAIL**(실패인데 버튼이 보였다).
+
+#### 완료 조건 대조
+
+| 항목 | 결과 |
+|---|---|
+| smoke | **19/19** |
+| 자체 점검·콘솔 | **0건** |
+| `node --check` | OK |
+| soak (5분·380px) | **누수 없음** · 콘솔 0 |
+| checklist 전 항목 | ko **124 통과·0 실패** / en **124 통과·0 실패** |
+| `days.js` md5 | **`81a6288…` 동일** |
+| `TB8` · `LG1` · `LG2` · `GR1` | 전부 PASS (TB8 43칸 + 이름 붙인 예외 2칸) |
+| `AD1`~`AD6` | **전부 PASS** (`?cg=1` 경로 불변) |
+| 화면 | `docs/ref/037-gdstart-{ko,en}-{380x820,821x462}.png` |
+
+#### checklist 에 손댄 곳 (삭제 0 · 신설 0)
+
+`AD2`·`AD3` 와 4a 가 「광고가 켜진 환경」을 `PLAT.adsOn=true` 하나로 흉내내고 있었다.
+②-b 로 **보상형 버튼의 문이 `rewardOn`** 이 됐으므로 그 줄만으로는 버튼이 안 열려
+**검사가 공허하게 통과**한다(실제로 AD3 이 그렇게 한 번 울었다). 세 자리에
+`PLAT.rewardOn=true` 를 함께 세웠다 — 무르게 한 것이 아니라 흉내를 진짜에 맞춘 것이다.
+
+#### 밟은 자리 (다음 세션이 또 밟지 않게)
+
+1. **`el.click()` 은 `#adwall` 을 그냥 통과한다** — 히트 테스트를 안 하기 때문이다.
+   G1 을 그렇게 재면 「막이 안 막는다」는 거짓 FAIL 이 난다. 026 의 `AD6` 이 좌표
+   클릭을 쓰는 이유가 이것이고, G1 도 좌표 클릭으로 고쳤다.
+2. **전투 틱이 도는 동안에는 골드로 「보상 0」을 못 잰다** — 웨이브 보상이 저절로 들어온다.
+   G3b 는 재는 동안만 틱을 멈추고 쟀다.
+3. `#gdStart` 는 **SDK 와 무관하게** GD 판정 즉시 뜬다. 스크립트 로드를 기다렸다가
+   띄우면 차단기 환경에서 영영 안 뜬다(G4d 가 그 자리를 본다).
+
+### 제안 (구현하지 말고 여기에 적을 것)
+
+1. **미드롤이 실제로 돌았는지 보는 눈이 포털 밖에는 없다.** G3 은 가짜 SDK 로 잰 것이라
+   「우리 쪽 계약」만 증명한다. 업로드 뒤 미리보기에서 `__view.plat.mids`·`midDone` 을
+   한 번 읽어 실물과 맞는지 대조할 것(업로드 절차에 한 줄 추가).
+2. **`MID_COOL` 3분은 추측값이다.** GD 가 자체 빈도 제한을 갖고 있어 겹친다 — 실제 노출
+   간격을 미리보기에서 재 보고 1.0 이후에 조정할 것. 지금은 「연타로 광고 연쇄」만 막는다.
+3. **프리롤이 한 세션에 한 번이라는 것을 지키는 검사가 없다.** `#gdStart` 가 걷힌 뒤에는
+   다시 안 뜨지만(요소를 지운다), 「새로고침 없이 두 번 뜨지 않는다」를 못으로 박을 것.
+4. **`SDK_GAME_PAUSE` 가 광고 밖에서도 올 수 있다**(GDPR 창 등). 지금은 그때도 막이 뜨고
+   틱이 멈춘다 — 그게 맞는 동작이지만, 오래 멈춰 있는 경우의 안전장치(예: 90초 보루)가
+   보상형·미드롤 안에만 있고 **이벤트 경로에는 없다.** 한 번 볼 것.
