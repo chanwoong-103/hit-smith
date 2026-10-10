@@ -457,7 +457,7 @@ const chk = (name, cond, note) => {
     const noAd = rerolls;                       // 2 여야 한다 (한 번도 안 줄어든다)
     const noAdVis = getComputedStyle(document.getElementById('dad')).display;
     // ② 광고를 통과시킨 상태에서 **착지당 2회 상한**을 본다 (옛 9c 의 알맹이).
-    PLAT.adsOn = true; PLAT.rewarded = () => Promise.resolve(true);
+    PLAT.adsOn = true; PLAT.rewardOn = true; PLAT.rewarded = () => Promise.resolve(true);
     const ads = [];
     for (let i = 0; i < 3; i++) {
       dadAt = 0;                                // 쿨다운은 이 검사의 대상이 아니다
@@ -3169,7 +3169,10 @@ const chk = (name, cond, note) => {
 
     // AD2 — **오류·중단이면 보상이 없다.** 변이(무조건 true)가 여기서 운다.
     const a2 = await ap.evaluate(async () => {
-      PLAT.adsOn = true; PLAT.rewarded = () => Promise.resolve(false);
+      /* 037 ②-b: 보상형 버튼의 문이 `adsOn` → `rewardOn` 으로 바뀌었다(GD 는 포털
+         플래그가 꺼진 채로 첫 업로드된다). 「광고가 켜진 환경」을 흉내낼 때 둘 다 켠다 —
+         하나만 켜면 이 검사가 **버튼이 안 열려서** 통과해 버린다(공허한 통과). */
+      PLAT.adsOn = true; PLAT.rewardOn = true; PLAT.rewarded = () => Promise.resolve(false);
       S.adAt = 0; S.adN = 0; S.boost = 0; S.charge = 5; renderFast();
       const c0 = S.charge;
       document.getElementById('ad').click();
@@ -3183,7 +3186,7 @@ const chk = (name, cond, note) => {
 
     // AD3 — 완주하면 보상이 나가고, 하루 상한이 한 칸 준다 (반증용 반대편)
     const a3 = await ap.evaluate(async () => {
-      PLAT.adsOn = true; PLAT.rewarded = () => Promise.resolve(true);
+      PLAT.adsOn = true; PLAT.rewardOn = true; PLAT.rewarded = () => Promise.resolve(true);
       S.adAt = 0; S.adN = 0; S.boost = 0; S.charge = 5; renderFast();
       document.getElementById('ad').click();
       await new Promise(r => setTimeout(r, 300));
