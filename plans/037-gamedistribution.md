@@ -309,3 +309,10 @@ CORE 첫 절 30,711 → **30,893 B** — 늘어난 182 B 는 **⑤의 `STR` 키 
 2. **TB8 의 광고-켜짐 판** 하나 추가 또는 판정: 380×820 에서 `#ad` 가 첫 화면 밖인 것을 허용 예외로 둘지, 배치를 손볼지(030~034 배치는 이번 범위 밖).
 3. 9-블록 끝에서 `PLAT.rewardOn` 도 원래 값으로 되돌릴 것(한 줄 · 흉내가 다음 항목으로 새지 않게).
 4. 구현 결과 제안 ③(프리롤 한 세션 한 번)·④(이벤트 경로 PAUSE 보루) 동의 — 둘 다 이번 하네스로도 못을 박지 않았다.
+- **계획 세션 2026-10-10 — 최종 판정: 037 통과.** 검증 제안 판정: ① G1~G6 checklist 상설화 **채택**(검증 세션이 devtools 에서, `rewardOn` 복원 포함 — forge.html 무변경).
+  ② 380×820 첫 화면 `#ad` 가시 3% → **출시 관문에서 판정**(P1·P4 가 짚으면 활성화 전에 고침, 아니면 039).
+- **실환경 확인 (사용자, 2026-10-10, GD 시험 주소 · 빌드 254ce2b2…)**:
+  `location.hostname` = **`revision.gamedistribution.com`** · `__view.plat` = `{env:'gamedistribution', ready:true, adsOn:true, paused:false, blocked:false, …}`.
+  **실제 GD 보상형 광고 완주** — 콘솔 이벤트 순서 `… THIRD_QUARTILE → SDK_REWARDED_WATCH_COMPLETE → COMPLETE → SDK_GAME_START → CONTENT_RESUME_REQUESTED → ALL_ADS_COMPLETED`,
+  게임에 보상 반영(「1.5배속 29분 남음」). 하네스가 아니라 **진짜 광고망**에서 G2 의 계약(이벤트로만 보상)이 맞았다.
+  남은 것: 상태 카드 `SDK: Yes` · Rewarded Ads 체크 확인 → **출시 관문** → Request Activation. 배포본(승인 뒤) 호스트는 활성화 뒤 다시 확인.
