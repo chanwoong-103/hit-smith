@@ -362,9 +362,13 @@ const chk = (name, cond, note) => {
   // 끄지 않으면 자동 정리가 500ms 대기 사이에 칸을 비워서, 이 검사가 무엇을 재는지
   // 스스로 없애 버린다(실측: 6c·6d 가 자동 정리 때문에 FAIL). 자동 쪽(켬)의 판정은
   // 033 의 방치 실측이 따로 든다.
+  /* 041 ①: 자동 정리는 **첫 승천에서 열린다.** 그래서 「정리 켬」 절반을 승천 0 판에서
+     재면 늘 꺼진 쪽만 보게 되고(저장값이 true 여도 안 돈다) 이 검사가 조용히 반쪽이
+     된다. 승천 1회 세이브로 옮긴다 — 재려는 것이 「해금된 뒤의 두 판」이기 때문이다.
+     승천 0 판의 동작은 041 의 U1 이 따로 든다. */
   const full = await page.evaluate(async () => {
     S.autoRes = false;
-    S.queue = []; S.equip = {}; S.lv = 0; S.star = 0; S.charge = 50;
+    S.queue = []; S.equip = {}; S.lv = 0; S.star = 1; S.charge = 50;
     S.asell = Array(15).fill(false);
     while (S.queue.length < qmax()) S.queue.push(makeItem('head', 3));
     // 033 ②: 가득일 때 제련 버튼이 하는 말이 「정리」 스위치에 따라 갈린다. 두 판을 다 본다.
@@ -691,9 +695,10 @@ const chk = (name, cond, note) => {
   const TB8_SKIPS = [
     ['380×820 세로/배너/제련',
      '027 판정 ① — 관문이 열리면 제련이 가장 값없는 동작이라 배너가 미는 것이 우선순위 그대로다'],
-    ['380×820 세로/평범/정리',
+    ['380×820 세로/승천1/정리',
      '033 판정 ⓐ — 이 줄(「대기 N/10」)은 033 전에도 첫 화면 6px 아래였다(top 514 vs #focus 밑 508). ' +
-     '위로 올리면 여유 2px 인 #spin 이 밀린다. 「정리」는 기본 켜짐이라 필수 동작이 아니라 설정이다']
+     '위로 올리면 여유 2px 인 #spin 이 밀린다. 「정리」는 기본 켜짐이라 필수 동작이 아니라 설정이다 ' +
+     '(041: 이 예외는 **승천 1 벌**에 붙는다 — 승천 0 벌은 「없는 것이 정답」이라 자리와 무관하다)']
   ];
   const TB8_SKIP_KEYS = TB8_SKIPS.map(s => s[0]);
   const TB8_SKIP = TB8_SKIP_KEYS[0];               // 옛 이름 (다른 곳에서 읽을 때를 위해 남긴다)
@@ -1733,18 +1738,47 @@ const chk = (name, cond, note) => {
                  can: (typeof canAscend === 'function') ? canAscend() : null };
       }, { on: TB_ONSCREEN, i: id });
       for (const vp of TB8_SIZES) {
-        // ⑴ 평범한 세이브 — 강화와 제련, 그리고 033 의 「정리」
-        //    (033 지시서: `#autores` 를 TB8 에 더할 것. 대기열 줄에 붙은 작은 버튼이라
-        //     아홉 크기에서 **굴리지 않고 보이는지**가 곧 그 자리의 판정이다.)
+        /* ⑴ 평범한 세이브 — 강화와 제련.
+           ⚠ 041: 「정리」(`#autores`)는 이제 **첫 승천에서 열린다.** 그래서 기준선이
+             승천 수로 **두 벌**이다(019 「기준선을 두 벌로 실어라」와 같은 방식):
+               · 승천 0 → 버튼이 **없는 것이 정답**이다(있으면 FAIL). 그 자리에는
+                 누를 수 없는 안내 글자가 선다.
+               · 승천 1+ → 지금까지처럼 **굴리지 않고 보여야** 한다.
+             한 벌로만 재면 둘 중 하나는 반드시 거짓이 된다. */
         const pg = await tbOpen(12, vp.w, vp.h);
-        for (const [id, lab] of [['up', '강화'], ['spin', '제련'], ['autores', '정리']]) {
+        for (const [id, lab] of [['up', '강화'], ['spin', '제련']]) {
           const key = `${vp.nm}/평범/${lab}`;
           if (TB8_SKIP_KEYS.includes(key)) continue;      // ← 이름 붙인 예외. 아래 판정문이 든다
           const r = await read(pg, id);
           if (r.v.ok) ok.push(key);
           else { bad.push(`${key} #${id}: ${r.v.why}`); (vp.cg ? cgBad : curBad).push(key); }
         }
+        // 041 ②: 승천 0 — 「정리」는 **없어야** 한다
+        {
+          const key = `${vp.nm}/평범/정리(승천0=없음)`;
+          const gone = await pg.evaluate(() => {
+            const e = document.getElementById('autores');
+            const l = document.getElementById('autoresLock');
+            return { btn: e ? getComputedStyle(e).display : '(요소없음)',
+                     hint: l ? getComputedStyle(l).display : '(요소없음)',
+                     star: S.star | 0 };
+          });
+          if (gone.star === 0 && gone.btn === 'none' && gone.hint !== 'none') ok.push(key);
+          else { bad.push(`${key}: 별 ${gone.star} · 버튼 ${gone.btn} · 안내 ${gone.hint}`);
+                 (vp.cg ? cgBad : curBad).push(key); }
+        }
         await pg.close();
+        // 041 ②: 승천 1 — 「정리」가 굴리지 않고 보인다
+        {
+          const pg3 = await tbOpen(12, vp.w, vp.h, { star: 1 });
+          const key = `${vp.nm}/승천1/정리`;
+          if (!TB8_SKIP_KEYS.includes(key)) {
+            const r = await read(pg3, 'autores');
+            if (r.v.ok) ok.push(key);
+            else { bad.push(`${key} #autores: ${r.v.why}`); (vp.cg ? cgBad : curBad).push(key); }
+          }
+          await pg3.close();
+        }
         // ⑵ 승천 관문을 채운 세이브 — 승천 배너와 제련
         const pg2 = await tbOpen(120, vp.w, vp.h, { lv: 28, peak: 120, top: 120 });
         for (const [id, lab] of [['asc', '승천'], ['spin', '제련']]) {
@@ -2113,7 +2147,11 @@ const chk = (name, cond, note) => {
           while(S.queue.length<qmax()) S.queue.push(makeItem('hands',13));
           S.equip.hands=makeItem('hands',15); S.equip.hands.base=1; autoResolve(); }`],
       ['제련 판정문', `{ S.charge=600; S.queue=[]; S.lockIdx=-1; S.pity=0; spinning=false;
-          S.asell=new Array(15).fill(false); spin(); }`]
+          S.asell=new Array(15).fill(false); spin(); }`],
+      // 041 검증(제안 ⑤): 씨앗 세이브가 star:2 라 승천 0 의 안내 글자(`#autoresLock`)가 늘 숨어 있었다 —
+      // 이 검사는 새 en 문구를 한 번도 못 봤다. 맨 끝에 둔다(앞 상태들은 star:2 를 전제로 한다).
+      ['승천 0 (잠긴 안내 글자)', `{ var b=document.getElementById('tbForge'); if(b) b.click();
+          S.star=0; S.queue=[]; while(S.queue.length<qmax()) S.queue.push(makeItem('head',3)); render(); renderFast(); }`]
     ];
     const I_SCAN = `(function(ban){
       var rows=[];
@@ -2302,6 +2340,10 @@ const chk = (name, cond, note) => {
     const rsItem = (part, g) => ({ part, g, lv: 3, base: 40, ops: { crit: 1.1 },
       ...(part === 'weapon' ? { wt: 'melee' } : {}) });
     const rsExtra = {
+      // 041 ①: 자동 정리는 승천 1회부터 돈다. 이 블록의 「자동 정리(정리 켬)」 판이
+      //   뜻을 가지려면 별이 하나 있어야 한다 — 없으면 autoResolve() 가 첫 줄에서
+      //   돌아와 두 판이 같은 것을 재게 된다(공허한 통과).
+      star: 1,
       wave: 17, top: 20, peak: 20,
       equip: { weapon: { part: 'weapon', g: 6, lv: 3, base: 900, ops: { crit: 1.2 }, wt: 'melee' },
                body:   { part: 'body',   g: 6, lv: 3, base: 900, ops: { hp: 4.0 } } },
@@ -2326,7 +2368,7 @@ const chk = (name, cond, note) => {
         if (auto) {
           while (S.queue.length < qmax()) S.queue.push(JSON.parse(JSON.stringify(S.queue[0])));
           const q0 = S.queue.length; autoResolve(); how = 'autoResolve()';
-          if (S.queue.length === q0) return { err: '자동 정리가 아무것도 안 했다 — 검사 잘못' };
+          if (S.queue.length === q0) return { err: '자동 정리가 돌지 않았다 (autoResolve() 뒤 대기열 그대로 — 결함이거나 판 준비 잘못. 041 검증: 033 원결함 빌드가 이 문장으로 운다)' };
         } else {
           resolve('sell'); how = "resolve('sell')";
         }
@@ -3345,6 +3387,325 @@ const chk = (name, cond, note) => {
     }
   } catch (e) {
     chk('AD-예외 광고 훅 검사가 완주했다', false, '조작 중 예외: ' + String((e && e.message) || e));
+  }
+
+  /* ── LN1 : 한 줄이어야 하는 줄이 한 줄인가 (041 검증 세션 신설 — 041 제안 1·2, 계획 세션 채택) ──
+     041 이 「`#autores` 자리에 안내 한 줄」을 넣었는데 **en 380×820 에서 두 줄이 됐고, 어느 검사도
+     울지 않았다.** `TB8` 은 「보이는가」만, `LG1` 은 「글자가 11px 이상인가」만 본다 — 줄이 접혀
+     대기열 줄이 18px → 34px 이 되는 것은 둘 다의 눈 밖이다. 034 이후 en 문구는 ko 보다
+     **구조적으로 길다** — 문구가 늘 때마다 같은 일이 난다. 그 자리를 여기서 든다.
+
+     ⚠ **실행 언어와 무관하게 ko·en 둘 다 자기 창으로 연다**(I18N1 과 같은 방식) — 두 run 에서
+       같은 항목 하나다. en 결함은 ko run 에서도 보여야 한다.
+     ⚠ **줄 수는 글자 조각의 세로 위치로 센다.** 텍스트 노드마다 Range.getClientRects() 를 떠서
+       조각의 «가운데 y» 를 묶은 개수가 줄 수다. 이렇게 세는 이유 —
+         · 칸 높이로 세면 거짓말을 한다: `.qrow` 의 버튼 `min-height` 28px 때문에 모든 한 줄이
+           「2줄」로 읽힌다(041 코딩 세션이 밟았다).
+         · `scrollWidth` 로 폭 예산을 재면 거짓말을 한다: flex 로 눌리는 칸은 칸 폭에 묶여서
+           왼쪽 글자를 46px 짧게 읽었다(041 두 번째 절). 이 검사는 폭을 안 재고 «결과»를 센다.
+         · `display:none` 인 글자(`#chg` 를 숨긴 「대기열 정리」 상태 등)는 조각이 없어서 저절로 빠진다.
+       줄 전체(`.qrow`·`#tech .t`)를 한 번에 세므로 왼쪽 글자와 오른쪽 안내·버튼이 **같은 줄**이어야
+       1 이 나온다(align-items:center 라 가운데가 같은 줄에 모인다).
+     ⚠ 접히지 않고 **옆으로 삐져나가는 것**도 본다 — 조각이 줄 상자 밖으로 1px 넘게 나가면 FAIL.
+     ⚠ 상태는 «글자가 가장 긴 판»을 일부러 고른다: 승천 0(안내 글자) · 승천 1(「정리」 버튼) ·
+       승천 0 대기열 가득(「대기열 정리」) · 테크 0·37·99 단계(「+148.5% → +150%」 꼴이 가장 길다).
+     변이: en `ui.autoresLocked` 를 041 첫 문구 `Auto-sort · unlocks at 1st Ascend` 로 되돌리면
+       en 380×820·800×450 의 `.qrow` 가 2줄로 운다(041 검증에서 확인). */
+  try {
+    const LN_BASE = URL.split('?')[0];
+    const LN_SIZES = [[380, 820, '380×820 세로'], [800, 450, '800×450 CG모바일'], [821, 462, '821×462 CG데스크톱'], [1216, 684, '1216×684 CG데스크톱']];
+    const lnBad = [], lnErr = []; let lnN = 0; const lnMax = {};
+    for (const lang of ['ko', 'en']) for (const [w, h, nm] of LN_SIZES) {
+      const c = await browser.newContext({ viewport: { width: w, height: h } });
+      const p = await c.newPage();
+      p.on('pageerror', e => lnErr.push(`${lang} ${nm} pageerror: ${e.message}`));
+      p.on('console', m => { if (m.type() === 'error' || m.type() === 'assert') lnErr.push(`${lang} ${nm} ${m.text()}`); });
+      p.on('dialog', d => d.accept().catch(() => {}));
+      await p.addInitScript(() => { try { localStorage.setItem('forge', JSON.stringify(
+        { wave: 12, top: 14, peak: 14, gold: 500, tok: 2, lv: 0, star: 0, charge: 600, queue: [], equip: {},
+          asell: new Array(15).fill(false), t: Date.now(), auto: false, autoRes: true,
+          dust: 0, tech: {}, tk: 0, pos: 0, best: 0 })); } catch (e) {} });
+      await p.goto(LN_BASE + '?lang=' + lang);
+      await p.evaluate(() => { try { window.save = () => {}; } catch (e) {} });
+      await p.waitForTimeout(1500);
+      const rows = await p.evaluate(() => {
+        const lines = el => {
+          if (!el) return { shown: false, why: '요소 없음' };
+          const box = el.getBoundingClientRect();
+          if (getComputedStyle(el).display === 'none' || box.width === 0 || box.height === 0) return { shown: false, why: '숨김' };
+          const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT); const cy = []; let n, txt = '', out = 0;
+          while ((n = tw.nextNode())) {
+            if (!n.nodeValue.trim()) continue;
+            const rg = document.createRange(); rg.selectNodeContents(n);
+            let any = false;
+            for (const q of rg.getClientRects()) {
+              if (q.width < 0.5 || q.height < 0.5) continue; any = true;
+              const y = q.top + q.height / 2;
+              if (!cy.some(v => Math.abs(v - y) < q.height * 0.5)) cy.push(y);
+              out = Math.max(out, box.left - q.left, q.right - box.right);
+            }
+            if (any) txt += n.nodeValue;
+          }
+          return { shown: true, lines: cy.length, out: Math.round(out * 10) / 10, h: Math.round(box.height), txt: txt.replace(/\s+/g, ' ').trim() };
+        };
+        const res = [];
+        const forge = (state, prep) => {
+          showTab('tabForge'); prep(); render(); renderFast();
+          for (const sel of ['.qrow', '#spin', '#auto']) res.push(Object.assign({ state, sel }, lines(document.querySelector(sel))));
+        };
+        /* 041 검증(제안 ⑥): 폭은 **자릿수가 가장 많은 상태**로 잰다 — 0/10 에서만 재면 「가득(10/10)」에서
+           왼쪽 글자가 한 자리 넓어지는 것을 놓친다(041 1차가 그렇게 ko·en 두 줄을 놓쳤다).
+           승천 0 의 최대는 제련 28 의 14/14, 승천 1 은 15/15 다. 대기열은 숫자가 아니라 실제 아이템으로 채운다. */
+        const fill = () => { S.queue = []; while (S.queue.length < qmax()) S.queue.push(makeItem('head', 3)); };
+        forge('승천0', () => { S.star = 0; S.lv = 0; S.queue = []; });
+        forge('승천0·대기열 가득 10/10', () => { S.star = 0; S.lv = 0; fill(); });
+        forge('승천0·대기열 가득 14/14(최대 자릿수)', () => { S.star = 0; S.lv = 28; fill(); });
+        forge('승천1', () => { S.star = 1; S.lv = 0; S.queue = []; });
+        forge('승천1·대기열 가득 15/15(최대 자릿수)', () => { S.star = 1; S.lv = 28; fill(); });
+        S.lv = 0; S.queue = [];
+        for (const L of [0, 37, 99]) {
+          S.star = 1; S.queue = []; S.dust = 0;
+          S.tech = { spd: L, cap: L, sell: L, cost: L, gold: L, align: L };
+          showTab('tabTech'); renderTech(); render();
+          const ts = [...document.querySelectorAll('#tech .t')];
+          if (!ts.length) res.push({ state: `테크 ${L}단계`, sel: '#tech .t', shown: false, why: '줄 0개' });
+          ts.forEach((e, i) => res.push(Object.assign({ state: `테크 ${L}단계`, sel: '#tech .t[' + i + ']' }, lines(e))));
+        }
+        S.tech = {}; S.star = 0; S.queue = []; showTab('tabForge'); render();
+        return res;
+      });
+      for (const r of rows) {
+        lnN++;
+        const key = `${lang} ${nm} ${r.state} ${r.sel}`;
+        // 이 상태들에서는 전부 «보여야» 한다 — 안 보이면 검사가 공허하다
+        if (!r.shown) { lnBad.push(`${key}: ${r.why} (검사가 볼 것을 못 봤다)`); continue; }
+        if (r.lines !== 1) lnBad.push(`${key}: **${r.lines}줄** (높이 ${r.h}px) 「${r.txt.slice(0, 60)}」`);
+        else if (r.out > 1) lnBad.push(`${key}: 한 줄이지만 줄 상자 밖으로 ${r.out}px 삐져나감 「${r.txt.slice(0, 60)}」`);
+        const mk = lang + ' ' + r.sel.replace(/\[\d+\]/, '');
+        lnMax[mk] = Math.max(lnMax[mk] || 0, r.lines || 0);
+      }
+      await c.close();
+    }
+    chk(`LN1 한 줄이어야 하는 줄이 한 줄 (.qrow · #spin · #auto · #tech .t — ko·en × 4크기 · 대기열 최대 자릿수 포함 · ${lnN}칸)`,
+      lnBad.length === 0 && lnErr.length === 0,
+      (lnBad.length ? `${lnBad.length}칸 — ` + lnBad.slice(0, 8).join(' / ') + (lnBad.length > 8 ? ` …외 ${lnBad.length - 8}` : '')
+                    : `${lnN}칸 전부 1줄 · 삐져나감 0`) +
+      (lnErr.length ? ` · 콘솔 ${lnErr.length}건: ${lnErr.slice(0, 2).join(' | ')}` : '') +
+      `  · 줄 수는 글자 조각의 세로 위치로 센다(칸 높이·scrollWidth 아님) · 이 항목은 --en 여부와 무관하게 두 언어를 연다`);
+  } catch (e) {
+    chk('LN1-예외 줄 수 검사가 완주했다', false, '조작 중 예외: ' + String((e && e.message) || e));
+  }
+
+  /* ── TE1 : 테크 줄의 «지금 효과 → 다음 단계» = CORE 가 실제로 내는 값 (041 검증 세션 신설 — 041 E1 상설화) ──
+     041 ④ 는 현재·다음 값을 VIEW(`techFx`)에서 **CORE 식을 옮겨 적어** 계산한다(상태를 +1 해서
+     미리 보는 방식은 금지라서). 그래서 식이 두 벌이고, 계수를 바꾸는 사람이 CORE 만 고치면
+     **화면이 조용히 틀린다**(041 제안 4 — 계획 세션이 「E1 상설로 갈음」 판정).
+     ⚠ 비교 대상은 VIEW 의 사본이 아니라 **CORE 가 실제로 내는 값**이다:
+         spd = `CHG_MS()/1000` · cap = `CHG_MAX()` · sell = 같은 장비의 `sellPrice` 비(0단계 대비) ·
+         cost = `upCost()` 비(큰 `S.lv` 에서 — 작은 값은 Math.round 가 비를 먹는다) ·
+         gold = 적을 쓰러뜨린 `tick()` 한 번의 골드 증가 비 ·
+         align = `spin()` 의 판정 문턱을 **난수로 건드려** 찾는다: 화면이 말한 % 바로 아래 난수면
+                 릴 0 이 릴 1 에 맞춰지고(발동), 바로 위면 안 맞춰져야 한다.
+     ⚠ 「다음 단계」 값은 검사가 `S.tech[k]=l+1` 로 놓고 CORE 를 불러 잰다(검사는 상태를 만져도 된다 —
+       금지는 «표시가» 상태를 만지는 것이다).
+     ⚠ 상한(100)·바닥(spd 94 부터 1.5초)에서는 「→」 가 없어야 하고, 그 밖에는 있어야 한다.
+     변이: VIEW 의 판매 계수 0.015→0.02 → sell 칸이 운다(041 검증에서 확인). */
+  try {
+    const tc = await browser.newContext({ viewport: { width: 380, height: 820 } });
+    const tp = await tc.newPage(); const te = [];
+    tp.on('pageerror', e => te.push('pageerror: ' + e.message));
+    tp.on('console', m => { if (m.type() === 'error' || m.type() === 'assert') te.push(m.text()); });
+    tp.on('dialog', d => d.accept().catch(() => {}));
+    await tp.addInitScript(() => { try { localStorage.setItem('forge', JSON.stringify(
+      { wave: 12, top: 14, peak: 14, gold: 500, tok: 2, lv: 0, star: 1, charge: 600, queue: [], equip: {},
+        asell: new Array(15).fill(false), t: Date.now(), auto: false, autoRes: false,
+        dust: 0, tech: {}, tk: 0, pos: 0, best: 0 })); } catch (e) {} });
+    await tp.goto(URL);
+    await tp.evaluate(() => { try { window.save = () => {}; } catch (e) {} });
+    await tp.waitForTimeout(1500);
+    const rows = await tp.evaluate(async () => {
+      const nums = s => (s.match(/\d+(?:\.\d+)?/g) || []).map(Number);
+      const big = { part: 'weapon', g: 15, lv: 8, st: 3, base: 1 };
+      const alignFires = async (l, p) => {
+        S.tech = { align: l }; S.queue = []; S.charge = 10; S.pity = 0; S.lockIdx = -1; spinning = false;
+        const n = REELS(), seq = []; for (let i = 0; i < n; i++) seq.push((i + 0.5) / 6); seq.push(p);
+        let used = 0; const r0 = Math.random;
+        Math.random = () => { const v = seq[used]; used++; return v === undefined ? r0() : v; };
+        try { spin(); } finally { Math.random = r0; }
+        await new Promise(r => setTimeout(r, 900));
+        const ps = [...document.querySelectorAll('.reel')].map(e => e.dataset.p);
+        spinning = false; S.queue = [];
+        return ps[0] === ps[1];
+      };
+      const core = {
+        spd:  l => { S.tech = { spd: l }; return Math.round(CHG_MS() / 10) / 100; },
+        cap:  l => { S.tech = { cap: l }; return CHG_MAX(); },
+        sell: l => { S.tech = {}; const z = sellPrice(big); S.tech = { sell: l }; return (sellPrice(big) / z - 1) * 100; },
+        cost: l => { S.lv = 24; S.tech = {}; const z = upCost(); S.tech = { cost: l }; const a = upCost(); S.lv = 0; return (1 - a / z) * 100; },
+        gold: l => { const once = () => { S.equip = {}; S.wave = 80; S.gold = 0; foeHP = 0; tick(); return S.gold; };
+                     S.tech = {}; const z = once(); S.tech = { gold: l }; return (once() / z - 1) * 100; } };
+      const LV = { spd: [0, 1, 37, 93, 94, 100], cap: [0, 1, 37, 99, 100], sell: [0, 1, 37, 99, 100],
+                   cost: [0, 1, 37, 99, 100], gold: [0, 1, 37, 99, 100], align: [0, 1, 37, 99, 100] };
+      const out = [];
+      for (const k of Object.keys(LV)) for (const l of LV[k]) {
+        S.tech = { [k]: l }; renderTech();
+        const b = document.querySelector(`#tech button[data-t="${k}"]`);
+        const fx = b ? b.closest('.t').querySelector('.nm i').textContent.trim() : '(줄 없음)';
+        const n = nums(fx), arrow = /→/.test(fx);
+        let ok = !!b && n.length >= 1, how = '';
+        if (k === 'align') {
+          const d = n[0] / 100;
+          const lo = d > 0 ? await alignFires(l, d - 1e-9) : false, hi = await alignFires(l, d + 1e-9);
+          ok = ok && (d === 0 ? (!lo && !hi) : (lo && !hi)); how = `문턱 ${d}: 아래 ${lo}·위 ${hi}`;
+          if (arrow) { const dn = n[1] / 100; const lo2 = await alignFires(l + 1, dn - 1e-9), hi2 = await alignFires(l + 1, dn + 1e-9);
+                       ok = ok && lo2 && !hi2; how += ` · 다음 ${dn}: ${lo2}·${hi2}`; }
+          const stuck = l >= 100; if (stuck === arrow) { ok = false; how += ' · 「→」 규칙 어긋남'; }
+        } else {
+          const tol = k === 'spd' ? 0.006 : (k === 'cap' ? 0 : 0.06);
+          const cur = core[k](l), nxt = l < 100 ? core[k](l + 1) : null;
+          ok = ok && Math.abs(n[0] - cur) <= tol;
+          const stuck = l >= 100 || Math.abs(nxt - cur) < 1e-9;
+          if (stuck === arrow) { ok = false; how = '「→」 규칙 어긋남 · '; }
+          if (arrow) ok = ok && Math.abs(n[1] - nxt) <= tol;
+          how += `CORE ${Math.round(cur * 1000) / 1000}` + (nxt !== null ? ` → ${Math.round(nxt * 1000) / 1000}` : '');
+        }
+        out.push({ k, l, fx, ok, how });
+      }
+      S.tech = {}; S.lv = 0; S.queue = []; render();
+      return out;
+    });
+    const bad = rows.filter(r => !r.ok);
+    chk(`TE1 테크 줄의 현재·다음 값 = CORE 가 실제로 내는 값 (6키 · ${rows.length}칸 · 상한·바닥은 「→」 없음)`,
+      bad.length === 0 && te.length === 0,
+      (bad.length ? `${bad.length}칸 — ` + bad.map(r => `${r.k}@${r.l} 「${r.fx}」 ${r.how}`).join(' / ')
+                  : rows.filter(r => r.l === 37 || r.l === 100 || (r.k === 'spd' && r.l >= 93)).map(r => `${r.k}@${r.l}「${r.fx}」`).join(' · ')) +
+      (te.length ? ` · 콘솔 ${te.length}건: ${te.slice(0, 2).join(' | ')}` : ''));
+    await tc.close();
+  } catch (e) {
+    chk('TE1-예외 테크 효과 검사가 완주했다', false, '조작 중 예외: ' + String((e && e.message) || e));
+  }
+
+  /* ── AP1 : 해금 순간 「정리」가 반짝인다 (041 2차 — 검증 세션 신설 · 041 제안 8) ──────────
+     041 2차는 해금 알림을 `#msg` 한 줄에서 **`#autores` 버튼 자체**로 옮겼다 — 자동 제련이 켜져
+     있으면 `#msg` 는 다음 제련 결과가 14~83ms 만에 덮는다(041 검증 실측). 그 반짝임을 지킨다.
+     ⚠ **효과로 잰다**: 승천을 «사람 경로»로 시킨다(`#asc` → `#ascGo` 를 좌표로 누른다 — `el.click()` 은
+       히트 테스트를 안 한다). 그 뒤 50ms 마다 `#autores` 의 class · `getAnimations()` · **계산된 box-shadow** 를 긁는다.
+         · 보통 움직임: 0.1초에 `pop` + `autoresPop` 애니메이션 · **1초에도 `pop`** · 1.5초 동안 그림자가 평상값과
+           다른 값을 갖고 **4번 넘게 바뀐다**(세 번 깜빡임) · 2.6초에는 `pop` 이 치워졌다.
+         · 움직임 줄임(`reducedMotion:'reduce'`): 0.1초와 **1초 둘 다 `popStill`** · 애니메이션 0개 · 평상과 다른 그림자 · 2.6초에 치워졌다.
+       「클래스가 붙었다」만 보면 안 된다 — `className=` 로 매 틱 덮어쓰는 빌드는 0.1초에 `pop` 이 보이지만
+       250ms 안에 지워져 **한 번도 밝아지지 않는다**(041 2차 변이 ㉥). 그래서 1초 시점의 class 와 그림자 변화 횟수를 같이 본다.
+       「그림자가 none 이 아니다」도 안 된다 — `.hot` 자체에 그림자가 있다(041 2차 코딩 세션이 밟았다). 평상값과 **다른** 값을 센다.
+     ⚠ 1216×684 에서 잰다 — 380×820 에서는 `#autores` 가 첫 화면 밖이라(TB8 이름 붙인 예외) 효과를 «볼» 수 없다.
+     변이: `popAutores(arb)` 호출 삭제 → 세 판 다 운다 · `classList.toggle` → `className=` 되돌림 → 세 판 다 운다. */
+  try {
+    const apBad = [], apNote = [];
+    for (const [nm, auto, rm] of [['자동 제련 켬', true, false], ['자동 제련 끔', false, false], ['움직임 줄임·자동 켬', true, true]]) {
+      const c = await browser.newContext({ viewport: { width: 1216, height: 684 }, reducedMotion: rm ? 'reduce' : 'no-preference' });
+      const p = await c.newPage(); const es = [];
+      p.on('pageerror', e => es.push('pageerror: ' + e.message));
+      p.on('console', m => { if (m.type() === 'error' || m.type() === 'assert') es.push(m.text()); });
+      p.on('dialog', d => d.accept().catch(() => {}));
+      await p.addInitScript(a => { try { localStorage.setItem('forge', JSON.stringify(
+        { wave: 12, top: 120, peak: 120, gold: 0, tok: 2, lv: 28, star: 0, charge: 600, queue: [], equip: {},
+          asell: new Array(15).fill(false), t: Date.now(), auto: a, autoRes: true,
+          dust: 0, tech: {}, tk: 0, pos: 0, best: 0 })); } catch (e) {} }, auto);
+      await p.goto(URL);
+      await p.evaluate(() => { try { window.save = () => {}; } catch (e) {} });
+      await p.waitForTimeout(1500);
+      const at = id => p.evaluate(i => {
+        const e = document.getElementById(i); let r = e.getBoundingClientRect();
+        const hit = (x, y) => { const t = document.elementFromPoint(x, y); return !!t && (t === e || e.contains(t)); };
+        let x = r.x + r.width / 2, y = r.y + r.height / 2;
+        if (!hit(x, y)) { e.scrollIntoView({ block: 'nearest' }); r = e.getBoundingClientRect(); x = r.x + r.width / 2; y = r.y + r.height / 2; }
+        if (!hit(x, y)) for (let k = 1; k < 20; k++) { const xx = r.x + r.width * k / 20; if (hit(xx, y)) { x = xx; break; } }
+        return { x, y, ok: hit(x, y) };
+      }, id);
+      const pa = await at('asc');
+      if (!pa.ok) { apBad.push(`${nm}: #asc 를 좌표로 못 누른다(검사 준비 실패)`); await c.close(); continue; }
+      await p.mouse.click(pa.x, pa.y); await p.waitForTimeout(400);
+      const pg = await at('ascGo');
+      if (!pg.ok) { apBad.push(`${nm}: #ascGo 를 좌표로 못 누른다(검사 준비 실패)`); await c.close(); continue; }
+      await p.evaluate(() => { const e = document.getElementById('autores'); window.__ap = []; const t0 = performance.now();
+        const iv = setInterval(() => { __ap.push({ t: performance.now() - t0, cls: e.className,
+          an: e.getAnimations().map(a => a.animationName).join(','), sh: getComputedStyle(e).boxShadow });
+          if (performance.now() - t0 > 2600) clearInterval(iv); }, 50); });
+      await p.mouse.click(pg.x, pg.y); await p.waitForTimeout(2900);
+      const s = await p.evaluate(() => ({ ap: __ap, star: S.star | 0 }));
+      const early = s.ap.filter(x => x.t <= 1500), late = s.ap[s.ap.length - 1];
+      const f01 = early.find(x => x.t >= 90) || early[0] || { cls: '', an: '' };
+      const f1 = early.find(x => x.t >= 900) || { cls: '' };
+      const steady = late.sh, other = new Set(early.map(x => x.sh).filter(v => v !== steady)).size;
+      let flips = 0; for (let i = 1; i < early.length; i++) if (early[i].sh !== early[i - 1].sh) flips++;
+      const ok = s.star === 1 && es.length === 0 && (rm
+        ? (/\bpopStill\b/.test(f01.cls) && /\bpopStill\b/.test(f1.cls) && f01.an === '' && other >= 1 && !/\bpop/.test(late.cls))
+        : (/\bpop\b/.test(f01.cls) && /\bpop\b/.test(f1.cls) && /autoresPop/.test(f01.an) && other >= 1 && flips >= 4 && !/\bpop/.test(late.cls)));
+      const line = `${nm}: 별 ${s.star} · 0.1초「${f01.cls}」애니「${f01.an}」· 1초「${f1.cls}」· 그림자 평상과 다른 값 ${other}가지 · 바뀜 ${flips}번 · 2.6초「${late.cls}」` +
+        (es.length ? ` · 콘솔 ${es.slice(0, 2).join(' | ')}` : '');
+      (ok ? apNote : apBad).push(line);
+      await c.close();
+    }
+    chk('AP1 해금 순간 「정리」가 반짝인다 (자동 제련 켬·끔·움직임 줄임 — 클래스·애니메이션·그림자 변화로)',
+      apBad.length === 0, (apBad.length ? `${apBad.length}판 — ` + apBad.join(' / ') + (apNote.length ? '  · 통과: ' : '') : '') + apNote.join(' / '));
+  } catch (e) {
+    chk('AP1-예외 해금 반짝임 검사가 완주했다', false, '조작 중 예외: ' + String((e && e.message) || e));
+  }
+
+  /* ── UA1 · UA2 : 자동 정리가 «도는 판에서만» 돈다 (041 검증 세션 신설 · 041 제안 ②④, 계획 세션 채택) ──
+     041 의 U1(승천 0 에서는 저장값이 true 여도 정리 0)과 033 의 방치 실측(승천 1+ 에서 막힌 스핀 0)은
+     지금까지 **임시 프로브에만** 있었다. 그래서 `autoResOn()` 이 승천을 무시하는 빌드도, `autoResolve()` 가
+     아무것도 안 하는 033 원결함 빌드도 상설 검사로는 안 잡혔다(041 검증: 각각 LN1·RS1 이 «다른 이유로» 울었을 뿐).
+     ⚠ 효과로 잰다: `resolve()`(장착·판매의 CORE 함수)와 `spin()` 을 감싸 «정리가 실제로 일어났나»·«가득에 막힌
+       스핀 시도»를 센다. 전역 함수 선언이라 감싸면 틱 안의 호출도 감싼 쪽을 부른다.
+     ⚠ 「막힌 스핀」 = `spinning` 이 아니고 충전 ≥1 인데 대기열이 `qmax()` 에 닿아 `spin()` 이 돌아선 시도.
+     변이: `autoResOn(){ return !!S.autoRes }` → UA1 이 운다 · `autoResolve()` 무동작 → UA2 가 운다. */
+  try {
+    const uaHook = () => {
+      const w = window; w.__ua = { resolve: 0, blocked: 0, spins: 0, samples: [] };
+      const r0 = w.resolve; w.resolve = function () { w.__ua.resolve++; return r0.apply(this, arguments); };
+      const s0 = w.spin; w.spin = function () {
+        try { if (!spinning && S.charge >= 1) { if (S.queue.length >= qmax()) w.__ua.blocked++; else w.__ua.spins++; } } catch (e) {}
+        return s0.apply(this, arguments); };
+      setInterval(() => w.__ua.samples.push(S.queue.length >= qmax()), 250);
+    };
+    const uaOpen = async (star) => {
+      const c = await browser.newContext({ viewport: { width: 380, height: 820 } });
+      const p = await c.newPage(); const es = [];
+      p.on('pageerror', e => es.push('pageerror: ' + e.message));
+      p.on('console', m => { if (m.type() === 'error' || m.type() === 'assert') es.push(m.text()); });
+      p.on('dialog', d => d.accept().catch(() => {}));
+      await p.addInitScript(st => { try { localStorage.setItem('forge', JSON.stringify(
+        { wave: 12, top: 14, peak: 14, gold: 0, tok: 2, lv: 0, star: st, charge: 600, queue: [], equip: {},
+          asell: new Array(15).fill(false), t: Date.now(), auto: true, autoRes: true,
+          dust: 0, tech: {}, tk: 0, pos: 0, best: 0 })); } catch (e) {} }, star);
+      await p.goto(URL);
+      await p.evaluate(() => { try { window.save = () => {}; } catch (e) {} });
+      await p.evaluate(uaHook);
+      p.__es = es; p.__c = c; return p;
+    };
+    // UA1 — 승천 0 · 저장값 true · 자동 제련 켬 · 10초: 정리 0, 가득에서 선다
+    const p1 = await uaOpen(0); await p1.waitForTimeout(10000);
+    const u1 = await p1.evaluate(() => ({ r: __ua.resolve, sp: __ua.spins, bl: __ua.blocked, tail: __ua.samples.slice(-8),
+      q: S.queue.length, qm: qmax(), ar: S.autoRes, star: S.star | 0,
+      spin: document.getElementById('spin').textContent.trim(), want: t('ui.sortQueue'),
+      btn: getComputedStyle(document.getElementById('autores')).display }));
+    const ok1 = u1.star === 0 && u1.ar === true && u1.r === 0 && u1.tail.length > 0 && u1.tail.every(Boolean)
+      && u1.spin === u1.want && u1.btn === 'none' && p1.__es.length === 0;
+    chk('UA1 승천 0 에서는 자동 정리가 안 돈다 (저장값 true 인 채로 · 10초 방치 · 효과로)', ok1,
+      `별 ${u1.star} · 저장값 autoRes ${u1.ar} · resolve() ${u1.r}회 · 스핀 ${u1.sp}회 · 가득에 막힌 시도 ${u1.bl}회 · 대기열 ${u1.q}/${u1.qm}` +
+      ` (마지막 2초 내내 가득 ${u1.tail.every(Boolean)}) · #spin 「${u1.spin}」 · #autores ${u1.btn}` +
+      (p1.__es.length ? ` · 콘솔 ${p1.__es.slice(0, 2).join(' | ')}` : ''));
+    await p1.__c.close();
+    // UA2 — 승천 1 · 자동 제련 켬 · 30초: 막힌 스핀 0, 정리가 실제로 돈다
+    const p2 = await uaOpen(1); await p2.waitForTimeout(30000);
+    const u2 = await p2.evaluate(() => ({ r: __ua.resolve, sp: __ua.spins, bl: __ua.blocked, q: S.queue.length, qm: qmax(), w: S.wave }));
+    chk('UA2 승천 1+ · 자동 제련 켬 · 30초 방치 → 가득에 막힌 스핀 0 (자동 정리가 실제로 돈다)',
+      u2.bl === 0 && u2.r > 0 && u2.sp > 0 && p2.__es.length === 0,
+      `가득에 막힌 시도 ${u2.bl}회 · 스핀 ${u2.sp}회 · resolve() ${u2.r}회 · 대기열 ${u2.q}/${u2.qm} · 웨이브 ${u2.w}` +
+      (p2.__es.length ? ` · 콘솔 ${p2.__es.slice(0, 2).join(' | ')}` : '') + '  · 033 방치 실측의 상설판(041 제안 ④)');
+    await p2.__c.close();
+  } catch (e) {
+    chk('UA-예외 자동 정리 방치 검사가 완주했다', false, '조작 중 예외: ' + String((e && e.message) || e));
   }
 
   await browser.close();
