@@ -1,6 +1,7 @@
 /* devtools/soak.js — 2D 캔버스 누수 소크 (008 §4 · 013 §0 으로 재작성)
  *
- * 사용: node devtools/soak.js [분=5] [폭=380] [경로=spin|apprentice]
+ * 사용: node devtools/soak.js [분=5] [폭=380] [경로=spin|apprentice] [--reels]
+ *   --reels — 048 신설(코딩 세션). spin 경로의 구동을 `strike('hand')` 로 바꿔 **릴이 도는 판**을 잰다(아래).
  *   경로 apprentice(줄여 `g`) — 047 3차 검증 세션 신설(047 검증 제안 ③ · 계획 세션 채택).
  *   047 이 주 경로를 `spin()` 직접 호출에서 **`strike()`·정착 감지·서두름 타이머**로
  *   옮겼는데 기본 경로(spin)는 그 길을 하나도 안 탄다. apprentice 는 견습생(자동 제련)을
@@ -46,6 +47,16 @@ const path = require('path');
 const MIN   = Number(process.argv[2] || 5);
 const WIDTH = Number(process.argv[3] || 380);
 const ROUTE = /^(g|apprentice)$/i.test(String(process.argv[4] || '')) ? 'apprentice' : 'spin';
+/* ══ 048 §4 — `--reels`: **릴이 도는 판**으로 구동한다 ════════════════════
+   이 하니스는 `spin()` 을 직접 부른다. 048 의 릴 엔진은 `strike()` 가 깨우므로,
+   기본 구동으로는 릴이 **한 번도 안 돈다** — 「릴이 도는 판에서도 안 샌다」를
+   재려면 사람이 치는 길로 들어가야 한다(지시서 §4). 재는 것·문턱·프로브는
+   한 줄도 안 바꾼다. 쓰는 길만 고른다:
+     node devtools/soak.js 5 380            — 쉬는 판 (지금까지와 같다)
+     node devtools/soak.js 5 380 --reels    — 도는 판 (strike('hand') 로 친다)
+   ⚠ 048 검증 세션: 048 코딩 세션의 soak.js 는 047 검증 전 판(548fee54)에서 갈라져
+     047 이 커밋한 견습생 경로(g)가 빠져 있었다. 두 길을 다시 합쳤다 — g 는 047 그대로. */
+const REELS_MODE = process.argv.indexOf('--reels') > -1;
 const GAME  = 'file://' + path.join(__dirname, '..', 'src', 'forge.html').replace(/\\/g, '/');
 
 const SAMPLE_MS = 30000;   // 표본 간격
@@ -162,7 +173,7 @@ const die = (code, msg) => { console.error('\n' + msg); process.exit(code); };
   await page.goto(GAME);
   await page.waitForTimeout(1500);
 
-  console.log(`소크 — ${MIN}분 · 폭 ${WIDTH}px · 경로 ${ROUTE} · ${GAME}`);
+  console.log(`소크 — ${MIN}분 · 폭 ${WIDTH}px · 경로 ${ROUTE}${REELS_MODE ? ' · --reels' : ''} · ${GAME}`);
 
   // 계측기가 살아남았는지부터. 못 심었으면 아래 숫자는 전부 거짓말이다.
   const inst = await page.evaluate(() => !!(window.__probe && window.__probe.installed));
@@ -197,7 +208,7 @@ const die = (code, msg) => { console.error('\n' + msg); process.exit(code); };
      save 무력화는 **로드 뒤**에 한다 (호이스팅 함정). 구동 타이머는 계측기가
      세지 않도록 감싸기 전 원본 setInterval 을 쓴다. */
   if (ROUTE === 'spin') {
-    await page.evaluate(({ spinMs }) => {
+    await page.evaluate(({ spinMs, reels }) => {
       window.save = () => {};
       globalThis.__hits = 0;
       globalThis.__soak = window.__probe.raw.si.call(window, () => {
@@ -205,10 +216,16 @@ const die = (code, msg) => { console.error('\n' + msg); process.exit(code); };
         Math.random = () => q.length ? q.shift() : real();
         S.charge = 10; S.queue = []; spinning = false; S.lockIdx = -1; S.pity = 0;
         S.asell = Array(15).fill(false);
-        try { spin(); globalThis.__hits++; }
+        try {
+          if (reels && typeof strike === 'function') {
+            // 048 — 사람이 치는 길. 한 주기를 다 쳐서 릴이 돌고 **선다**.
+            const n = (typeof REELS === 'function') ? REELS() : 3;
+            for (let k = 0; k < n; k++) strike('hand');
+          } else spin();
+          globalThis.__hits++; }
         finally { window.__probe.raw.st.call(window, () => { Math.random = real; }, 600); }
       }, spinMs);
-    }, { spinMs: SPIN_MS });
+    }, { spinMs: SPIN_MS, reels: REELS_MODE });
   } else {
     /* 견습생 경로 — 승천 1(자동 정리가 도는 판)로 올려 대기열이 차서 서는 일이 없게
        하고, 견습생을 켠다. 구동은 게임 자신의 250ms 틱이다(여기서 strike 를 부르지 않는다).
@@ -328,6 +345,29 @@ const die = (code, msg) => { console.error('\n' + msg); process.exit(code); };
      ⚠ 잠든 표본 비율은 **판정에 쓰지 않고 찍기만 한다** — 018 의 정상값을 모르는
      채로 문턱을 세우면 그 문턱이 곧 오탐이 된다. 기준선: 013 75% · 400ms 빌드 54%.
      값이 크게 떨어지면 사람이 보고 판단할 것. */
+  /* ⚠ **048 2차 ① — `--reels` 에서는 훑기 전에 30초를 보낸다.**
+     「보고 있을 때만 천천히 도는 릴」이 들어오면서, 사람이 친 뒤 **30초 동안은 릴이
+     일부러 돈다**(계획 판정 2차 ①). 이 하니스의 `--reels` 는 `strike('hand')` 로
+     구동하므로 마지막 구동이 곧 「사람 입력」이고, 그 직후 6초를 훑으면 rAF 가 0 이
+     될 수가 없다 — 실측 「6초 안에 완전히 쉬는 순간 없음」. **누수가 아니라 설계다.**
+     판정식(`불티 0 · sleeping · rAF 0` 이 동시에 참인 표본이 있는가)은 **한 글자도
+     안 바꾼다.** 제품이 쉬기로 되어 있는 때까지 기다렸다가 같은 것을 잰다.
+     ⚠ 기본(쉬는 판) 호출은 이 대기가 **없다** — 지금까지와 글자까지 같다. */
+  /* ⚠ 048 검증 세션 — 견습생 경로(g)도 몰아치기를 `strike('hand')` 로 치므로 같은 30초 창이 열린다.
+     048 빌드에서 g 를 대기 없이 돌리면 「6초 안에 완전히 쉬는 순간 없음」이 난다(같은 까닭). */
+  if (REELS_MODE || (ROUTE === 'apprentice' && await page.evaluate(() => typeof reelTouch === 'function'))) {
+    console.log('\n릴 판 — 「보고 있을 때 도는」 30초 창이 지나기를 기다린다 (048 2차 ①)');
+    await page.evaluate(() => { try { clearInterval(globalThis.__soak); } catch (e) {} });
+    await page.waitForTimeout(32000);
+    /* ⚠ 구동을 끊고 30초를 보내면 **앞 겹 캔버스가 불티를 다 걷기 전에 잠든다** —
+       `alive.particles` 는 그리는 루프가 돌 때만 줄기 때문이다. 그대로 훑으면
+       「몰아치기 6초 뒤에도 불티 6 남음」이 나오는데, **1차 빌드(`2dea8cdb`)도 이
+       하니스로는 똑같이 6 이 남는다** — 048 2차가 만든 것이 아니라 이 대기가 만든
+       것이다. 훑기 전에 한 번 깨워 걷게 한다. 판정식은 그대로다(깨워 두면 오히려
+       `sleeping` 이 거짓으로 시작하므로 검사가 무르지 않는다). */
+    await page.evaluate(() => { try { globalThis.__canvasWake && globalThis.__canvasWake(1200); } catch (e) {} });
+    await page.waitForTimeout(2500);
+  }
   const SETTLE_MS = 6000, SETTLE_STEP = 200;
   const sweep = [];
   for (let i = 0; i < SETTLE_MS / SETTLE_STEP; i++) {
@@ -375,8 +415,17 @@ const die = (code, msg) => { console.error('\n' + msg); process.exit(code); };
   // 불티는 상한이 곧 안전장치다 (FX_MAX_PARTICLES).
   const pMax = Math.max(...rows.map(r => r.particles), peak.out.particles.v);
   if (pMax > cap) fails.push(`불티 ${pMax} 가 동시 상한 ${cap} 초과`);
-  if (lastS.particles !== 0)
-    fails.push(`몰아치기 6초 뒤에도 불티 ${lastS.particles} 남음 (회수 실패)`);
+  /* ⚠ 048 검증 세션 — 「**마지막 표본** 의 불티가 0 인가」를 «잠든 표본에 불티가 남았는가» 로 바꿨다.
+     마지막 표본은 아무 때나 한 순간이다. 전투가 도는 판(승천 1 · 웨이브 30+, 견습생 경로 g)에서는 몹이
+     죽을 때마다 **깨어 있는 캔버스**에 불티가 1초 남짓 산다 — 048 검증 실측: 그런 판에서 100ms 표본의
+     5~30% 가 「깨어 있음 · 불티 2~6」이고, 그 순간에 걸리면 누수가 없어도 운다(048 빌드 g 2/2 · 047 빌드
+     같은 장면 재현에서도 같은 꼴). 「잠든 캔버스에 불티가 얼어붙는다」(048 2차 제안 3)도 이 표본 하나를
+     읽은 것이었다 — 같은 실측에서 «잠듦 && 불티>0» 은 047·048 둘 다 **0회**.
+     회수는 위 정착 판정(«불티 0 · sleeping · rAF 0» 이 **동시에** 참인 표본이 있는가)이 이미 본다.
+     여기서는 그것이 못 보는 꼴 — **잠들었는데 불티가 남은 표본**(진짜 얼어붙음) — 을 본다. */
+  const frozen = sweep.filter(x => x.sleeping === true && x.particles > 0);
+  if (frozen.length)
+    fails.push(`잠든 표본 ${frozen.length}개에 불티가 남아 있다 (얼어붙음 · 최대 ${Math.max(...frozen.map(x => x.particles))})`);
   if (restIdx < 0)
     fails.push('몰아치기 뒤 6초를 200ms 간격으로 훑는 동안 ' +
       '«불티 0 · sleeping · rAF 0» 이 동시에 참인 순간이 한 번도 없었다 (정착 실패)');

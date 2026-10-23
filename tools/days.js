@@ -432,4 +432,136 @@ if(typeof process!=='undefined' && process.argv.indexOf('--ads')>-1){
   console.log('══════════ 026 --ads 끝 ══════════');
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   048 — 손 제련(충전을 안 쓰는 공짜 제련)이 페이싱을 얼마나 당기는가.
+   **--manual 을 줄 때만 돈다.** 기본 출력에 한 바이트도 섞이면 안 된다
+   (025 --measure · 026 --ads 와 같은 규약 — 기본 출력 md5 81a6288… 이 계약이다).
+
+   실행: node tools/days.js --manual            → 손 10·30·60분을 전부 돈다
+         node tools/days.js --manual 30         → 30분만
+         node tools/days.js --manual 30 60      → 30분 · 장비 60개/분
+
+   모형: 하루에 manualMin 분 동안 perMin 개 속도로 **공짜** 제련을 더한다.
+         나머지(밤샘 충전 · 접속 중 충전 · 전투 골드 · 층 · 테크 · 승천)는
+         지금의 방치 모델 그대로다. 손 시간 = 접속 시간으로 본다(치는 동안 접속해 있다).
+
+   ⚠ 이 모형이 **안 보는 것** 둘 — 읽는 사람이 알고 있어야 한다:
+     ⑴ **대기열 상한**. 048 §2① 대로 대기열이 가득이면 손도 못 친다(S2).
+        days.js 에는 대기열이 없다 — doSpins 는 뽑는 즉시 장착하거나 판다.
+        그래서 아래 수치는 손의 효과의 **상한**이다(026 --ads 와 같은 성격).
+     ⑵ **사람의 지구력**. 60분 내내 분당 40개(≈ 분당 120탭)를 유지한다고 본다.
+   ══════════════════════════════════════════════════════════════════════════ */
+if(typeof process!=='undefined' && process.argv.indexOf('--manual')>-1){
+  const ai=process.argv.indexOf('--manual');
+  const num=i=>{ const v=process.argv[i]; return (v!==undefined && /^[0-9]+$/.test(v))?+v:null; };
+  const one=num(ai+1), per=num(ai+2)||40;
+  const MANS = one!==null ? [one] : [10,30,60];
+
+  /* play() 의 쌍둥이. 바뀐 곳은 **두 줄**이다 —
+       ⑴ 손 제련 분량을 spins 에 더한다 (충전을 안 쓴다 = 공짜)
+       ⑵ 승천한 날을 적는다 (기본 play() 는 도달일만 돌려준다)
+     그 밖 순서·식은 글자 그대로 같다. manual=0 으로 부르면 play() 와 같은
+     플레이여야 하고, 아래 §0 이 그것을 기계로 확인한다. */
+  function playMan(days, activeMin, manualMin, perMin){
+    S.star=0; S.lv=0; S.tech={}; S.dust=0; S.peak=0;
+    let eq={}, acc={gold:0}, wave=1, hits={}, asc=[];
+    for(let d=1; d<=days; d++){
+      let spins = Math.min(CHG_MAX(), (24*3600*1000-activeMin*60*1000)/CHG_MS());
+      spins += activeMin*60*1000/CHG_MS();
+      spins += manualMin*perMin;                                  // ⑴ 손 — 공짜
+      doSpins(Math.floor(spins), eq, acc);
+      wave=Math.max(wave,reach(eq));
+      acc.gold += Math.round(4*Math.pow(1.10,Math.min(wave,400)-1)*(1+T('gold')*0.02)) * (activeMin*60/3);
+      while(acc.gold>=upCost() && S.lv<28){ acc.gold-=upCost(); S.lv++; }
+      const f=towerFloor(eq);
+      S.dust += 2 * f * 1.6 * (3/8) + 2*f*0;
+      S.dust += 2 * f * 0.8;
+      let guard=0;
+      while(guard++<500){
+        const ks=Object.keys(TECH).filter(k=>T(k)<TECH[k].max).sort((a,b)=>techCost(a)-techCost(b));
+        if(!ks.length||S.dust<techCost(ks[0])) break;
+        S.dust-=techCost(ks[0]); S.tech[ks[0]]=T(ks[0])+1;
+      }
+      for(const t of [30,50,75,100,150,200,250,300]) if(!hits[t]&&wave>=t) hits[t]=d;
+      S.peak=Math.max(S.peak||0,wave);
+      if(cap()===GMAX && S.lv>=ASC_LV() && S.peak>=ASC_WAVE()){
+        asc.push(d);                                              // ⑵ 승천한 날
+        eq={}; S.lv=0; S.star++; wave=1; S.peak=0; }
+    }
+    return {hits, asc};
+  }
+
+  const pd=(s,n)=>String(s).padStart(n);
+  const run=(m,man)=>{ const agg={}, a1=[], a2=[];
+    for(let r=0;r<3;r++){ seed(r); const R=playMan(120,m,man,per);
+      for(const k in R.hits) agg[k]=(agg[k]||0)+R.hits[k]/3;
+      if(R.asc[0]) a1.push(R.asc[0]); if(R.asc[1]) a2.push(R.asc[1]); }
+    const av=a=>a.length===3?Math.round(a.reduce((p,q)=>p+q,0)/3):null;
+    return {w75:agg[75], w200:agg[200], asc1:av(a1), asc2:av(a2)}; };
+  const cell=v=>v?pd(Math.round(v)+'일',8):pd('─',8);
+  const row=(nm,R)=>console.log('  '+pd(nm,16)+cell(R.w75)+cell(R.asc1)+cell(R.asc2)+cell(R.w200));
+
+  console.log('');
+  console.log('══════════ 048 --manual — 손 제련이 페이싱을 얼마나 당기는가 ══════════');
+  console.log('  손 속도 '+per+'개/분 (릴 3개면 분당 '+(per*3)+'탭) · 120일 · 고정 시드 3개 평균');
+  console.log('  CORE 상한: spin() 은 420ms 안에 다시 못 돈다 → 손의 물리적 상한은 142개/분');
+  console.log('  ⚠ 대기열 상한을 안 본다 — 아래는 손의 효과의 **상한**이다 (머리말 주석)');
+
+  /* ── §0 자기검산 — manual=0 이 기본 play() 와 같은 플레이인가 ─────────────── */
+  console.log('');
+  console.log('§0 자기검산 — playMan(손 0분) 이 play() 와 같은 플레이인가');
+  {
+    let same=0; const bad=[];
+    for(const m of [10,30,60,120]) for(let r=0;r<3;r++){
+      seed(r); const a=JSON.stringify(play(120,m,false));
+      seed(r); const b=JSON.stringify(playMan(120,m,0,per).hits);
+      if(a===b) same++; else bad.push(m+'분/시드'+r+': '+a+' vs '+b);
+    }
+    console.log('  도달일 표 일치 '+same+'/12');
+    bad.slice(0,3).forEach(r=>console.log('    ⚠ '+r));
+    console.log('  → 12/12 면 아래 차이는 **손 때문**이지 쌍둥이 때문이 아니다.');
+  }
+
+  /* ── §1 지시서 048 §5 의 표 ──────────────────────────────────────────────── */
+  console.log('');
+  console.log('§1 048 §5 표 — 접속 시간 = 손 시간 (치는 동안 접속해 있다)');
+  console.log('  판                웨이브75  첫승천  2회차승천  웨이브200');
+  row('M0 방치만(30분)', run(30,0));
+  for(const m of MANS) row('M1 하루 '+m+'분 손', run(m,m));
+
+  /* ── §2 같은 접속시간끼리 — 「손이 얼마나 당기나」의 정직한 대조 ──────────── */
+  console.log('');
+  console.log('§2 같은 접속시간끼리 — 손 0분 대 손 N분 (이것이 「방치 대비」다)');
+  console.log('  접속     손      웨이브75  첫승천  2회차승천  웨이브200   w200 단축');
+  for(const m of MANS){
+    const b=run(m,0);
+    for(const man of [0,m]){
+      const a=man===0?b:run(m,man);
+      const cut=(b.w200&&a.w200)?(1-a.w200/b.w200)*100:null;
+      console.log('  '+pd(m+'분',5)+pd(man+'분',7)+'  '+cell(a.w75)+cell(a.asc1)+cell(a.asc2)+cell(a.w200)
+        +'  '+(cut===null?pd('─',10):pd(cut.toFixed(1)+'%',10)));
+    }
+  }
+  console.log('');
+  console.log('  문턱(048 §5): **손 60분이 방치 대비 20% 미만으로만 빠르면** 계획 세션이 사용자에게 올린다');
+  console.log('  (클릭을 진짜 병목 — 제련 등급 28 · 별가루 · 승천 주기 — 에 닿게 할지)');
+
+  /* ── §3 손 속도를 키워 보면 (병목이 손인지 다른 곳인지) ──────────────────── */
+  console.log('');
+  console.log('§3 손 속도 민감도 — 60분 손, 속도만 올린다 (026 §0 의 「51배」와 같은 질문)');
+  console.log('     개/분   하루 손제련   웨이브75  첫승천  2회차승천  웨이브200');
+  for(const p2 of [40,80,142,400]){
+    const agg={}, a1=[], a2=[];
+    for(let r=0;r<3;r++){ seed(r); const R=playMan(120,60,60,p2);
+      for(const k in R.hits) agg[k]=(agg[k]||0)+R.hits[k]/3;
+      if(R.asc[0]) a1.push(R.asc[0]); if(R.asc[1]) a2.push(R.asc[1]); }
+    const av=a=>a.length===3?Math.round(a.reduce((p,q)=>p+q,0)/3):null;
+    console.log('     '+pd(p2,5)+pd((60*p2).toLocaleString()+'개',13)+'  '
+      +cell(agg[75])+cell(av(a1))+cell(av(a2))+cell(agg[200])
+      +(p2===142?'   ← CORE 420ms 상한':''));
+  }
+  console.log('');
+  console.log('══════════ 048 --manual 끝 ══════════');
+}
+
 `);

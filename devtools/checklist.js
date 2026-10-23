@@ -1,4 +1,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
+// 048 §2② 대체표
+/* ══ 048 §2② 대체 — 견습생은 이제 **첫 회차 최고 웨이브 25** 부터 열린다.
+   그 전에는 `#auto`·`#therm`·`#ad`·`#chg` 가 안 보이고 견습생이 한 타도 안 친다.
+   아래 검사들의 씨앗은 `top:14`(승천 0) 이라 **검사가 볼 것을 못 보거나(LN1·SPC1)
+   조건 자체가 안 생겨 공허해졌다(UA1·L3 — 대기열이 안 차서 「가득」을 못 잰다).**
+   재는 것·판정식은 **한 글자도 안 바꾼다.** 씨앗의 `top` 만 해금 뒤로 옮긴다 —
+   CLAUDE.md 「구현이 배치를 바꿔 검사가 엉뚱한 자리를 재게 되면 구현 세션이 고쳐도
+   된다(무엇을 왜 고쳤는지 지시서에 적고 검증 세션이 독립 재확인)」. ══ */
 // checklist.js — docs/DESIGN.md 하단 「수동 플레이 체크리스트」를 실제 브라우저에서
 // 자동 재현한다. 모바일 폭 380px 고정.
 //
@@ -2247,7 +2255,17 @@ const chk = (name, cond, note) => {
        때문에 이 검사가 성립한다 — 빈칸으로 삼키게 고치면 이 검사가 죽는다.
      ⚠ ko 에서도 **금지어와 키 노출**은 본다(한글만 허용한다). */
   try {
-    const I_BAN = ['spin', 'slot', 'reel', 'jackpot', 'bet', 'gamble', 'lucky', 'casino', 'payout', 'win big'];
+    /* ══ 048 2차 ② — `reel`·`spin` 을 **뺀다** ════════════════════════════════
+       원칙 7 이 2026-10-16 에 「슬롯 릴의 **모양·움직임**은 허용」으로 열렸다(048 §0-3).
+       이 목록은 그때까지 034 판 그대로라 048 1차가 en `ui.reelTip` 을 지시서 원문
+       「Each tap stops one reel」로 못 쓰고 「one symbol」로 돌려 썼다 — **검사를 고쳐
+       통과시킨 것이 아니라, 검사가 낡아 멀쩡한 말을 막고 있었다.**
+       여전히 막는 것(원칙 7 이 명시적으로 금지한 것): 돈·도박을 가리키는 말이다.
+       ⚠ 변이: `slot` 을 화면에 넣은 빌드는 **여전히 운다** — 048 2차 검증이 그것을 본다. */
+    /* 048 검증 세션 — 원칙 7 의 **한국어** 낱말도 막는다(슬롯·잭팟·베팅·카지노). 지금까지 목록은 영어뿐이라
+       ko 문구에 「슬롯」을 넣은 변이가 **I18N1 을 통과했다**(048 검증 실측). 한글은 `\b` 가 안 서므로
+       경계 없이 부분 문자열로 본다(아래 I_SCAN — 한글 낱말이면 `\b`·`\w*` 를 안 붙인다). */
+    const I_BAN = ['slot', 'jackpot', 'bet', 'gamble', 'lucky', 'casino', 'payout', 'win big', '슬롯', '잭팟', '베팅', '카지노'];
     const I_STATES = [
       ['제련 탭', `{ var b=document.getElementById('tbForge'); if(b) b.click(); render(); }`],
       ['대기열 가득·정리 끔', `{ S.autoRes=false; while(S.queue.length<qmax()) S.queue.push(makeItem('hands',3)); render(); }`],
@@ -2293,7 +2311,8 @@ const chk = (name, cond, note) => {
       for(var r=0;r<rows.length;r++){ var x=rows[r].t;
         if(HAN.test(x)) han.push(rows[r].p+' 「'+x.trim().slice(0,34)+'」');
         for(var b=0;b<ban.length;b++){
-          var re=new RegExp('\\\\b'+ban[b].replace(' ','\\\\s+')+'\\\\w*','i');
+          var hb=/[\\uAC00-\\uD7A3]/.test(ban[b]);
+          var re=new RegExp((hb?'':'\\\\b')+ban[b].replace(' ','\\\\s+')+(hb?'':'\\\\w*'),'i');
           var m=re.exec(x); if(m) bad.push(rows[r].p+' 「'+m[0]+'」 in 「'+x.trim().slice(0,34)+'」'); }
         var tk=x.split(/[^A-Za-z0-9._]+/);
         for(var k=0;k<tk.length;k++) if(tk[k]&&keyset[tk[k]]) keyhit.push(rows[r].p+' 「'+tk[k]+'」'); }
@@ -2384,7 +2403,7 @@ const chk = (name, cond, note) => {
   try {
     const spcBad = [], spcRows = [];
     for (const vp of TB8_SIZES) {
-      const pg = await tbOpen(12, vp.w, vp.h, { queue: [], charge: 600 });
+      const pg = await tbOpen(30, vp.w, vp.h, { queue: [], charge: 600 });   /* 048 §2② — 「두드리기 + 숫자」는 견습생 해금 뒤의 캡션이다(그 전엔 #chg 가 없다) */
       const r = await pg.evaluate(() => {
         S.queue = []; S.charge = 600; render();
         /* 047 §2③ 대체 — `#spinlbl`·`#chg`·`#spinq` 세 조각이 `#spin` 안에서
@@ -3556,9 +3575,9 @@ const chk = (name, cond, note) => {
       p.on('console', m => { if (m.type() === 'error' || m.type() === 'assert') lnErr.push(`${lang} ${nm} ${m.text()}`); });
       p.on('dialog', d => d.accept().catch(() => {}));
       await p.addInitScript(() => { try { localStorage.setItem('forge', JSON.stringify(
-        { wave: 12, top: 14, peak: 14, gold: 500, tok: 2, lv: 0, star: 0, charge: 600, queue: [], equip: {},
+        { wave: 12, top: 30, peak: 14, gold: 500, tok: 2, lv: 0, star: 0, charge: 600, queue: [], equip: {},
           asell: new Array(15).fill(false), t: Date.now(), auto: false, autoRes: true,
-          dust: 0, tech: {}, tk: 0, pos: 0, best: 0 })); } catch (e) {} });
+          dust: 0, tech: {}, tk: 0, pos: 0, best: 0 })); } catch (e) {} });   /* 048 §2② — top 14→30 (견습생 해금 뒤라야 #auto 가 보인다) */
       await p.goto(LN_BASE + '?lang=' + lang);
       await p.evaluate(() => { try { window.save = () => {}; } catch (e) {} });
       await p.waitForTimeout(1500);
@@ -3823,7 +3842,10 @@ const chk = (name, cond, note) => {
       p.on('console', m => { if (m.type() === 'error' || m.type() === 'assert') es.push(m.text()); });
       p.on('dialog', d => d.accept().catch(() => {}));
       await p.addInitScript(st => { try { localStorage.setItem('forge', JSON.stringify(
-        { wave: 12, top: 14, peak: 14, gold: 0, tok: 2, lv: 0, star: st, charge: 600, queue: [], equip: {},
+        /* 048 §2② — `top` 14→30. 승천 0 에서 견습생이 안 열리면 대기열이 안 차서
+           UA1 의 「가득에서 선다」가 **공허하게 통과**한다(실측: 스핀 0회·대기열 0/10).
+           재는 것은 그대로 — 승천 0 에서 자동 «정리»가 도는가다. */
+        { wave: 12, top: 30, peak: 14, gold: 0, tok: 2, lv: 0, star: st, charge: 600, queue: [], equip: {},
           asell: new Array(15).fill(false), t: Date.now(), auto: true, autoRes: true,
           dust: 0, tech: {}, tk: 0, pos: 0, best: 0 })); } catch (e) {} }, star);
       await p.goto(URL);
@@ -3966,7 +3988,7 @@ const chk = (name, cond, note) => {
       const L3_IDS = ['spin', 'auto', 'up', 'bInfo', 'open', 'autores', 'qband', 'gear', 'scene', 'asc', 'tbForge', 'pity', 'reels'];
       const bad = [], rows = [];
       for (const [w, h] of [[380, 820], [800, 450]]) {
-        const p = await xOpen({ star: 0, auto: false, queue: [] }, w, h);
+        const p = await xOpen({ star: 0, top: 30, auto: false, queue: [] }, w, h);   /* 048 §2② — 견습생 해금 뒤라야 대기열이 찬다(공허성) */
         const r = await p.evaluate(async ids => {
           const rect = id => { const e = document.getElementById(id); if (!e) return null; const r = e.getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; };
           const base = {}, mx = {}; ids.forEach(i => { base[i] = rect(i); mx[i] = 0; });
@@ -4045,8 +4067,36 @@ const chk = (name, cond, note) => {
         (labels === 0 ? ' · ⚠ 「+N」 길을 한 번도 못 열었다(공허)' : '') + (errs.length ? ` · 콘솔 ${errs.slice(0, 2).join(' | ')}` : '') +
         '  · 3차 빌드는 「+N」 칸이 전부 운다 (047 3차 검증)');
     }
+
+    /* RL1 — 릴은 차례로 선다 (048 검증 세션 신설 · 048 1차 제안 5, 계획 세션이 검증 세션 몫으로 넘김)
+       048 의 「빨리 세 번 쳐도 0.12초 간격으로 차례로 선다」는 `REEL_DUR`(멈춤 감속)이
+       **커지는 순서**일 때만 보장된다. 들쭉날쭉하면 뒤 릴이 먼저 다 서서 둘이 겹친다
+       (048 1차 실측: [150,185,135] → 70ms 차). 상수를 만지는 사람이 그 계약을 모르면 다시 깨진다.
+       잰다: 진짜 포인터로 `#spin` 을 40ms 간격 세 번 → 릴마다 `stopped` 가 된 rAF 시각 →
+       0<1<2 순서 · 이웃 간격 ≥100ms. 판 3번의 **중앙값**으로 본다(무거운 판의 rAF 한 번 밀림에 안 흔들리게).
+       변이(048 검증 실측): `REEL_DUR=[150,185,135]` → 운다. */
+    {
+      const runs = [];
+      for (let k = 0; k < 3; k++) {
+        const p = await xOpen({ asell: new Array(15).fill(true) }); const pt = await spinAt(p);
+        await p.evaluate(() => { window.__rl1 = []; const loop = () => {
+          try { FG.reels.forEach((r, i) => { if (r.state === 'stopped' && window.__rl1[i] == null) window.__rl1[i] = performance.now(); }); } catch (e) {}
+          if (window.__rl1.filter(x => x != null).length < 3) requestAnimationFrame(loop); }; requestAnimationFrame(loop); });
+        for (let i = 0; i < 3; i++) { await p.mouse.click(pt.x, pt.y); await p.waitForTimeout(40); }
+        await p.waitForTimeout(1500);
+        const t = await p.evaluate(() => window.__rl1);
+        runs.push({ ok: t.length === 3 && t[0] < t[1] && t[1] < t[2], g: [t[1] - t[0], t[2] - t[1]], es: p.__es.length });
+        await p.__c.close();
+      }
+      const med = a => a.slice().sort((x, y) => x - y)[1];
+      const g1 = med(runs.map(r => r.g[0])), g2 = med(runs.map(r => r.g[1]));
+      chk('RL1 빨리 세 번 → 릴이 차례로 선다 (0<1<2 · 이웃 간격 ≥100ms · 판 3번 중앙값)',
+        runs.every(r => r.ok && r.es === 0) && g1 >= 100 && g2 >= 100,
+        `간격 ${runs.map(r => r.g.map(x => Math.round(x)).join('/')).join(' · ')}ms → 중앙값 ${Math.round(g1)}·${Math.round(g2)}ms` +
+        '  · REEL_DUR 이 커지는 순서가 아니면 운다 (048 1차 ⑤-3)');
+    }
   } catch (e) {
-    chk('FX-예외 FX1·RF1·L3·QD1 검사가 완주했다', false, '조작 중 예외: ' + String((e && e.message) || e));
+    chk('FX-예외 FX1·RF1·L3·QD1·RL1 검사가 완주했다', false, '조작 중 예외: ' + String((e && e.message) || e));
   }
   // ── FX1·RF1·L3 끝
 
