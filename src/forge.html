@@ -57,21 +57,83 @@ body{
 #gdStart h2{font-size:22px;letter-spacing:.18em;color:var(--brass);margin:0 0 18px}
 #gdStart button{min-width:160px;padding:12px 18px;font-size:15px}
 #adwall.on{display:block}
-/* 상단 HUD — 웨이브·체력·재화. 어느 단이 스크롤되든 항상 보인다. */
-#hud{flex:none;padding:10px 10px 0}
-/* 전투 무대 (013). 캔버스가 그리는 자리라 **배경이 없어야 한다.**
-   높이를 vh 로 묶는 이유: 짧은 창(1280×600)에서 무대가 중앙 포커스를 밀어내면
-   008 이 고친 하단 차단이 되살아난다. */
-#arena{height:clamp(60px,12vh,96px);margin:8px 0 2px;background:none;
+/* ══ 047 R1 — 세로 우선 골격 ══════════════════════════════════════
+   010 의 세로 3단(#hud·#focus·#manage)을 여덟 줄로 바꾼다. **스크롤이 없는 것이
+   목표다**(L1): 남는 세로를 먹는 것은 모루 장면 하나뿐이고 나머지는 전부 고정
+   높이다. `#focus`·`#manage` 규칙은 지웠다 — 그 두 요소가 더 이상 없고, 남겨 두면
+   새 배치를 몰래 미는 옛 규칙이 된다(047 §2② 의 요구).
+
+   지운 것과 이유:
+   ① `#focus{flex:1;overflow-y:auto}` — 중앙 칸이 자체 스크롤을 갖던 자리. 이제
+      스크롤 자체를 없애는 것이 완료 조건이라(L1) 스크롤 통을 두지 않는다.
+   ② `#focus>#forge{min-height:100%;justify-content:center}` — 031 §4 가 가로에서
+      「텅 빈 띠」로 고생한 그 규칙. 장면이 `flex:1` 로 직접 자라므로 필요 없다.
+   ③ `#manage{max-height:30vh;overflow-y:auto}` — 단 자체가 없어졌다.
+   ④ `#arena{height:clamp(60px,12vh,96px)}` — 무대가 작아서 HUD 에 눌려 있었다.
+      047 은 무대를 `clamp(120px,26vh,240px)` 로 키우고 몹·체력 줄을 그 **위에
+      겹친다**(HUD 한 줄 40px). */
+#hud{flex:none;padding:8px 10px 0}
+#hudbar{margin-bottom:0;padding:7px 9px;min-height:40px;display:flex;align-items:center}
+#hudbar>.row{width:100%}
+/* 전투 무대 (013). 캔버스가 그리는 자리라 **배경이 없어야 한다**(017 「칠했다 ≠
+   보인다」). 047: 몹 줄·체력 막대·적 글자가 이 안에 겹쳐 앉는다. */
+#arena{position:relative;height:clamp(120px,26vh,240px);margin:6px 0 0;background:none;
   border-radius:4px;overflow:hidden}
-/* 중앙 포커스 — 모루와 화로. 남는 세로를 전부 가져가 화면에서 가장 큰 비중이 된다. */
-#focus{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:0 10px}
-#focus>#forge{margin-bottom:0;min-height:100%;
-  display:flex;flex-direction:column;justify-content:center}
-/* 하단 관리 패널 — 대기열·장비·테크·층. **자체 스크롤**을 가진다.
-   40vh 로 묶는 이유: 관리 패널이 길어져도 중앙 포커스를 밀어내지 못하게 한다. */
-#manage{flex:0 1 auto;min-height:104px;max-height:30vh;
-  overflow-y:auto;overscroll-behavior:contain;padding:0 10px 14px}
+#arena>#mob{position:absolute;left:0;right:0;top:4px;margin:0}
+/* 체력 막대와 적 글자는 무대 바닥에 붙는다 — 무대 픽셀을 가리지 않게 아래 끝이다. */
+#arenafoot{position:absolute;left:6px;right:6px;bottom:4px}
+#arenafoot>#bar,#arenafoot>#hpbar{margin:0 0 2px}
+/* `#foes` 는 CORE 의 newWave() 가 글자를 쓰는 자리라 **지우지 않는다.** 무대 위
+   글자는 첫 화면의 글자 수를 늘리므로 작고 흐리게 둔다(§2① 「글자」). */
+#arenafoot>#foes{font-size:11px;color:var(--dim);text-align:center;line-height:1.3}
+
+/* ── 모루 장면 (047 §2③) ──
+   남는 세로를 **전부** 먹는 유일한 줄이다. 탭 판 밖에 있다(HTML 주석 참고). */
+#scene{flex:1 1 auto;min-height:150px;display:flex;flex-direction:column;
+  padding:6px 10px 0;min-width:0}
+/* 세로에서 다른 탭을 고르면 장면이 함께 사라진다(§2② — 「장면 포함」).
+   가로에서는 아래 질의가 이 규칙을 되돌린다(왼쪽 칸은 그대로). */
+body[data-tab="tower"] #scene,body[data-tab="tech"] #scene{display:none}
+
+/* ── 열기 줄 · 손잡이 줄 · 장비 띠 · 대기열 띠 ── 전부 고정 높이다. */
+#openrow{flex:none;display:flex;align-items:center;gap:8px;height:32px;padding:0 10px}
+#bInfo{flex:none;font-size:11px;padding:5px 10px;min-height:26px;letter-spacing:.06em}
+#dock{display:flex;flex-direction:column;gap:6px;padding:6px 10px 0;min-width:0}
+#handles{flex:none;display:flex;gap:6px;height:44px}
+#handles>button{flex:1;min-width:0;font-size:12px;padding:6px 4px;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+#gearband{flex:none;position:relative;padding-top:13px}
+/* 전투력은 띠 **위에 작게** 얹는다 — 줄 하나를 더 쓰지 않으려는 자리다. */
+#pwrap{position:absolute;left:0;top:0;font-size:11px;line-height:1.1}
+#pwrap>b{color:var(--text)}
+/* 대기열 띠 — 비어도 같은 자리·같은 높이(041 제안 9 · 검사 L3). */
+#qband{position:relative;flex:none;display:flex;align-items:center;gap:8px;min-height:28px}
+#qband>#open{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:5px;
+  font-size:11px;padding:4px 8px;min-height:28px;text-align:left;
+  background:linear-gradient(180deg,#1b2229,#12171d)}
+/* 대기 장비 하나당 등급색 점 하나. 빈 칸도 점으로 자리를 지킨다. */
+/* ⚠ 점 줄이 `flex:1` 로 폭을 다 먹으면 오른쪽 안내 글자가 접힌다 — 가로의 좁은
+   오른쪽 칸(800×450 에서 332px)에서 실측했다(「At 1st Ascend」가 두 줄). 점은
+   **장식**이고 「대기 N/M」이 기록이다: 점이 먼저 줄어들고, 넘치면 잘린다. */
+#qdots{display:flex;align-items:center;gap:3px;margin-left:6px;flex:1 1 0;min-width:0;
+  overflow:hidden}
+#qband>#autores{flex:none;white-space:nowrap}   /* 안내 글자 쪽은 아래 #autoresLock 규칙이 든다 */
+#qdots i{flex:none;width:7px;height:7px;border-radius:50%;background:var(--line);
+  border:1px solid var(--edge)}
+/* 047 3차 ⑤ — 들어가지 않은 나머지는 마지막 자리에서 「+N」으로 말한다.
+   점이 아니므로 동그라미·테두리를 벗고 숫자만 남는다. */
+#qdots i.more,#qband>i.qmore{width:auto;height:auto;border:0;background:none;border-radius:0;
+  font-size:11px;line-height:1;color:var(--dim);white-space:nowrap;
+  font-family:ui-monospace,Menlo,monospace}
+/* 047 4차 — 글자는 **줄지 않는다.** 폭을 미리 떼 놓았으므로 `flex` 가 다시 눌러
+   말줄임·잘림을 만들면 안 된다(3차의 결함이 바로 그 잘림이었다). */
+#qdots i.more{flex:none}
+/* 재는 탐침 — `.more` 와 같은 서체·크기를 받되 흐름 밖에 있어 자리를 안 쓴다. */
+#qband>i.qmore{position:absolute;left:-9999px;top:0;visibility:hidden;pointer-events:none}
+#qdots i.on{border-color:currentColor;background:currentColor;
+  box-shadow:0 0 5px -1px currentColor}
+@keyframes qdotPop{0%,100%{transform:scale(1)}45%{transform:scale(1.9)}}
+#qdots i.fresh{animation:qdotPop .42s ease-out 2}
 /* ── 탭 (016) ──
    **라우터가 아니다.** 판 넷이 전부 DOM 에 살아 있고 보이는 것 하나만 바뀐다.
    해시·history·주소를 건드리지 않으므로 뒤로가기가 게임을 떠나는 동작 그대로다.
@@ -175,7 +237,11 @@ button:disabled{opacity:.35;cursor:default;box-shadow:none}
 #autores{flex:none;font-size:11px;padding:5px 10px;min-height:28px;letter-spacing:.06em}
 /* 041 ③ — 잠긴 동안의 안내. **버튼이 아니다**(누를 수 없다). 글자 크기는 `.dim` 의
    11px 그대로(LG1·LG2 문턱). 줄이 좁아지면 이 글자가 먼저 줄어들게 둔다. */
-#autoresLock{flex:0 1 auto;min-width:0;text-align:right;line-height:1.3}
+/* 047 §2① — 대기열 띠에서 이 글자는 **줄지 않는다**(`flex:none`). 041 의
+   `flex:0 1 auto;min-width:0` 은 이 규칙이 `#qband` 쪽 선언보다 **뒤에 있어서**
+   그것을 이기고 79px 글자를 75px 로 눌러 4px 을 삐져나가게 했다(800×450 실측).
+   줄어들 몫은 점 줄(`#qdots`)이 진다 — 점은 장식이고 「대기 N/M」이 기록이다. */
+#autoresLock{flex:none;white-space:nowrap;text-align:right;line-height:1.3}
 /* 041 2차 (제안 ① 판정) — 해금 순간 「정리」가 **세 번 반짝인다**. `#msg` 한 줄은
    자동 제련이 켜져 있으면 다음 제련 결과가 14~83ms 만에 덮어 버려 사실상 안 보인다
    (검증 세션 실측). 붙잡으려면 CORE 의 `spin()` 을 건드려야 하므로 알림을 **버튼 쪽에**
@@ -252,15 +318,79 @@ button:disabled{opacity:.35;cursor:default;box-shadow:none}
 /* 008: 가운데 패널과 화로 창의 **바탕만** 캔버스로 넘겼다. 테두리·리벳·릴 타일은
    DOM 그대로라 checklist 선택자는 하나도 안 잃는다. 배경을 여기 되살리면
    캔버스가 그린 모루·불빛을 덮어 버린다. */
-#forge{text-align:center;padding:14px 11px 12px;background:none}
+/* ══ 047 §2③ — 모루 장면 ═════════════════════════════════════════
+   `#forge` 가 장면 전체이고 `#spin` 이 그 위를 덮는 **투명한 버튼**이다.
+   장면 어디를 눌러도 친다. 쌓임 순서가 전부다:
+     `#spin`(z 0, DOM 맨 앞) < `#hearth`/`#msg`/캡션(z 1) < `#pity`·`#asc`(z 2)
+   `#pity`·`#asc`·`.reel` 은 각자의 일을 하고, 그 밖의 빈 자리는 전부 치기다. */
+/* 위 여백 30px 은 **압력계가 앉을 자리**다. 안 두면 `#pity` 가 첫 문양 칸을 덮는다
+   (화면 실측 — 047-380x820-star1 에서 「Pressure 0/80」이 첫 칸 위에 올라탔다). */
+#forge{position:relative;text-align:center;padding:30px 11px 8px;background:none;
+  flex:1 1 auto;min-height:0;display:flex;flex-direction:column;justify-content:center}
+#spin{position:absolute;inset:0;width:100%;height:100%;padding:0;margin:0;
+  background:none;border:0;border-radius:9px;z-index:0;cursor:pointer}
+/* 키보드(데스크톱 포털): Space/Enter 로 친다 — 포커스가 보여야 한다(§2③). */
+#spin:focus-visible{outline:2px solid var(--brass);outline-offset:-3px}
+#spin:disabled{cursor:default}
+#forge>#hearth,#forge>#msg,#forge>#spincap{position:relative;z-index:1}
+/* ⚠ 「장면 어디를 눌러도 친다」(§2③)를 실제로 만드는 줄이다. 얹힌 것들이 위에
+   있기만 하면 **그 자리를 누를 때 아무 일도 안 난다** — 검사 L2 가 `#spin` 의
+   가운데 점이 `#msg`·`#hearth` 에 막히는 것으로 그 구멍을 잡았다. 보기만 하는
+   것은 클릭을 흘려보내고, 누르는 것(`.reel`·`#pity`·`#asc`)만 받는다. */
+#forge>#msg,#forge>#spincap,#hearth{pointer-events:none}
+#hearth .reel{pointer-events:auto}
+#forge>#pity,#forge>#asc{z-index:2}
+/* 압력계는 장면 **왼쪽 위에 얹힌다**. 흐름에서 빼야 041 검증이 잡은
+   「#pity 줄이 #asc 를 30px 덮어 승천 배너를 못 누른다」가 구조적으로 못 생긴다
+   (§2⑥(b) · 검사 L2) — 둘이 같은 흐름을 다투지 않고 서로 다른 모서리에 선다. */
+#pity{position:absolute;left:10px;top:8px;margin:0;z-index:2;
+  display:flex;align-items:center;gap:6px;transform:scale(.82);transform-origin:left top}
+/* 승천 배너는 장면 **맨 위 가운데**. 눌리는 것이 목적이라 압력계와 겹치지 않게
+   왼쪽을 비워 둔다. */
+#asc{position:absolute;left:auto;right:10px;top:8px;width:auto;min-width:96px;
+  z-index:2;font-size:12px;padding:7px 12px}
+/* 모루 아래 한 줄 캡션. 033 ② 의 「대기열 정리」 글자 바꿈이 여기서 일어난다 —
+   바꾸는 쪽(renderFast)은 그대로 `#spinlbl`·`#chg`·`#spinq` 를 쓴다. */
+#spincap{font-size:11px;margin-top:auto;padding-top:6px;letter-spacing:.04em}
+#spincap>span:empty{display:none}
+
+/* ══ 047 §2⑤-3 — 가림막은 **부모 속성**이다 ════════════════════════════
+   `#forge[data-veiled]` + `[data-shown="k"]` 로 k 번째 뒤의 문양 칸을 덮고
+   `#msg` 를 감춘다.
+   ⚠ **자식 클래스로 걸면 안 된다.** CORE 가 `#msg.className=` 로 통째로 덮고
+     `.reel` 의 클래스를 붙였다 뗀다(047 §1 ②④) — 거기에 얹은 클래스는 다음
+     스핀에서 조용히 사라진다. 부모 속성은 CORE 가 한 번도 안 만진다.
+   ⚠ `visibility` 로 감춘다(`display` 가 아니라) — 자리가 변하면 L3(틱이 자리를
+     안 바꾼다)가 운다. */
+#forge[data-veiled] #msg{visibility:hidden}
+#forge[data-veiled] .reel::after{
+  content:"?";position:absolute;inset:0;z-index:3;border-radius:3px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:15px;font-weight:700;color:#5d6977;letter-spacing:0;
+  background:linear-gradient(180deg,#161c23,#0a0d11);
+}
+/* 드러난 칸은 덮개를 치운다. `data-shown` 이 k 면 앞에서 k 개가 열려 있다. */
+#forge[data-veiled][data-shown="1"] .reel:nth-child(-n+1)::after,
+#forge[data-veiled][data-shown="2"] .reel:nth-child(-n+2)::after,
+#forge[data-veiled][data-shown="3"] .reel:nth-child(-n+3)::after,
+#forge[data-veiled][data-shown="4"] .reel:nth-child(-n+4)::after,
+#forge[data-veiled][data-shown="5"] .reel:nth-child(-n+5)::after{display:none}
+/* 목업의 「이은 고리」 — 두 번째 문양부터 앞 문양과 같으면 그 칸을 강조한다(CSS 만). */
+/* 이은 고리 — 두 번째 문양부터 앞 문양과 같으면 그 칸을 강조한다(CSS 만). */
+.reel.echo{border-color:var(--brass);box-shadow:inset 0 0 11px rgba(0,0,0,.9),0 0 8px -1px var(--brass)}
+/* 047 3차 ③ — 길게 눌러 고정이 걸린(또는 풀린) 그 순간만 한 번. 길게 누르기는
+   눈에 안 보이는 조작이라 「먹혔다」는 신호가 없으면 사람이 또 누른다. */
+@keyframes reelHeld{0%,100%{box-shadow:inset 0 0 11px rgba(0,0,0,.9)}
+  45%{box-shadow:0 0 0 2px var(--ember),inset 0 0 11px rgba(0,0,0,.9)}}
+.reel.held{animation:reelHeld .34s ease-out 1}
+@media (prefers-reduced-motion:reduce){ .reel.held{animation:none} }
 #hearth{
   position:relative;display:flex;align-items:stretch;gap:7px;
-  /* 남는 세로는 화로가 먹는다 — 중앙 포커스가 커지는 방식이 이것이다.
-     릴은 아래 #reels 의 align-items:center 로 정사각을 유지한다.
-     240px 에서 멈추는 이유: 넓은 화면에서 끝없이 늘어나면 릴 세 칸이 떠 있는
-     빈 상자가 된다. 남는 세로는 패널이 justify-content:center 로 위아래에 나눈다. */
-  flex:1 1 auto;min-height:78px;max-height:240px;
-  margin:9px 0 10px;padding:8px;border-radius:9px 9px 4px 4px;
+  /* 047: 장면이 남는 세로를 먹고, 화로는 **문양 칸을 담는 띠**로 남는다.
+     상한을 두는 이유는 013 주석과 같다 — 끝없이 늘어나면 문양 세 칸이 떠 있는
+     빈 상자가 된다. 아래 여백은 모루(캔버스)가 앉는 자리다. */
+  flex:0 1 auto;min-height:78px;max-height:200px;
+  margin:0 0 8px;padding:8px;border-radius:9px 9px 4px 4px;
   background:none;                     /* → 캔버스 gHearth */
   border:1px solid var(--edge);
   box-shadow:inset 0 0 24px rgba(0,0,0,.6),0 1px 0 rgba(255,255,255,.05);
@@ -274,17 +404,22 @@ button:disabled{opacity:.35;cursor:default;box-shadow:none}
 }
 @keyframes steam{from{opacity:.3;transform:translateY(-3%)}to{opacity:1;transform:translateY(3%)}}
 
-/* 세로 온도계 = 남은 충전 */
+/* 047 §2① — 온도계가 **가로 막대**로 눕는다(열기 줄). 채우는 쪽은
+   renderFast 가 그대로 `#thermf` 의 길이를 쓴다 — 높이에서 폭으로만 바뀐다. */
 #therm{
-  width:11px;flex:none;position:relative;overflow:hidden;border-radius:6px;
+  flex:1 1 auto;height:11px;min-width:0;position:relative;overflow:hidden;border-radius:6px;
   border:1px solid var(--edge);background:linear-gradient(180deg,#0a0d11,#161c23);
   box-shadow:inset 0 0 5px rgba(0,0,0,.9);
 }
-#thermf{position:absolute;left:0;bottom:0;width:100%;height:0%;
-  background:linear-gradient(0deg,#ff4a15,#ff9c3c 58%,#ffd98a);
-  box-shadow:0 0 9px rgba(255,107,44,.75);transition:height .3s ease-out}
+#thermf{position:absolute;left:0;top:0;height:100%;width:0%;
+  background:linear-gradient(90deg,#ff4a15,#ff9c3c 58%,#ffd98a);
+  box-shadow:0 0 9px rgba(255,107,44,.75);transition:width .3s ease-out}
 #therm::after{content:"";position:absolute;inset:0;pointer-events:none;
-  background:repeating-linear-gradient(0deg,transparent 0 7px,rgba(255,255,255,.15) 7px 8px)}
+  background:repeating-linear-gradient(90deg,transparent 0 7px,rgba(255,255,255,.15) 7px 8px)}
+/* 치려 했는데 못 쳤을 때 한 번 깜빡인다(§2⑤-1 — 새 팝업·새 글자 없음). */
+@keyframes barDeny{0%,100%{box-shadow:inset 0 0 5px rgba(0,0,0,.9)}
+  50%{box-shadow:0 0 0 2px var(--ember),inset 0 0 5px rgba(0,0,0,.9)}}
+#therm.deny,#qband.deny>#open{animation:barDeny .3s ease-out 2}
 
 #reels{display:flex;justify-content:center;align-items:center;gap:6px;flex:1;min-width:0}
 /* 릴 = 화로 창. 세로 릴 스트립이 아니라 재료가 달궈지는 창 하나. */
@@ -358,11 +493,24 @@ button:disabled{opacity:.35;cursor:default;box-shadow:none}
 /* 031 §3: 11px 로 올리자 #gear 의 «가로» 넘침이 380×820 11px · 821×462 14px ·
    800×450 23px 로 생겼다. 칸(1fr)·글자 크기·아이콘은 그대로 두고 여백만 줄인다.
    간격 5→2, 칸 좌우 여백 4→2 = 폭 한 줄에 14px 을 되돌린다. */
-#gear{display:grid;grid-template-columns:repeat(3,1fr);gap:2px}
+/* 047 §2① — 장비 띠는 **6칸 한 줄**(정사각 · 등급색 테두리 · 글자 없음).
+   원칙 8 그대로 착용 6칸뿐이고 인벤토리가 아니다. 글자를 뺀 자리는 `title` 이
+   든다(§2① 「좁은 칸에서 줄인 말」 규약 — 041 제안 7). */
+/* 칸이 끝없이 커지지 않게 상한을 둔다 — 띠는 **보는 줄**이라 56~64px 이 목표다
+   (§2① 표). 남는 폭은 양옆으로 흘린다. */
+#gear{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;
+  max-width:384px;margin:0 auto}
 .slot{background:linear-gradient(180deg,#1b2229,#12171d);border:1px solid #3f4a56;
-  border-radius:4px;padding:6px 2px;text-align:center;
+  /* ⚠ 여백 0 이다. 명판(`.pl`)이 48px 스프라이트 + 자기 여백으로 **54px 고정**이라
+     (012 의 정수 배율 — 늘이거나 줄이면 픽셀이 뭉개진다), 칸에 여백을 주면 내용이
+     칸보다 커져 `aspect-ratio:1` 이 져서 **칸이 세로로 길어진다**(380×820 에서
+     58.5×62 — 2차 신설 GR2 가 잡았다). 명판이 곧 칸의 내용이 되게 둔다. */
+  border-radius:4px;padding:0;text-align:center;aspect-ratio:1;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
-.slot .pl{margin-bottom:2px;padding:3px}
+.slot .pl{margin-bottom:0;padding:2px}
+/* 등급색은 **테두리**로만 말한다 — 글자 줄 둘(`.gd`·`.op`)은 띠에서 뺐다. */
+.slot .gd,.slot .op{display:none}
 .slot .gd{font-size:11px;font-weight:700;margin-top:2px}
 /* 031 §3: 여백만으로는 800×450 에서 5px 이 남는다(실측). 말줄임으로 글자를 지우는
    대신 두 줄로 흘린다 — keep-all 로 「공격」 같은 낱말은 쪼개지지 않고, 줄바꿈 자리는
@@ -576,87 +724,81 @@ button:disabled{opacity:.35;cursor:default;box-shadow:none}
 .delta{font-weight:700}
 .up{color:#7ec98a}.down{color:#e07070}
 
-/* ══ 030 — 가로형 배치 ═══════════════════════════════════════════════════
-   CrazyGames 틀은 **전부 16:9 가로**이고, 그중 「가장 중요」로 적힌 넷
-   (821×462·907×510·1077×606·1216×684)은 세로가 1280×720 보다도 짧다.
-   010 의 세로 3단을 그 틀에 그대로 넣으면 `#focus` 가 조여서 **제련 버튼이 첫
-   화면에서 밀려난다** — 027 제안 ⑵ 가 찾았고 030 검증이 31칸 중 14칸 FAIL 로
-   숫자를 박았다. 그 14칸이 **전부 `#spin`** 이다.
+/* ══ 047 §2② — 가로 · 큰 화면: 두 칸 ════════════════════════════════════
+   030 이 세운 가로 두 칸을 R1 골격으로 **다시 쓴다**. 030 의 규칙을 남겨 두면
+   없어진 `#focus`·`#manage` 를 겨누는 죽은 선택자가 새 배치를 몰래 민다
+   (047 §2② 의 요구). 지운 030 규칙과 이유:
 
-   ⚠ **이 절은 `orientation:landscape` 에서만 켜진다. 세로(380×820)는 이 파일의
-     나머지 그대로이고, 030 은 그 바깥을 한 글자도 안 고쳤다.**
+   | 지운 규칙 | 왜 |
+   |---|---|
+   | `#tabForge.on{flex-direction:row}` + `#focus{flex:1 1 56%}` + `#manage{flex:1 1 44%}` | 두 칸을 **탭 판 안에서** 나누던 방식. R1 은 장면이 탭 판 밖이라(§2② 「오른쪽 칸만 바뀐다」) 칸 나누기가 `body` 격자로 올라간다. |
+   | `#focus>#forge{min-height:0;max-height:100%}` · `#hearth{min-height:118px}` · `#hearth{max-height:168px}` | 031 §4·033 이 「텅 빈 띠」와 TB8 을 맞바꿔 가며 조율한 값들. 그 균형의 전제(`#focus` 가 스크롤 통이고 패널이 칸 높이에 묶인다)가 R1 에 없다 — 장면이 `flex:1` 로 직접 자란다. |
+   | `#hud{display:flex}` + `#hud>.panel{flex:0 1 340px}` | HUD 를 계기판 옆 무대로 펴던 자리. R1 은 HUD 가 이미 **한 줄 40px** 이고 무대는 그 아래 제 칸을 갖는다. |
+   | `body{max-width:min(100%,1120px)}` | 상한을 **1400px** 로 올린다(§2② 「전체 폭 상한 1400px」). |
 
-   방향은 지시서가 준 그대로 — **위아래로 쌓던 것을 옆으로 편다.** 두 군데다:
-     ① `#hud` : 계기판 옆에 무대를 세운다 (세로 ~70px 을 되찾고 무대는 오히려 커진다)
-     ② `#tabForge` : 왼쪽 «누르는 것»(#focus) · 오른쪽 «보는 것»(#manage)
-   JS 배치 엔진도 라우터도 새 화면도 없다. 미디어 질의 하나다. */
+   남긴 것: `#plate{display:none}`(포털 틀이 제목을 든다) · 던전·테크 글줄 묶기. */
 @media (orientation:landscape){
-  /* 480px 묶음을 푼다. 다만 **1120 에서 다시 묶는다** — 안 묶으면 1920 틀에서
-     무대가 통째로 늘어나 몹 여덟이 화면 끝까지 흩어지고(013 간격 규약), 던전·테크의
-     글줄이 한 줄로 늘어져 읽기가 나빠진다. 010 의 「폭을 묶는다」를 버리는 게 아니라
-     **묶는 값을 가로용으로 다시 고르는** 것이다. */
-  body{max-width:min(100%,1120px)}
+  /* 세로형의 480px 묶음을 풀고 가로용 상한으로 다시 묶는다. 남는 양옆은
+     `#stage` 캔버스가 채운다(빈 회색 금지 — 036 흡수). body 에 배경을 주지 않는
+     이유는 007 그대로다: 쌓임 맥락이 생기면 캔버스 층이 어긋난다. */
+  body{max-width:min(100%,1400px);
+    display:grid;grid-template-columns:58fr 42fr;
+    grid-template-rows:auto minmax(0,1fr) auto;
+    column-gap:10px;align-items:stretch}
 
   /* 명판을 접는다. 포털 틀이 이미 게임 제목을 들고 있고, 세로 462 에서 41px 은
-     제련 버튼 한 줄 값이다. **DOM 에는 그대로 있다** — 선택자가 죽지 않는다. */
+     손잡이 한 줄 값이다. **DOM 에는 그대로 있다** — 선택자가 죽지 않는다. */
   #plate{display:none}
 
-  /* ① HUD 를 가로로 — 계기판 | 무대 */
-  #hud{display:flex;align-items:stretch;gap:10px;padding:8px 12px 0}
-  #hud>.panel{flex:0 1 340px;min-width:0;margin-bottom:0}
-  /* 무대는 남는 폭을 전부 먹고 계기판과 **같은 높이**로 선다. 세로형의
-     `clamp(60px,12vh,96px)` 를 여기서만 푼다 — 가로에서는 높이를 옆칸이 정한다.
-     min-height 는 013 의 3층 패럴랙스가 뭉개지지 않는 하한이다. */
-  #arena{flex:1 1 auto;height:auto;min-height:92px;margin:0;align-self:stretch}
+  /* 왼쪽 칸 = HUD · 무대 · 모루 장면 · 열기 줄 */
+  #hud{grid-column:1;grid-row:1;padding:8px 0 0 12px}
+  #scene{grid-column:1;grid-row:2;padding:6px 0 0 12px}
+  #openrow{grid-column:1;grid-row:3;padding:0 0 8px 12px}
+  /* 가로에서는 **다른 탭을 골라도 왼쪽은 그대로다**(§2②). 세로 전용 숨김을 끈다. */
+  body[data-tab="tower"] #scene,body[data-tab="tech"] #scene{display:flex}
 
-  /* ② 제련 탭을 두 칸으로 */
-  #tabForge.on{flex-direction:row;align-items:stretch;gap:10px;padding-top:8px}
-  #focus{flex:1 1 56%;min-width:0;padding:0 0 8px 12px}
-  /* 031 §4 — **넓고 높은 가로 창에서 #focus 가 텅 비던 것.**
-     원인: `#focus>#forge{min-height:100%}` + `justify-content:center` 다. 세로형에서는
-     3단이 먼저 조여서 `#focus` 가 내용보다 조금 클 뿐이라(위아래 13px) 안 보였는데,
-     가로 두 칸은 `align-items:stretch` 로 왼칸이 **줄 전체 높이**가 되므로 그 차이가
-     그대로 빈 띠가 된다 — 1918×940 실측 **위 220px · 아래 218px**(사용자 화면과 일치).
-     값은 아니고 «자리»의 문제라 가로에서만 스트레치를 끈다: 패널이 내용만큼만
-     커지고 무대 바로 아래에 붙는다.
-     ⚠ 그냥 끄면 화로가 `flex:1` 로 자라던 몫을 잃어 78px(하한)로 주저앉는다.
-       그래서 화로에 가로용 하한을 준다 — 릴은 `max-width:74px` 라 이 값에서 크기가
-       안 변한다(화로가 92px 일 때 이미 74px 로 포화). 즉 **릴은 그대로, 빈 유리만 준다.**
-     ⚠⚠ `min-height:0` **만** 두면 TB8 의 「배너/제련」 칸 둘이 깨진다(실측: 821×462
-       #spin 세로 76%만 · 800×450 44%만). 강제 높이가 사라지자 패널이 내용만큼 «자라서»
-       짧은 창에서는 `#focus` 밖으로 넘친다 — 예전에는 `min-height:100%` 가 패널을 칸
-       높이에 **묶어** 두어 화로가 100·92px 까지 눌리며 자리를 내줬다. 그래서 하한을 0 으로
-       내리는 동시에 **상한을 칸 높이로 올린다**: 남으면 내용만큼, 모자라면 칸 안에서 눌린다.
-     ⚠⚠⚠ 031 검증 제안 ① — **여기서 눌리는 것은 화로가 아니다**(033 에서 정정).
-       화로는 하한 **118px 에 그대로 서 있고**(실측: 배너 세이브 아홉 크기 전부 118px),
-       대신 **패널 전체가 상한에 걸려** 줄어든다 — `#forge` 297 → **279px**(821×462) ·
-       **267px**(800×450). 100·92px 은 **031 전**의 화로 값이지 지금 값이 아니다.
-       방향을 거꾸로 읽고 `#hearth{min-height:118px}` 을 걷어내면 TB8 이 아니라
-       **릴만 남은 빈 화로**가 돌아온다. */
-  #focus>#forge{min-height:0;max-height:100%}
-  #hearth{min-height:118px}
-  /* 화로는 «남는 세로를 먹는» 요소(013)라 왼칸이 길어지면 240px 까지 늘어나고,
-     릴은 74px 에서 멈추므로 **릴 세 칸이 떠 있는 빈 상자**가 된다 — 013 주석이
-     경고한 그 모양이다. 세로형에서는 3단이 먼저 조여서 안 나던 것이, 두 칸으로
-     펴면서 1216×684 부터 드러났다. 가로에서만 상한을 낮춘다. */
-  #hearth{max-height:168px}
-  #manage{flex:1 1 44%;min-width:0;max-height:none;min-height:0;padding:0 12px 8px 0}
+  /* 오른쪽 칸 = 손잡이 · 장비 · 대기열 / 또는 선택한 탭 판 · 그리고 탭바 */
+  .tabpane.on{grid-column:2;grid-row:1/3;min-width:0;min-height:0}
+  #dock{height:100%;padding:8px 12px 0 0;justify-content:flex-start}
+  #tabTower,#tabTech{padding:8px 12px 0 0;overflow-y:auto}
+  #tabs{grid-column:2;grid-row:3;padding:5px 12px 6px 0;border-top:0;background:none}
 
-  /* 던전·테크는 판 하나짜리라 펴지 않는다 — 가운데로 묶어 글줄 길이를 지킨다. */
-  #tabTower,#tabTech{padding-top:8px}
+  /* 가로는 폭이 넉넉하다 — 장비를 3×2 로 키운다(§2②). 다만 칸이 160px 까지
+     부풀면 띠가 341px 이 돼 대기열 띠를 밀어낸다(실측) — 상한을 둔다. */
+  #gear{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;max-width:264px;margin:0}
+  /* 무대는 왼쪽 칸 폭을 전부 먹는다. 짧은 창(462)에서 장면을 밀지 않게 상한을 낮춘다. */
+  #arena{height:clamp(96px,22vh,200px)}
+
+  /* 던전·테크는 판 하나짜리라 펴지 않는다 — 글줄 길이를 지킨다. */
   #tabTower>*,#tabTech>*{max-width:560px;margin-left:auto;margin-right:auto}
-
-  #tabs{padding:5px 12px}
+  /* ⚠ 가로에서 테크 판이 **오른쪽 칸 안으로** 들어오면서 폭이 800→332px 이 됐다
+     (041 에서는 전체 폭 판이었다). 99단계의 가장 긴 줄(「판매가 +148.5% → +150%」)이
+     177px 를 요구하는데 `.nm` 에 176px 만 가서 **1px 때문에 두 줄이 된다**(실측).
+     글자·수치는 그대로 두고 **고정 폭 넷에서 돌려준다**(간격 8→5 · 레벨칸 44→38 ·
+     버튼 62→52 · 판 여백 9→7) — 가장 긴 줄(`align` 203px)에 218px 이 간다. */
+  #tech div.t{gap:5px}
+  #tech .lvn{width:38px}
+  #tech button{min-width:52px;padding:5px 6px}
+  #tabTech .panel,#tabTower .panel{padding:7px}
 }
 
-/* 좁은 화면(~380px) — 릴 5개까지 들어가도록 여백만 줄인다 */
+/* 좁은 화면(~380px) — 문양 다섯 칸까지 들어가도록 여백만 줄인다 */
 @media (max-width:400px){
-  body{padding:8px 7px 18px}
+  body{padding:0}
   .panel{padding:9px}
-  #forge{padding:12px 8px 10px}
+  #forge{padding:30px 7px 6px}   /* ⚠ 위 30px 은 압력계 자리다 — 줄이면 첫 문양 칸을 덮는다 */
   #hearth{gap:5px;padding:6px}
   #reels{gap:4px}
   #plate span{padding:5px 22px;letter-spacing:.26em}
+  #hud,#scene{padding-left:7px;padding-right:7px}
+  #openrow,#dock{padding-left:7px;padding-right:7px}
+  #gear{gap:3px}
+}
+/* 아주 낮은 창(360×640·800×450) — 장면이 150px 하한을 못 지키면 무대가 먼저 양보한다.
+   무대는 «보는 것»이고 장면은 «누르는 것»이다(027 B-4 의 우선순위 그대로). */
+@media (max-height:660px){
+  #arena{height:clamp(84px,18vh,150px)}
+  #handles{height:40px}
 }
 </style>
 </head>
@@ -705,10 +847,22 @@ button:disabled{opacity:.35;cursor:default;box-shadow:none}
 <!-- ══ 세로 3단 (010 §1) ══
      상단 HUD(고정) / 중앙 포커스(모루·화로) / 하단 관리 패널(자체 스크롤).
      감싸기만 했다 — 안쪽 id·class·라벨은 하나도 바뀌지 않았다. -->
+<!-- ══ 047 R1 — 세로 우선 골격 ══════════════════════════════════════
+     위에서 아래로: HUD / 무대 / 모루 장면 / 열기 줄 / 손잡이 줄 / 장비 띠 /
+     대기열 띠 / 탭바. 010 의 세로 3단(#hud·#focus·#manage)을 대신한다.
+
+     ⚠ **`#scene`(모루 장면 + 열기 줄)은 탭 판 «밖»이다.** 047 §2②가 요구하는
+       「가로에서는 오른쪽 칸만 탭 판으로 바뀌고 왼쪽(무대·모루)은 그대로」는
+       장면이 `#tabForge` 안에 있으면 성립하지 않는다 — 탭을 바꾸면 판이
+       통째로 사라지기 때문이다. 세로에서 장면이 함께 사라지는 것(§2②의
+       「장면 포함」)은 `body[data-tab]` 로 세로에서만 숨겨 만든다.
+     ⚠ 요소는 **하나도 지우지 않았다.** `#mob`·`#bar`·`#hpbar`·`#foes`·`#plate`·
+       `#spinlbl`·`#chg`·`#spinq`·`#ascgate`·`#asell`·`#bOdds`·`#bStats` 전부
+       id 와 `data-s` 그대로 자리만 옮겼다(CORE 가 쓰거나 검사가 읽는다). -->
 <div id="hud">
 <div id="plate"><span>Hit Smith</span></div>
 
-<div class="panel">
+<div class="panel" id="hudbar">
   <div class="row">
     <div><span class="dim" data-s="ui.wave">웨이브</span> <b class="num gv" id="wv">1</b><span id="wvg"></span>
       <span id="star" style="color:var(--g14)"></span>
@@ -718,30 +872,41 @@ button:disabled{opacity:.35;cursor:default;box-shadow:none}
       &nbsp;<span style="color:var(--ember)"><svg class="ci"><use href="#s-token"/></svg> <span id="tok">0</span></span>
     </div>
   </div>
-  <div id="mob"></div>
-  <div id="bar"><div id="fill"></div></div>
-  <div id="hpbar"><div id="hpghost"></div><div id="hpfill"></div></div>
-  <div id="foes">—</div>
 </div>
 <!-- 전투 무대 (013). **빈 칸이다** — 3층 패럴랙스·몹·용사는 뒤 겹 캔버스가
      이 사각형 안에 그린다. z-index:-1 캔버스가 비쳐야 하므로 배경을 주지 않는다
-     (017 의 「칠했다 ≠ 보인다」 — 감싼 요소가 불투명하면 캔버스가 통째로 가려진다). -->
-<div id="arena"></div>
+     (017 의 「칠했다 ≠ 보인다」 — 감싼 요소가 불투명하면 캔버스가 통째로 가려진다).
+     047: 몹 줄·체력 막대·적 글자는 무대 «위에 겹친다» — HUD 한 줄을 40px 로
+     묶으려면 이 넷이 HUD 밖으로 나와야 했다. `#foes` 는 CORE 의 newWave() 가
+     글자를 쓰는 자리라 **남아 있어야 한다**(보이지 않아도 된다 — §3). -->
+<div id="arena">
+  <div id="mob"></div>
+  <div id="arenafoot">
+    <div id="bar"><div id="fill"></div></div>
+    <div id="hpbar"><div id="hpghost"></div><div id="hpfill"></div></div>
+    <div id="foes">—</div>
+  </div>
+</div>
 </div><!-- /#hud -->
 
-<!-- ══ 탭 넷 (016) ══ 제련 · 던전 · 테크 · 설정.
-     상점 탭 없음(골드 출구는 제련 강화 하나 — 원칙 4), 캐릭터 탭 없음(착용 장비는
-     제련 탭의 관리 패널에서 본다). 인벤토리 화면도 없다 — 보관은 대기열뿐이다(원칙 8). -->
-<div class="tabpane on" id="tabForge">
-<div id="focus">
-<!-- 027 B-2: 승천은 한 주기의 **끝**인데 016 이 톱니 안에 숨겨 뒀다. 025 1단계가
-     잰 「관문이 열린 뒤 승천까지의 죽은 꼬리 22시간」 가운데 일부는 **승천할 수
-     있다는 걸 몰라서** 생겼을 수 있다. 조건이 찼을 때만, 굴리지 않고 보이는 자리에
-     둔다. 누르면 확인은 016 의 상세 팝업 통(#popAsc)을 **그대로** 쓴다. -->
-<button id="asc" class="hot" style="width:100%;display:none" data-s="ui.ascend">승천</button>
+<!-- ══ 모루 장면 + 열기 줄 (047 §2①③) ══
+     탭 판 밖에 있다(위 ⚠). 세로에서는 다른 탭을 고르면 `body[data-tab]` 로 숨는다. -->
+<div id="scene">
 <div class="panel" id="forge">
-  <!-- 화로 압력계: 바늘이 스핀마다 오르고 적색 구간에 닿으면 강제 정렬 -->
-  <div id="pity">
+  <!-- 047 §2③ — `#spin` 이 **장면 전체를 덮는 투명한 버튼**이 된다. 장면 어디를
+       눌러도 친다. id·`.primary` 는 그대로다(026·033·AD6 이 읽는다). 위에 얹힌
+       것(`#asc`·`.reel`·`#pity`)은 쌓임 순서로 이 버튼보다 앞이라 각자의 일을 한다.
+       **DOM 에서 먼저 둔다** — 뒤에 오는 형제가 같은 z 에서 위에 쌓인다. -->
+  <button id="spin" class="primary" aria-describedby="spincap"></button>
+  <!-- 027 B-2: 승천은 한 주기의 **끝**인데 016 이 톱니 안에 숨겨 뒀다. 조건이
+       찼을 때만, 굴리지 않고 보이는 자리에 둔다. 047: 장면 맨 위에 얹힌다. -->
+  <button id="asc" class="hot" style="display:none" data-s="ui.ascend">승천</button>
+  <!-- 화로 압력계: 바늘이 스핀마다 오르고 적색 구간에 닿으면 강제 정렬.
+       047: 장면 왼쪽 위에 작게 얹힌다. -->
+  <!-- 047 2차 (제안 ①) — **글자를 내리고 `title` 로.** 바늘과 막대가 같은 말을
+       하고 있었고, 첫 화면의 글자 수를 줄이는 것이 §2① 의 목표다. `#pitytxt` 는
+       지우지 않는다 — 비워 두고, 숫자는 `renderFast` 가 이 요소의 `title` 에 쓴다. -->
+  <div id="pity" data-stitle="ui.pityTip" title="화로압">
     <div id="pgauge">
       <svg viewBox="0 0 44 30">
         <path d="M5.26 21.05A17 17 0 0 1 38.74 21.05" fill="none" stroke="#39434f" stroke-width="4.6" stroke-linecap="round"/>
@@ -756,55 +921,47 @@ button:disabled{opacity:.35;cursor:default;box-shadow:none}
       <div class="bar"><div id="pityfill"></div></div>
     </div>
   </div>
-  <!-- 화로 창(hearth window). 세로 릴 스트립이 아니라 재료가 달궈지는 창. -->
-  <div id="hearth">
-    <div id="therm"><i id="thermf"></i></div>
+  <!-- 문양 칸. 047: 고정 안내는 대기열 줄에서 빼고 이 칸의 `title` 로 옮겼다
+       (§2① — 첫 화면의 글자를 줄인다). `#hearth` 는 문양 칸을 담는 띠로 남는다. -->
+  <div id="hearth" data-stitle="ui.tapLockTip" title="문양 칸을 누르면 한 번 두드린다 · 길게 누르면 고정 토큰으로 그 문양을 붙잡는다">
     <div id="reels"></div>
   </div>
   <div id="msg"></div>
-  <div class="row">
-    <!-- 033 ②: 대기열이 가득 차고 「정리」가 꺼져 있으면 이 버튼의 **글자만** 「대기열 정리」로
-         바뀐다. 자리·크기·색(flex:2 · .primary)은 그대로라 TB8·AD6 이 보는 좌표가 안 움직인다.
-         #chg 는 지우지 않고 숨긴다 — checklist 1a 가 그 자리를 읽는다. -->
-    <button id="spin" class="primary" style="flex:2"><span id="spinlbl">제련 </span><span class="num" id="chg">0</span><span id="spinq"></span></button>
-    <button id="auto" style="flex:1" data-s="ui.auto">자동</button>
-  </div>
-  <button id="ad" style="width:100%;margin-top:6px"><svg class="ci"><use href="#s-flame"/></svg><span id="adtxt" data-s="ui.stoke">화로 지피기 — 충전 가득 + 배속</span></button>
-  <!-- 033 ①-b: 「정리」는 **대기열 줄 옆**이다(사용자 판정). 제련 줄은 한 픽셀도 안 건드린다.
-       대기 숫자 바로 옆이라 무엇을 정리하는지가 한눈에 읽힌다. -->
-  <div class="dim qrow"><span><span data-s="ui.queue">대기</span> <span class="num" id="qn">0</span>/<span class="num" id="qm">10</span> · <span data-s="ui.lockHint">릴을 눌러 고정</span> (<svg class="ci" style="color:var(--ember)"><use href="#s-token"/></svg>1)</span><button id="autores" data-s="ui.sort">정리</button><span id="autoresLock" class="dim" data-s="ui.autoresLocked" data-stitle="ui.autoresLockedTip" title="자동 정리는 첫 승천에 열린다">자동 정리 · 승천 후</span></div>
-  <button id="open" style="width:100%;margin-top:6px;display:none"></button>
+  <!-- 모루 아래 작은 캡션. 033 ② 의 「대기열 정리」 글자 바꿈이 여기서 일어난다 —
+       바꾸는 쪽(renderFast)은 그대로 `#spinlbl`·`#chg`·`#spinq` 를 쓴다. -->
+  <div id="spincap" class="dim"><span id="spinlbl">두드리기 </span><svg class="ci" style="color:var(--ember)"><use href="#s-flame"/></svg> <span class="num" id="chg">0</span><span id="spinq"></span></div>
 </div>
-</div><!-- /#focus -->
+<!-- 열기 줄 — 충전 온도계를 **가로 막대**로 눕히고 오른쪽 끝에 정보 버튼. -->
+<div id="openrow">
+  <div id="therm"><i id="thermf"></i></div>
+  <button id="bInfo" data-s="ui.info" data-stitle="ui.infoTip">정보</button>
+</div>
+</div><!-- /#scene -->
 
-<div id="manage">
-<!-- 027 B-4: **제련 패널이 먼저다.** 강화는 골드의 유일한 출구인데(원칙 4)
-     #manage 가 max-height:30vh 라 둘째 패널에 있는 동안 세 크기 모두 «굴려야
-     보이는» 버튼이었다(027 A 의 TB8 이 6/6 FAIL 로 그것을 적었다). 장비 격자는
-     보는 것이지 누르는 것이 아니라 뒤로 간다. 30vh 자체는 안 건드린다(010 비율). -->
-<div class="panel">
-  <div class="row" style="margin-bottom:7px">
-    <span class="dim"><span data-s="ui.forgeLv">제련 등급</span> <span class="num" id="lv">0</span></span>
-    <button id="up"><span data-s="ui.upgrade">강화</span> <svg class="ci" style="color:var(--brass)"><use href="#s-gold"/></svg> <span class="num" id="cost">50</span></button>
+<!-- ══ 탭 넷 (016) ══ 제련(손잡이·장비·대기열) · 던전 · 테크.
+     **라우터가 아니다** — 판이 전부 DOM 에 살아 있고 보이는 것 하나만 바뀐다. -->
+<div class="tabpane on" id="tabForge">
+<div id="dock">
+  <!-- 손잡이 줄 — 강화 · 견습생 · 지피기. 047: 옛 `#manage` 첫 패널의
+       `#lv`·`#up`·`#cost` 가 여기로 왔다(요소 그대로). -->
+  <div id="handles">
+    <button id="up"><span data-s="ui.upgrade">강화</span> <span class="dim" data-s="ui.forgeLvShort">Lv</span> <span class="num" id="lv">0</span> <svg class="ci" style="color:var(--brass)"><use href="#s-gold"/></svg> <span class="num" id="cost">50</span></button>
+    <button id="auto" data-s="ui.apprentice" data-stitle="ui.apprenticeTip">견습생</button>
+    <button id="ad"><svg class="ci"><use href="#s-flame"/></svg> <span id="adtxt" data-s="ui.stokeShort">지피기</span></button>
   </div>
-  <!-- 027 B-2: 승천 관문이 **아직** 안 찼을 때의 진행 문구. 조건이 차면 비고,
-       그때는 #focus 의 승천 배너가 대신 말한다. -->
-  <div id="ascgate" class="dim"></div>
-  <button id="bOdds" style="width:100%;margin-top:8px" data-s="pop.odds">등급 확률표</button>
-  <!-- 027 B-1: 자동 판매 등급 체크. 칸 수가 등급 상한 cap() 을 따라 느는 것이라
-       제련 등급과 한 자리가 맞다 — 설정 팝업이 아니라 여기가 제자리였다. -->
-  <div id="asell"></div>
-</div>
-
-<div class="panel">
-  <div class="row" style="margin-bottom:7px">
-    <span class="dim" data-s="ui.gear">장비</span>
-    <span class="dim num"><span data-s="ui.power">전투력</span> <b id="pw" style="color:var(--text)">0</b></span>
+  <!-- 장비 띠 — 착용 6칸 한 줄. 원칙 8: 인벤토리가 아니다. -->
+  <div id="gearband">
+    <span id="pwrap" class="dim num"><span data-s="ui.power">전투력</span> <b id="pw">0</b></span>
+    <div id="gear"></div>
   </div>
-  <div id="gear"></div>
-  <button id="bStats" style="width:100%;margin-top:8px" data-s="pop.stats">옵션 수치 상세</button>
+  <!-- 대기열 띠 — 041 제안 9: **틱마다 나타났다 사라지지 않는다.** 비어도 같은
+       자리·같은 높이로 있다(빈 점). 누르면 하는 일은 지금과 같다(openCmp). -->
+  <div id="qband">
+    <button id="open"><span class="dim" data-s="ui.queue">대기</span> <span class="num" id="qn">0</span><span class="dim">/</span><span class="num" id="qm">10</span><span id="qdots"></span></button>
+    <button id="autores" data-s="ui.sort">정리</button>
+    <span id="autoresLock" class="dim" data-s="ui.autoresLocked" data-stitle="ui.autoresLockedTip" title="자동 정리는 첫 승천에 열린다">자동 정리 · 승천 후</span>
+  </div>
 </div>
-</div><!-- /#manage -->
 </div><!-- /#tabForge -->
 
 <div class="tabpane" id="tabTower">
@@ -893,6 +1050,17 @@ button:disabled{opacity:.35;cursor:default;box-shadow:none}
     <div id="olegend"></div>
   </div>
   <div class="popsec" id="popStats"><div id="stats"></div></div>
+  <!-- 047 §2④ — 정보 절. 없어진 `#manage` 둘째 단에 있던 것이 전부 여기로 왔다:
+       승천 진행 `#ascgate` · 자동 판매 `#asell` · 확률표/옵션 상세로 가는 두 버튼 ·
+       고정 토큰 안내 한 문장. **요소는 그대로 옮겼다** — id·`data-s` 가 안 바뀌어
+       render() 와 checklist 선택자가 살아 있다(016 「통 하나」 규약 그대로). -->
+  <div class="popsec" id="popForge">
+    <div id="ascgate" class="dim"></div>
+    <div id="asell"></div>
+    <p class="dim" id="lockTipTxt" data-s="ui.tapLockTip">문양 칸을 누르면 한 번 두드린다 · 길게 누르면 고정 토큰으로 그 문양을 붙잡는다</p>
+    <button id="bOdds" style="width:100%;margin-top:8px" data-s="pop.odds">등급 확률표</button>
+    <button id="bStats" style="width:100%;margin-top:6px" data-s="pop.stats">옵션 수치 상세</button>
+  </div>
   <!-- 027 B-3: 설정 절(#popSet)은 **비었으므로 걷었다.** 안에 있던 자동 판매와
        승천은 제련 탭으로 갔다(B-1·B-2). 승천 «확인» 절(#popAsc)은 그대로 남는다 —
        016 의 통 하나를 계속 쓴다. -->
@@ -973,6 +1141,16 @@ const STR={ko:{
      짧아져 빠진 말은 `…Tip`(마우스 올림)이 든다 — 폭 0. */
   'ui.autoresLocked':'자동 정리 · 승천 후',
   'ui.autoresLockedTip':'자동 정리는 첫 승천에 열린다',
+  /* 047 R1 §2⑦ — 새 키만. 기존 키의 **값은 하나도 안 바꿨다.** */
+  'ui.apprentice':'견습생', 'ui.apprenticeTip':'켜 두면 견습생이 박자에 맞춰 대신 두드린다',
+  'ui.stokeShort':'지피기', 'ui.tapHint':'두드리기', 'ui.info':'정보',
+  'ui.infoTip':'승천 진행 · 자동 판매 · 확률표 · 옵션 상세',
+  'ui.forgeLvShort':'Lv',
+  'ui.lockTip':'문양 칸을 누르면 고정 토큰으로 그 문양을 붙잡는다',
+  'ui.pityTip':'화로압',                  // 047 2차 — 바늘·막대가 든 말의 이름
+  /* 047 3차 ③ — 탭은 치기, 고정은 길게 누르기. 옛 `ui.lockTip` 은 **값을 안 바꾸고**
+     쓰지 않는다(§2⑦ 「기존 키의 값은 안 바꾼다」 · 안 쓰게 된 키는 제안에 적는다). */
+  'ui.tapLockTip':'문양 칸을 누르면 한 번 두드린다 · 길게 누르면 고정 토큰으로 그 문양을 붙잡는다',
   'msg.autoresUnlocked':'자동 정리가 열렸다',
   'gd.play':'시작하기',
   'ui.boost':'1.5배속 {0}분 남음',
@@ -1075,6 +1253,13 @@ const STR={ko:{
   'ad.failed':"Couldn't load an ad — try again shortly",
   'ui.autoresLocked':'At 1st Ascend',
   'ui.autoresLockedTip':'Auto-sort unlocks at 1st Ascend',
+  'ui.apprentice':'Apprentice', 'ui.apprenticeTip':'Leave it on and the apprentice strikes in time for you',
+  'ui.stokeShort':'Stoke', 'ui.tapHint':'Strike', 'ui.info':'Info',
+  'ui.infoTip':'Ascend progress · auto-sell · odds · stat detail',
+  'ui.forgeLvShort':'Lv',
+  'ui.lockTip':'Tap a symbol to lock it with a token',
+  'ui.pityTip':'Forge pressure',
+  'ui.tapLockTip':'Tap a symbol to strike once · press and hold to lock it with a token',
   'msg.autoresUnlocked':'Auto-sort unlocked',
   'gd.play':'Play',
   'ui.boost':'1.5x speed, {0} min left',
@@ -2391,8 +2576,12 @@ function renderFast(){
   setNum('gold',fmt(S.gold),'--brass',2);
   setNum('tok',S.tok,'--ember',2);
   document.getElementById('chg').textContent=Math.floor(S.charge);
-  document.getElementById('qn').textContent=S.queue.length;
+  /* 047 §2⑤-6 — 가려진 동안 대기열 띠와 `#qn` 은 **보류분을 뺀 수**를 보인다.
+     결과가 먼저 새어 나가면 「세 번 두드리면 하나」가 깨진다(검사 K5). */
+  const qSeen=Math.max(0,S.queue.length-(FG.veiled?FG.qHeld:0));
+  document.getElementById('qn').textContent=qSeen;
   document.getElementById('qm').textContent=qmax();
+  fgDots(false);
   document.getElementById('lv').textContent=S.lv;
   document.getElementById('cost').textContent=fmt(upCost());
   setNum('pw',fmt(power(S.equip)),'--text',2);
@@ -2411,10 +2600,17 @@ function renderFast(){
      은 **눈에만** 간격을 주고 글자에는 공백이 없었다 — 복사하면 「제련600」이고 읽어
      주는 기계도 그렇게 읽는다. 말 끝에 공백 하나를 둔다(ko 「제련 600」·en 「Forge 600」).
      ⚠ 이 자리는 `data-s` 를 쓰지 않는다 — i18nDom 이 공백 없는 말로 덮어쓰기 때문이다. */
-  document.getElementById('spinlbl').textContent=qClear?'':t('ui.forge')+' ';
+  /* 047 §2③ — 같은 세 조각이 이제 **모루 아래 캡션**에 산다. 033 ② 의 글자
+     바꿈(「대기열 정리」)은 그대로 여기서 일어난다 — 바꾸는 쪽은 안 바뀌었다.
+     말 끝의 공백 하나는 034 판정 ⓑ 그대로(「두드리기600」이 되지 않게). */
+  document.getElementById('spinlbl').textContent=qClear?'':t('ui.tapHint')+' ';
   if(qClear) document.getElementById('chg').textContent='';
   document.getElementById('spinq').textContent=qClear?t('ui.sortQueue'):'';
-  document.getElementById('spin').disabled=qClear?false:(S.charge<1||qFull);
+  /* ⚠ `#spin` 은 **비활성으로 만들지 않는다.** 장면 전체가 버튼이라 비활성이면
+     문양 칸 위의 클릭까지 죽고, 「눌러도 아무 일 없는 화면」이 된다. 못 치는
+     이유는 `strike()` 가 보고 막대를 깜빡인다(§2⑤-1). 치는 것이 막히는 유일한
+     경우는 033 ② 의 비교 팝업뿐이고 그건 눌려야 한다. */
+  document.getElementById('spin').disabled=false;
   /* 041 ②③ — 승천 0회에는 버튼이 **없고**, 그 자리에 누를 수 없는 안내 글자가 선다.
      버튼을 두고 비활성만 시키면 「눌리는데 아무 일도 안 나는 버튼」이 되고, 그것이
      026 §0·033 이 두 번 막은 그 결함이다. */
@@ -2433,9 +2629,12 @@ function renderFast(){
   lastStar=S.star||0;
   document.getElementById('tower').disabled=S.tk<1;
   techBtns();                                        // 041 ④ E3 — 탭이 열렸을 때만
-  document.getElementById('open').style.display=S.queue.length?'block':'none';
-  document.getElementById('open').textContent=t('ui.sortNow',S.queue.length);
-  if(S.queue.length>=qmax()) document.getElementById('msg').textContent=t('ui.queueFull');
+  /* 047 §2① · 041 제안 9 — **대기열 띠는 틱마다 나타났다 사라지지 않는다.**
+     옛 `display` 토글이 16px 을 흔들어 그 아래 전부를 밀었다(검사 L3).
+     비어도 같은 자리·같은 높이로 있고, 비었을 때 누르면 아무 일도 없다.
+     ⚠ `textContent=` 로 통째로 덮지 않는다 — 안에 `#qn`·`#qm`·`#qdots` 가 산다. */
+  document.getElementById('open').disabled=!qSeen;
+  if(S.queue.length>=qmax() && !FG.veiled) document.getElementById('msg').textContent=t('ui.queueFull');
   const cs=document.getElementById('cstat');
   if(cs) cs.innerHTML=t('ui.stat',fmt(power(S.equip)),S.wave)+ciGold()+fmt(S.gold);
   // 상세 팝업도 같은 줄을 든다 — 열려 있는 동안 판단 근거가 화면에서 사라지지 않는다 (016).
@@ -2447,17 +2646,22 @@ function renderFast(){
   pf.style.width=pv+'%';
   pf.className=S.pity>=PITY()?'full':'';
   document.getElementById('pneedle').style.transform='rotate('+(-80+pv*1.6)+'deg)';
-  document.getElementById('pitytxt').textContent=
-    S.pity>=PITY()?t('ui.pityFull'):t('ui.pity',S.pity,PITY());
+  /* 047 2차 — 같은 라벨이 **글자가 아니라 `title`** 로 간다. 쓰는 말(`ui.pity`·
+     `ui.pityFull`)은 한 글자도 안 바뀐다. `#pitytxt` 는 비워 둔다(요소는 남긴다). */
+  const plb=S.pity>=PITY()?t('ui.pityFull'):t('ui.pity',S.pity,PITY());
+  document.getElementById('pitytxt').textContent='';
+  { const pe=document.getElementById('pity');
+    if(pe) pe.title=t('ui.pityTip')+' · '+plb; }
   // 세로 온도계 = 남은 충전 (표시 전용, 수치는 그대로)
-  document.getElementById('thermf').style.height=
+  // 047 §2① — 온도계가 가로로 누웠다. 채우는 값은 그대로, 쓰는 축만 바뀐다.
+  document.getElementById('thermf').style.width=
     Math.min(100,S.charge/CHG_MAX()*100)+'%';
   const ad=document.getElementById('ad'), adt=document.getElementById('adtxt');
   if(boosted()){ ad.className='hot';
     adt.textContent=t('ui.boost',Math.ceil((S.boost-Date.now())/60000)); }
   // 첫 화면에는 분 단위를 쓰지 않는다 (원칙 7 — 시간 압박 표기 금지).
   // 잔여 분은 배속이 도는 동안에만 위 줄에서 보여 준다.
-  else { ad.className=''; adt.textContent=t('ui.stoke'); }
+  else { ad.className=''; adt.textContent=t('ui.stokeShort'); }   // 047 §2① — 손잡이 줄은 짧은 말
   platUI();                                  // 026 — 광고 버튼의 존재·활성은 여기서만 정한다
 }
 function render(){
@@ -2470,14 +2674,21 @@ function render(){
     ).join('')+`</div>`;
   [...document.querySelectorAll('#asell label')].forEach(l=>
     l.onclick=()=>{ S.asell[+l.dataset.g]=!S.asell[+l.dataset.g]; render(); });
-  document.getElementById('auto').className=S.auto?'hot':'';
+  document.getElementById('auto').className=S.auto?'hot':'';   // 견습생 켜짐 — #autores 와 같은 표시
+  /* 047 §2① — 장비 띠는 6칸 한 줄이고 **글자가 없다**(등급색 테두리로만 말한다).
+     `.gd`·`.op` 는 지우지 않고 CSS 로 숨긴다 — render 와 checklist 선택자가 산다.
+     잃은 말은 `title` 이 든다(041 제안 7 채택 — 이 화면의 기본 규약). 칸을 누르면
+     옵션 수치 상세가 열린다(§2④). */
   document.getElementById('gear').innerHTML=PARTS.map(p=>{
     const it=S.equip[p.id];
-    if(!it) return `<div class="slot empty">${plate(p.id,0)}<div class="gd">—</div></div>`;
-    return `<div class="slot">${plate(p.id,it.g)}
+    if(!it) return `<div class="slot empty" title="${t('part.'+p.id)}">${plate(p.id,0)}<div class="gd">—</div></div>`;
+    const tip=`${t('part.'+p.id)} · ${t('ui.grade',it.g)} ${ROMAN[it.lv||1]} · `
+      + Object.keys(it.ops).map(k=>t('opt.'+k+'.s')).join(', ');
+    return `<div class="slot" style="border-color:${GC[it.g]}" title="${tip}">${plate(p.id,it.g)}
       <div class="gd" style="color:${GC[it.g]}">${t('ui.grade',it.g)} <span class="rm">${ROMAN[it.lv||1]}</span></div>
       <div class="op">${Object.keys(it.ops).map(k=>t('opt.'+k+'.s')).join('·\u200B')}</div></div>`;
   }).join('');
+  [...document.querySelectorAll('#gear .slot')].forEach(el=>el.onclick=()=>openPop('stats'));
 
   // 착용 중 합계. 무기 타입과 안 맞는 옵션은 죽은 표시.
   const s=stats(S.equip);
@@ -2812,10 +3023,42 @@ function buildReels(){
   const made=[];
   for(let i=0;i<REELS();i++){
     const d=document.createElement('div'); d.className='reel';
-    d.onclick=()=>{ if(spinning) return;
+    /* ══ 047 3차 ③④ — 문양 칸 탭은 **언제나 치기**, 고정은 **길게 누르기** ══
+       2차까지는 주기 밖에서 문양 칸을 누르면 고정 토큰을 썼다. 그런데 세로에서
+       모루 장면의 **20~38% 가 문양 칸**이고(검증 D) 380×820·800×450 승천 0 에서는
+       **장면 한가운데 점이 문양 칸**이다 — 처음 하는 사람이 가운데를 누르면 첫 손이
+       치기가 아니라 고정이 된다(새 세이브 토큰 2개). 계획 판정: **짧은 탭은 언제나
+       치기**, 고정은 0.45초 길게 누르기로 옮긴다. 048(진짜 슬롯 릴)도 같은 규칙이다.
+       ④ 정착 전 420ms 안의 탭도 치기다 — 옛 처리기 첫 줄의 `if(spinning) return;`
+       이 그것을 삼켰다(검증 E). `strike()` 가 쌓아 두었다가 정착 순간 반영한다(⑤-2).
+       ⚠ 주기 **안**에서는 길게 누르기 타이머를 아예 안 건다 — 결과가 이미 정해진
+         뒤의 고정은 토큰만 버린다. 그래서 주기 안의 긴 누름은 뗄 때 한 타가 된다. */
+    const lockHold=()=>{
       if(S.lockIdx===i){S.lockIdx=-1; S.tok++;}   // 해제하면 토큰 환불
       else if(S.tok>0){ S.tok--; S.lockIdx=i; lockPart=+d.dataset.p; }
-      [...reels.children].forEach((e,j)=>e.classList.toggle('lock',j===S.lockIdx)); render(); };
+      else return;                                // 토큰이 없으면 아무 일도 없다
+      [...reels.children].forEach((e,j)=>e.classList.toggle('lock',j===S.lockIdx));
+      d.classList.remove('held'); void d.offsetWidth; d.classList.add('held');
+      render();
+    };
+    let hT=null, held=false;
+    const hStart=e=>{ held=false;
+      if(hT){ clearTimeout(hT); hT=null; }
+      if(FG.veiled) return;                       // 주기 안에서는 고정이 없다
+      hT=setTimeout(()=>{ hT=null; held=true; lockHold(); }, LOCK_HOLD_MS); };
+    const hEnd=()=>{ if(hT){ clearTimeout(hT); hT=null; }
+      if(!held) strike('hand'); held=false; };    // 짧은 탭 = 치기 (주기 안이든 밖이든)
+    const hCancel=()=>{ if(hT){ clearTimeout(hT); hT=null; } held=false; };
+    if(typeof d.addEventListener==='function' && typeof PointerEvent!=='undefined'){
+      d.addEventListener('pointerdown',hStart);
+      d.addEventListener('pointerup',hEnd);
+      d.addEventListener('pointerleave',hCancel);
+      d.addEventListener('pointercancel',hCancel);
+      // 길게 눌러 글자가 잡히거나 맥락 메뉴가 뜨면 고정이 「눌린 느낌」을 잃는다
+      d.addEventListener('contextmenu',e=>e.preventDefault());
+    } else {
+      d.onclick=()=>strike('hand');               // 포인터 이벤트가 없는 판(하네스 등)
+    }
     reels.appendChild(d); made.push(d);
   }
   // 그리기는 **다 붙인 뒤**. 하나만 붙은 상태에서 재면 칸이 아니라 줄 전체 폭이
@@ -2831,10 +3074,22 @@ buildReels();
    (기존 `openCmp` — 새 팝업을 만들지 않는다). 그 밖에는 예전 그대로 `spin()`.
    `spin()` 자신이 가득일 때 아무 일도 안 하므로 이 분기는 «누를 수 있는 버튼이
    거짓말을 하지 않게» 하는 것뿐이다. */
-document.getElementById('spin').onclick=()=>{
-  if(S.queue.length>=qmax() && !autoResOn()){ openCmp(); return; }   // 041 ①
-  spin();
-};
+/* 047 §2③⑤ — `#spin` 은 이제 장면 전체를 덮는 투명한 버튼이고, 누르는 것은
+   `spin()` 이 아니라 **한 타**다. 033 ② 의 「가득 + 정리 꺼짐 → 비교 팝업」은
+   `strike()` 안으로 옮겼다(거기가 주기 밖의 첫 갈림길이다). */
+document.getElementById('spin').onclick=()=>strike('hand');
+/* 키보드(데스크톱 포털) — 팝업이 안 열려 있을 때 Space/Enter 가 한 타다.
+   버튼이 포커스를 들고 있으면 브라우저가 이미 click 을 내므로 두 번 치지 않게
+   그 경우는 건너뛴다. */
+if(typeof document.addEventListener==='function') document.addEventListener('keydown',e=>{
+  if(e.key!==' ' && e.key!=='Enter' && e.key!=='Spacebar') return;
+  if(e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+  const op=document.querySelector('#pop.on,#cmp.on,#dice.on,#adwall.on');
+  if(op) return;                                   // 팝업·광고 막이 열려 있으면 아니다
+  const ae=document.activeElement;
+  if(ae && ae!==document.body && (ae.tagName==='BUTTON'||ae.tagName==='INPUT')) return;
+  e.preventDefault(); strike('hand');
+});
 document.getElementById('auto').onclick=()=>{S.auto=!S.auto;render();};
 /* 033 ①-b: 「정리」는 켜고 끄는 버튼이고 `#auto` 와 **서로 독립**이다. 켜는 순간
    대기열이 이미 가득이면 다음 틱이 바로 한 칸을 정리한다. */
@@ -2880,6 +3135,10 @@ function showTab(id){
     if(p) p.classList.toggle('on',t===id);
     if(tb) tb.classList.toggle('on',t===id);
   });
+  /* 047 §2② — 세로에서 다른 탭을 고르면 **모루 장면도 함께** 사라져야 한다.
+     장면은 탭 판 밖에 있으므로(가로에서 왼쪽 칸이 남아야 하니까) 판의 `.on`
+     만으로는 안 되고, `body` 에 지금 탭을 적어 CSS 가 세로에서만 숨긴다. */
+  try{ document.body.setAttribute('data-tab', id.replace(/^tab/,'').toLowerCase()); }catch(e){}
   // 제련 탭이 들고 나면 #forge 기하가 통째로 생겼다 사라진다. 루프가 자고 있으면
   // sync() 가 안 돌아 패널 바탕이 어긋난 채 멈춘다 (011 의 「깨우는 자리」 규약).
   if(typeof globalThis.__canvasWake==='function') globalThis.__canvasWake(600);
@@ -2890,7 +3149,8 @@ TABS.forEach(t=>{ const b=tabBtn(t); if(b) b.onclick=()=>showTab(t); });
    통 하나(#pop)에 절 넷. 닫기 버튼과 배경 탭 둘 다로 닫힌다. */
 // 027 B-3: `set` 을 뺐다. 절이 없어졌으므로 키도 없어야 한다 — 남겨 두면
 // openPop('set') 이 «제목만 있고 내용이 없는 창»을 연다(그게 곧 거짓말이다).
-const POPS={odds:'pop.odds', stats:'pop.stats', asc:'pop.asc'};   // 034: 값은 표의 키다
+// 047 §2④: `forge` 절 하나를 더한다 — 없어진 `#manage` 의 내용이 사는 자리다.
+const POPS={odds:'pop.odds', stats:'pop.stats', asc:'pop.asc', forge:'ui.info'};   // 034: 값은 표의 키다
 function openPop(k){
   Object.keys(POPS).forEach(n=>{
     const e=document.getElementById('pop'+n[0].toUpperCase()+n.slice(1));
@@ -2905,6 +3165,8 @@ document.getElementById('pclose').onclick=closePop;
 document.getElementById('pop').onclick=e=>{ if(e.target.id==='pop') closePop(); };
 document.getElementById('bOdds').onclick=()=>openPop('odds');
 document.getElementById('bStats').onclick=()=>openPop('stats');
+// 047 §2④ — 열기 줄의 ⓘ. 장비 띠의 칸을 눌러도 옵션 상세가 열린다(아래 render).
+document.getElementById('bInfo').onclick=()=>openPop('forge');
 // 승천 확인은 설정 팝업 위에 덧대지 않고 같은 통에서 절만 갈아 끼운다.
 document.getElementById('asc').onclick=()=>openPop('asc');
 // 확인은 이 팝업이 이미 받았다. ascend() 는 CORE 라 안의 confirm() 을 지울 수
@@ -2934,6 +3196,279 @@ let lastStar=(typeof S==='object'&&S)?(S.star||0):0;
    `spin()` 을 건드려야 하므로, 눈이 가야 할 곳(「정리」 버튼 자체)을 세 번 반짝인다.
    ⚠ 하네스에는 `document`·`matchMedia` 가 없다 — 전부 막아 둔다(041 ④ 에서 이걸
      빠뜨려 `days.js` 가 죽고 md5 가 빈 출력로 바뀐 적이 있다). */
+/* ══ 047 §2⑤ — 「세 번 두드리면 하나」 ══════════════════════════════════
+   CORE 의 `spin()` 은 **한 번만** 부른다(첫 타). 결과는 그 순간 정해지고 420ms
+   뒤 CORE 가 화면에 쓴다. VIEW 는 그 결과를 **타격 수만큼만 드러낸다.**
+
+   ⚠ 가림막은 **부모 속성**이다(`#forge[data-shown]`·`[data-veiled]`). 자식 클래스로
+     걸면 안 된다 — CORE 가 `#msg.className=` 로 통째로 덮고 `.reel` 의 클래스를
+     붙였다 뗀다(047 §1 ②④). 부모 속성은 CORE 가 한 번도 안 만진다.
+   ⚠ CORE 와의 산술은 안 바뀐다: 한 장비 = `spin()` 1회 = 충전 1. 달라지는 것은
+     「쌓인 충전을 견습생이 비우는 속도」 하나다(§2⑤ 끝 — 검사 K3). */
+const FORGE_IDLE_MS=1500, FORGE_IDLE_STEP=250, APPRENTICE_MS=500;
+const FG={ need:0, struck:0, shown:0, veiled:false, settled:false, qHeld:0, lastHitAt:0,
+           strikes:{hand:0, apprentice:0, idle:0}, made:0,
+           blocked:{charge:0, queue:0}, idleFinish:0,
+           rush:false, rushOn:0 };                       // 047 2차 — 견습생 서두름
+/* ══ 047 2차 §제안② — 「밀린 일이 많으면 견습생이 서두른다」 ═══════════════
+   1차의 견습생은 500ms 에 **한 타**라 한 장비에 `REELS()`×0.5초가 들었다. 그러면
+   **짧게 접속하는 사람만 느려진다**: 자리를 비운 동안 충전이 상한 600 까지 차는데
+   10분 접속으로는 300개밖에 못 써서 나머지가 버려진다. CLAUDE.md 의 반려 기준
+   「접속 시간과 도달 일수가 무관할 것」에 걸린다(계획 판정 2026-10-16).
+
+   고치는 법: 충전이 밀려 있으면 **한 박(500ms)에 그 주기의 남은 타격을 전부** 친다.
+   정착 전 타격은 쌓였다가 정착 순간 반영되므로(K2) **한 장비 ≈ 한 박** = 041 자동과
+   같은 속도가 된다. 충전이 평상시로 돌아오면 다시 한 박 한 타다 — 그 구간의 병목은
+   충전 회복(6초에 1)이라 박자가 하루 총량을 안 바꾼다.
+   ⚠ 250ms 틱 안에서 `0.5/REELS()` 초 간격을 만들려 하지 말 것 — 틱 해상도보다 잘다.
+     **박마다 몰아 치고**, 연출만 60ms 로 흩는다.
+   ⚠ 문턱이 둘인 이유: 하나면 경계(정확히 60)에서 매 틱 켜졌다 꺼진다. */
+const RUSH_ON=60, RUSH_OFF=30, RUSH_GAP=60;
+// 047 3차 ③ — 고정은 길게 누르기. 0.45초는 계획 판정이 정한 값이다.
+const LOCK_HOLD_MS=450;
+/* ⚠ 박은 **고정 격자**에 묶는다. 처음엔 「친 시각 + 500ms」로 잡았는데, 250ms 틱이
+   격자점을 1ms 차이로 놓치면 그 박이 **한 틱(250ms) 통째로 밀린다** — 실측에서
+   장비 사이 간격이 중앙 505ms 인데 최대 763ms, 평균 590ms 이 나왔고 그만큼(−12%)
+   041 보다 느렸다(041 은 매 틱 `spin()` 을 시도해 500ms 에 정확히 붙는다).
+   여유를 반 틱 두고 **다음 격자점으로 전진**하면 한 박을 놓쳐도 다음 박이 당겨져
+   따라붙으므로, 길게 보면 정확히 500ms 에 하나다. */
+const BEAT_SLACK=130;
+function fgRushCheck(){
+  if(!FG.rush){ if(S.charge>=RUSH_ON){ FG.rush=true; FG.rushOn++; } }
+  else if(S.charge<RUSH_OFF){ FG.rush=false; }
+}
+/* 한 박. 평상시엔 한 타, 서두름이면 그 주기를 **한 박 안에 끝낸다**. */
+function fgBeat(){
+  strike('apprentice');
+  if(!FG.rush || !FG.veiled) return;
+  let left=Math.max(0, FG.need-FG.struck);
+  if(left<=0 || typeof setTimeout!=='function') return;
+  const step=()=>{ if(!FG.veiled) return;      // 그 사이 마무리됐으면 그만둔다
+    strike('apprentice');
+    if(FG.veiled && --left>0) setTimeout(step, RUSH_GAP); };
+  setTimeout(step, RUSH_GAP);
+}
+let fgQAt=0, fgIdleT=null, fgRaf=null, fgBeatAt=0, fgPending=null;   // 3차 ②: fgPrevSpinning 은 상태 판정으로 바뀌며 없어졌다
+
+function fgEl(){ try{ return document.getElementById('forge'); }catch(e){ return null; } }
+/* 대기열 띠의 점 — 대기 장비 하나당 등급색 점 하나. **빈 칸도 점으로 자리를
+   지킨다**(띠 높이가 틱마다 안 변하게 · 검사 L3). 가려진 동안 보류분은 안 보인다.
+   `fresh` 는 마무리 순간 새 점 하나가 한 번 반짝이는 것(§2⑤-7 — 날아가는 카드는 R2). */
+/* ══ 047 3차 ⑤ — 점은 **띠 안에 다 들어간다** ════════════════════════════
+   2차까지는 점 줄이 `overflow:hidden` 이라 좁은 칸에서 **조용히 잘렸다**
+   (검증 F 실측: 800×450 ko 승천0 14/14 에서 점 11개만 보임 · en 12 · 360×640 13).
+   「대기 장비 하나당 점 하나」가 거짓이 되는데 화면에는 아무 표시도 없다.
+
+   고치는 법 둘: ⑴ 칸에 맞춰 **점을 줄인다**(7px → 최소 4px, 간격도 같이).
+   ⑵ 4px 로도 안 들어가면 **마지막 자리를 「+N」**으로 바꾼다. 어느 쪽이든
+   **보이는 점 수 + N = 실제 대기 수**가 늘 성립한다 — 잘려 사라지는 점은 없다. */
+const QDOT_MAX=7, QDOT_MIN=4, QDOT_GAP_MAX=3, QDOT_GAP_MIN=2;
+/* 047 4차 — 「+N」 글자 폭을 **먼저** 잰다 ═══════════════════════════════
+   3차는 자리 수를 「모두 점」이라고 보고 센 뒤 **마지막 한 자리만 글자로 바꿨다.**
+   글자는 점보다 서너 배 넓어(「+35」≈20px vs 점 4px) 그만큼 띠 밖으로 밀렸고
+   `overflow:hidden` 이 그것을 잘랐다 — 3차 검증 실측: ★20 이상에서 「+N」이 나온
+   **모든 칸**이 잘렸고, 「+3」(실제 +35)처럼 **틀린 수**로 읽혔다. 조용히 사라지는
+   것을 막으려고 넣은 글자가 조용히 거짓말을 하고 있었다.
+
+   4차: 그 순간의 N 으로 **글자 폭을 재서 먼저 떼고**, 남은 폭으로 점 수를 정한다.
+   N 은 점 수에 달렸고 점 수는 글자 폭에 달렸으므로 몇 번 돌려 수렴시킨다(자릿수가
+   바뀌는 경계에서만 한 번 더 돈다 — 보통 2회면 끝난다).
+   ⚠ 점이 다 들어가면 **글자를 아예 안 쓴다**(자리도 안 만든다). */
+let qdotProbe=null;
+function qdotTextW(txt){
+  try{
+    if(!txt) return 0;
+    const band=document.getElementById('qband'); if(!band) return 0;
+    if(!qdotProbe || !qdotProbe.isConnected){
+      qdotProbe=document.createElement('i');
+      qdotProbe.className='qmore';          // `.more` 와 **같은 CSS** 를 받는다
+      band.appendChild(qdotProbe);
+    }
+    qdotProbe.textContent=txt;
+    return Math.ceil(qdotProbe.getBoundingClientRect().width);
+  }catch(e){ return 0; }
+}
+function fgDots(flash){
+  try{
+    const box=document.getElementById('qdots'); if(!box) return;
+    const seen=Math.max(0,S.queue.length-(FG.veiled?FG.qHeld:0)), cap=qmax();
+    const avail=Math.floor(box.getBoundingClientRect().width)||0;
+    let size=QDOT_MAX, gap=QDOT_GAP_MAX, dotN=cap, rest=0;
+    if(avail>0){
+      // ⑴ 점이 **다 들어가는** 가장 큰 크기를 찾는다. 찾으면 글자는 없다.
+      let allFit=false;
+      for(size=QDOT_MAX; size>=QDOT_MIN; size--){
+        gap = size>=6 ? QDOT_GAP_MAX : QDOT_GAP_MIN;
+        if(cap*size+(cap-1)*gap <= avail){ allFit=true; break; }
+      }
+      if(allFit){ dotN=cap; rest=0; }
+      else{
+        // ⑵ 다 안 들어간다 — 가장 작은 점으로 최대한 많이 보이게 하고 나머지는 글자가 든다.
+        size=QDOT_MIN; gap=QDOT_GAP_MIN;
+        dotN=Math.max(0, Math.floor((avail+gap)/(size+gap))-1);
+        for(let k=0;k<6;k++){
+          const n=Math.max(0, seen-dotN);
+          const tw=n>0?qdotTextW('+'+n):0;              // **글자 폭을 먼저 뗀다**
+          const budget=avail-(tw>0?tw+gap:0);
+          let nd=Math.max(0, Math.floor((budget+gap)/(size+gap)));
+          if(nd>cap) nd=cap;
+          if(nd===dotN) break;
+          dotN=nd;
+        }
+        rest=Math.max(0, seen-dotN);
+        if(dotN>=cap){ dotN=cap; rest=0; }              // 글자가 0 이면 자리도 안 쓴다
+      }
+    }
+    const slots=dotN+(rest>0?1:0);
+    if(box.children.length!==slots || box.dataset.size!==String(size)){
+      box.innerHTML=''; for(let i=0;i<slots;i++) box.appendChild(document.createElement('i'));
+      box.dataset.size=String(size);
+    }
+    box.style.gap=gap+'px';
+    for(let i=0;i<dotN;i++){
+      const d=box.children[i], it=i<seen?S.queue[i]:null;
+      d.className=it?'on':'';
+      d.style.width=d.style.height=size+'px';
+      d.style.color=it?(GC[it.g]||'var(--line)'):'';
+      d.textContent='';
+      if(flash && it && i===seen-1){ void d.offsetWidth; d.classList.add('fresh');
+        setTimeout(()=>{ try{ d.classList.remove('fresh'); }catch(e){} },900); }
+    }
+    if(rest>0){
+      // **보이는 점 + N = 실제 대기 수.** 이 자리는 위에서 폭을 떼 놓은 자리다.
+      const more=box.children[slots-1];
+      more.className='more';
+      more.style.width=''; more.style.height=''; more.style.color='';
+      more.textContent='+'+rest;
+    }
+  }catch(e){}
+}
+// 드러난 문양 수를 부모 속성 하나로 알린다. CSS 가 그 뒤의 칸을 덮는다.
+function fgPaint(){
+  const f=fgEl(); if(!f||!f.setAttribute) return;
+  FG.shown = FG.settled ? Math.min(FG.struck,FG.need) : 0;
+  f.setAttribute('data-shown', String(FG.veiled?FG.shown:FG.need));
+  if(FG.veiled) f.setAttribute('data-veiled','1'); else f.removeAttribute('data-veiled');
+  /* ⑤-4 「이은 고리」 — 드러난 문양 가운데 앞 문양과 같은 칸을 강조한다. CSS 클래스
+     하나뿐이고(새 연출 없음), **드러난 칸만** 본다(가려진 칸을 보면 결과가 샌다). */
+  try{
+    const ks=[...document.querySelectorAll('#reels .reel')];
+    const lim=FG.veiled?FG.shown:ks.length;
+    ks.forEach((e,i)=>{
+      const on = i>0 && i<lim && e.dataset && ks[i-1].dataset
+              && e.dataset.p!=null && e.dataset.p===ks[i-1].dataset.p;
+      e.classList.toggle('echo',!!on);
+    });
+  }catch(e){}
+}
+// 못 쳤을 때의 거절 — 새 팝업·새 글자 없이 막대 하나를 깜빡인다(§2⑤-1).
+function fgDeny(why){
+  FG.blocked[why]=(FG.blocked[why]||0)+1;
+  try{
+    const el = why==='charge' ? document.getElementById('therm')
+                              : document.getElementById('qband');
+    if(!el||!el.classList) return;
+    el.classList.remove('deny'); void el.offsetWidth; el.classList.add('deny');
+    setTimeout(()=>{ try{ el.classList.remove('deny'); }catch(e){} }, 700);
+  }catch(e){}
+}
+/* 한 타. `src` = 'hand' | 'apprentice' | 'idle'. */
+function strike(src){
+  if(typeof PLAT==='object' && PLAT && PLAT.paused) return;
+  if(!FG.veiled){
+    // 033 ②: 가득 + 정리 꺼짐이면 치는 대신 비교 팝업. 예전 그대로다.
+    if(S.queue.length>=qmax() && !autoResOn()){ openCmp(); return; }
+    if(S.charge<1){ fgDeny('charge'); return; }
+    if(S.queue.length>=qmax()){ fgDeny('queue'); return; }
+    fgQAt=S.queue.length;
+    spin();
+    // **시작했는지는 깃발이 아니라 `spinning` 으로 안다** — spin() 자신이
+    // 조건을 다시 보고 아무 일도 안 할 수 있다.
+    if(!spinning){ fgDeny(S.charge<1?'charge':'queue'); return; }
+    FG.veiled=true; FG.settled=false; FG.need=REELS(); FG.struck=1; FG.qHeld=0;
+    fgWatch();                      // 주기가 열릴 때만 감시를 켠다(위 ⚠)
+  }else{
+    FG.struck++;
+  }
+  FG.strikes[src]=(FG.strikes[src]||0)+1;
+  FG.lastHitAt=Date.now();
+  fgBlow();                       // 매 타: 기존 불티 1회 + 짧은 셰이크
+  fgPaint();
+  if(FG.settled && FG.struck>=FG.need) fgFinish();
+  else fgArmIdle();
+}
+/* 매 타의 손맛 — **기존** 불티·셰이크를 재사용한다(새 연출 금지 · R2 몫). */
+function fgBlow(){
+  try{
+    const V=globalThis.__view, an=V&&V.anvil;
+    if(typeof globalThis.__fxBurst==='function' && an)
+      globalThis.__fxBurst(V&&V.reducedMotion?2:7, an.x, an.y, .55);
+    if(typeof globalThis.__shake==='function') globalThis.__shake(V&&V.reducedMotion?0:3);
+    if(typeof globalThis.__canvasWake==='function') globalThis.__canvasWake(420);
+  }catch(e){}
+}
+/* ⑤-8 손 놓으면 마저 친다 — 주기가 영원히 걸려 있는 일은 없다. */
+function fgArmIdle(){
+  if(typeof setTimeout!=='function') return;
+  if(fgIdleT) clearTimeout(fgIdleT);
+  fgIdleT=setTimeout(function step(){
+    if(!FG.veiled) return;
+    FG.idleFinish++;
+    const left=Math.max(0,FG.need-FG.struck);
+    let i=0;
+    const beat=()=>{ if(!FG.veiled) return;
+      strike('idle');
+      if(FG.veiled && ++i<left) setTimeout(beat,FORGE_IDLE_STEP); };
+    beat();
+  }, FORGE_IDLE_MS);
+}
+/* ⑤-7 마무리 — 남은 문양을 다 열고 `#msg` 를 보인다. */
+function fgFinish(){
+  if(fgIdleT){ clearTimeout(fgIdleT); fgIdleT=null; }
+  FG.veiled=false; FG.settled=false; FG.qHeld=0; FG.struck=0; FG.shown=FG.need;
+  FG.made++;
+  fgPaint();
+  // ⑤-5 미뤄 둔 정렬 연출을 **여기서** 꺼낸다 — 마지막 문양이 드러나는 순간이다.
+  if(fgPending){ const q=fgPending; fgPending=null;
+    try{ if(typeof globalThis.__hitFx==='function') globalThis.__hitFx(q.hits,q.g); }catch(e){} }
+  try{ renderFast(); fgDots(true); }catch(e){}
+}
+/* ⑤-2 정착 감지 — `spinning` 참→거짓을 rAF 로 본다. 정착 전에 쌓인 타격은
+   그 순간 한꺼번에 반영된다(빨리 세 번 친 사람도 결과가 맞다 · 검사 K2). */
+/* ══ 047 3차 ② — 정착 감지는 **상태**를 본다 (rAF 는 보조일 뿐) ═══════════
+   2차까지는 `requestAnimationFrame` **에만** 기대 「`spinning` 이 참→거짓이 되는
+   순간」을 잡았다. 그래서 rAF 가 멈추는 판(숨은 탭 · 화면 밖 iframe)에서는
+   **주기가 가려진 채 영원히 서고 견습생이 아무것도 못 만들었다** — 검증 실측:
+   rAF 를 멈춘 20초에 041 은 `spin()` 40회, 047 은 **0회**. §2⑤-8 「주기가 영원히
+   걸려 있는 일은 없다」가 거기서 깨졌다.
+
+   고치는 법은 «순간»을 «상태»로 바꾸는 것이다: 주기가 열려 있고(`veiled`)
+   아직 정착 안 했고(`!settled`) `spinning` 이 거짓이면 — **어떻게 거기 왔든** —
+   정착이다. 가장자리(이전 값)를 추적할 필요가 없다. 주기는 `spinning` 이 참일
+   때만 열리므로(`strike()` 가 그렇게 연다) 이 식은 열자마자 참이 되지 않는다.
+
+   그래서 **250ms 틱이 정착을 책임지고**, rAF 는 「250ms 를 기다리지 않고 빨리
+   보이게」 하는 보조로만 남는다. 보조는 정착하는 순간 스스로 멈춘다 — 검증이
+   짚은 「제련 중 rAF +51%」가 여기서 줄어든다(주기 내내가 아니라 420ms 만 돈다). */
+function fgSettle(){
+  if(!FG.veiled || FG.settled || spinning) return false;
+  FG.settled=true;
+  FG.qHeld=Math.max(0,S.queue.length-fgQAt);       // 자동 판매면 0
+  fgPaint();
+  if(FG.struck>=FG.need) fgFinish(); else { try{ renderFast(); }catch(e){} }
+  return true;
+}
+function fgWatch(){
+  if(typeof requestAnimationFrame!=='function') return;   // rAF 가 없어도 틱이 든다
+  if(fgRaf!==null) return;                                // 이미 돌고 있다
+  const loop=()=>{
+    fgSettle();
+    if(FG.settled || !FG.veiled){ fgRaf=null; return; }    // 할 일이 끝났다
+    fgRaf=requestAnimationFrame(loop);
+  };
+  fgRaf=requestAnimationFrame(loop);
+}
+
 function popAutores(el){
   try{
     if(!el||!el.classList||typeof el.classList.add!=='function') return;
@@ -3019,6 +3554,9 @@ i18nDom();
 // 오프라인 = 타임스탬프 델타 한 줄. 시뮬레이션 없음.
 S.charge=Math.min(CHG_MAX(),S.charge+(Date.now()-S.t)/CHG_MS());
 newWave(); render();
+// 047 §2⑤ — 가림막의 첫 상태를 그린다. 정착 감지는 **주기가 열릴 때** 켜진다.
+fgPaint();
+try{ document.body.setAttribute('data-tab','forge'); }catch(e){}
 setInterval(()=>{
   // 026: 광고가 도는 동안은 **게임이 진행되지 않는다** (CrazyGames 요건).
   // 충전도 자동 제련도 전투도 멈춘다 — 광고 길이만큼 시간이 얼어붙을 뿐이다.
@@ -3028,7 +3566,24 @@ setInterval(()=>{
   // 맡기는 판도 있다(사용자 판정). 스핀 **앞**에 둔다: 뒤에 두면 이번 틱의 스핀이
   // 「가득」으로 막힌 뒤에야 칸이 비어, 방치 30초에 막힌 스핀이 40회나 쌓였다(실측).
   // 앞에 두면 칸을 먼저 비우고 굴리므로 **막힌 스핀이 0** 이 된다.
-  if(autoResOn()) autoResolve(); if(S.auto) spin(); tick(); renderFast(); save(); },250);
+  /* 047 §2⑤-6 — **가려진 동안에는 정리하지 않는다.** 아직 안 나온 장비를
+     정리하면 안 된다(검사 K6). 가림막이 걷히는 순간 다음 틱이 바로 정리한다. */
+  /* 047 3차 ② — **정착은 틱이 책임진다.** rAF 가 멈춘 판에서도 주기가 끝난다.
+     견습생 박보다 먼저 둔다 — 이번 틱에 드러난 것을 이번 틱에 이어 칠 수 있게. */
+  fgSettle();
+  if(autoResOn() && !FG.veiled) autoResolve();
+  /* 047 §2⑤-9 — 자동은 `spin()` 을 부르지 않는다. **견습생이 박자로 친다**:
+     500ms 마다 한 박(120 BPM — R2 에서 배경음악 박자와 맞춘다). 사람이 같이
+     치면 그만큼 빨라진다. `S.auto` 의 저장·버튼·뜻은 그대로다.
+     047 2차 — 한 박이 몇 타인지는 **서두름**이 정한다(위 `fgBeat`). */
+  if(S.auto){ fgRushCheck();
+    const nw=Date.now();
+    if(!fgBeatAt) fgBeatAt=nw;
+    if(nw-fgBeatAt>=APPRENTICE_MS-BEAT_SLACK){
+      fgBeatAt += APPRENTICE_MS*Math.max(1,Math.floor((nw-fgBeatAt+BEAT_SLACK)/APPRENTICE_MS));
+      fgBeat(); } }
+  else if(FG.rush) FG.rush=false;         // 견습생을 끄면 서두름도 끝난다
+  tick(); renderFast(); save(); },250);
 
 
 /* ══ 2D 캔버스 렌더 (007 뼈대 · 008 타격 연출 · 017 에서 Phaser 제거) ══ */
@@ -3109,9 +3664,13 @@ const VIEW={
     fill:{melee:'solid', ranged:'hollow'}, hero:{count:1, edge:'bright'}},
   // 숫자 글리프 (010 §2). count 는 **손그림 글자 수**다. 17자를 넘기면 원칙 3 위반.
   glyphs:{cell:[5,7], count:17, chars:'0123456789+-×/%.,', scales:[2,3]},
-  // 세로 3단 (010 §1). 각 단이 지금 몇 px 이고 스크롤이 어디 붙었는지.
-  layout:{tiers:['#hud','#focus','#manage'], hud:0, focus:0, manage:0,
-    focusScroll:0, manageScroll:0},
+  /* 047 R1 §2⑧ — 세로 우선 골격. 010 의 3단(`#hud`·`#focus`·`#manage`)을 대신한다.
+     `scroll` 은 **0 이어야 한다**(L1 — 첫 화면에 스크롤 없음). 옛 `focus`·`manage`
+     키는 겨눌 요소가 없어 지웠다 — 0 을 내는 죽은 창구는 검사를 조용히 통과시킨다. */
+  layout:{tiers:['#hud','#arena','#scene','#openrow','#handles','#gearband','#qband','#tabs'],
+    hud:0, arena:0, scene:0, openrow:0, dock:0, scroll:0, orientation:'portrait'},
+  /* 047 §2⑤ — 「세 번 두드리면 하나」의 상태 창구. 검증이 효과로 재는 자리다. */
+  get forge(){ return FG; },
   anvil:null,                          // 모루 화면 좌표 = 연출의 발원점
   // 전투 무대 (013). 캔버스는 Playwright 가 못 읽으므로 여기 없는 것은 검증 불가다.
   stage:{layers:3, tiles:12, tile:[TILE_W,TILE_H], scale:0, seg:-1, scrollX:0,
@@ -3261,14 +3820,21 @@ if(typeof requestAnimationFrame!=='undefined' && typeof document!=='undefined'
     g.fillStyle=lg; g.fillRect(0,0,rF.w,rF.h);
     if(rH){
       const hx=rH.x-ox, hy=rH.y-oy, cx=hx+rH.w/2, base=hy+rH.h;
-      g.fillStyle=hex(C_CHAR); g.fillRect(hx,hy,rH.w,rH.h);   // 화로 안쪽은 숯
+      /* 047 §2③ — 숯·잔광이 화로 창이 아니라 **장면 전체**에 깔린다(`rH` = 장면). */
+      g.fillStyle=hex(C_CHAR); g.fillRect(hx,hy,rH.w,rH.h);
       glow(g, cx, base, rH.w*.46, rH.h*.525, .6, 12, -rH.h*.08);  // ← 옛 타원 12장
-      // 모루: 도형만. 릴 타일이 화로 창을 거의 덮으므로 바닥 띠에 낮게 앉힌다 —
-      // 타일 사이 틈과 아래 여백으로 실루엣이 비친다.
-      const aw=Math.min(rH.w*.5,170), ah=Math.max(14,rH.h*.30);
-      const ay=base-2, T=ay-ah, L=cx-aw/2, R=cx+aw/2;
+      /* 047 §2③ — 모루를 **키운다**: 폭 `min(장면 폭 × 0.55, 300px)`, 장면 바닥
+         가운데. 새 그림·새 색은 없다(R5 몫) — 같은 도형을 크게 그릴 뿐이다.
+         ⚠ `rH` 는 이제 **장면(`#forge`)** 이다(sync 참고). 옛 `rH` 는 화로 창이라
+           모루가 그 안에 갇혀 작았다. */
+      const aw=Math.min(rH.w*.55,300), ah=Math.max(20,Math.min(rH.h*.22,86));
+      const ay=base-6, T=ay-ah, L=cx-aw/2, R=cx+aw/2;
       VIEW.anvil={x:ox+cx, y:oy+T};                            // 연출 발원점(화면 좌표)
-      g.fillStyle=hex(C_CHAR);
+      /* ⚠ 몸통·받침을 숯(`C_CHAR`)으로 칠하면 **안 보인다** — 옛 모루는 밝은 화로
+         창 «안»에 있어서 숯 실루엣이 읽혔는데, 047 은 장면 바닥(역시 숯)에 앉는다.
+         화면으로 확인했다(모루가 상판 한 줄로만 보였다). 철색으로 올린다 —
+         새 색을 만들지 않고 이미 쓰는 `C_IRON` 을 어둡게 깐 것이다. */
+      g.fillStyle=rgba(C_IRON,.72);
       g.fillRect(cx-aw*.19, T+ah*.34, aw*.38, ah*.52);         // 몸통
       g.fillRect(cx-aw*.30, ay-ah*.16, aw*.60, ah*.16);        // 받침
       g.fillStyle=hex(C_IRON);
@@ -3565,15 +4131,20 @@ if(typeof requestAnimationFrame!=='undefined' && typeof document!=='undefined'
     // 무대는 #hud 안이라 스크롤과 무관하다 — 크기·구간이 달라질 때만 다시 굽는다.
     const nA=rectOf('arena');
     if(nA && (!rA || !same(nA,rA) || segOf(S.wave)!==stSeg)){ rA=nA; bakeStage(); canvasWake(); }
-    const nF=rectOf('forge'), nH=rectOf('hearth'), nV=rectOf('focus');
-    // 세 단의 실제 치수를 검증 창구에 낸다 (캔버스는 Playwright 가 못 읽는다).
-    const rHud=rectOf('hud'), rMan=rectOf('manage'),
-          fo=document.getElementById('focus'), ma=document.getElementById('manage');
+    /* 047: 모루는 이제 **장면 전체**(`#forge`)에 앉는다. 옛 `rH` 는 화로 창이었고
+       거기에 맞춰 모루가 작았다(§2③ 「모루를 키운다」). 장면 사각형을 넘긴다. */
+    const nF=rectOf('scene'), nH=rectOf('forge'), nV=rectOf('scene');
+    // 각 줄의 실제 치수를 검증 창구에 낸다 (캔버스는 Playwright 가 못 읽는다).
+    const rHud=rectOf('hud'), rAr=rectOf('arena'), rOp=rectOf('openrow'), rDk=rectOf('dock');
     VIEW.layout.hud=rHud?Math.round(rHud.h):0;
-    VIEW.layout.focus=nV?Math.round(nV.h):0;
-    VIEW.layout.manage=rMan?Math.round(rMan.h):0;
-    VIEW.layout.focusScroll=fo?Math.max(0,fo.scrollHeight-fo.clientHeight):0;
-    VIEW.layout.manageScroll=ma?Math.max(0,ma.scrollHeight-ma.clientHeight):0;
+    VIEW.layout.arena=rAr?Math.round(rAr.h):0;
+    VIEW.layout.scene=nF?Math.round(nF.h):0;
+    VIEW.layout.openrow=rOp?Math.round(rOp.h):0;
+    VIEW.layout.dock=rDk?Math.round(rDk.h):0;
+    try{ const se=document.scrollingElement||document.documentElement;
+      VIEW.layout.scroll=Math.max(0,se.scrollHeight-se.clientHeight);
+      VIEW.layout.orientation=(innerWidth>innerHeight)?'landscape':'portrait';
+    }catch(e){}
     if(same(nF,rF)&&same(nH,rH)&&same(nV,rV)) return;
     canvasWake();                  // 기하가 움직였다 — 안정될 때까지 더 돈다
     rV=nV;
@@ -3777,10 +4348,26 @@ if(typeof requestAnimationFrame!=='undefined' && typeof document!=='undefined'
     return m;
   };
 
+  /* 047 §2⑤-1 — 매 타의 짧은 셰이크. **기존 셰이크를 그대로 꺼내 쓴다**(새 연출
+     금지 · R2 몫): `hitFx` 가 쓰는 `shakeUntil`/`shakeAmp` 와 같은 둘이고,
+     세기만 정렬 연출보다 약하게 잡는다. 0 을 주면 아무 일도 안 한다(reducedMotion). */
+  /* 047 §2⑤-5 — 미뤄 둔 정렬 연출을 마무리가 꺼내 쓸 수 있게 내보낸다.
+     `hitFx` 자체는 이 IIFE 안이라 바깥에서 안 보인다. */
+  globalThis.__hitFx=(hits,grade)=>hitFx(hits,grade);
+  globalThis.__shake=(k)=>{
+    if(hidden()){ VIEW.perf.hiddenSkips++; return 0; }
+    const q=Math.max(0,Math.min(10,k|0)); if(!q) return 0;
+    shakeUntil=nowMs()+FX_SHAKE_MS;
+    shakeAmp=FX_SHAKE_MIN*(q/3);
+    VIEW.counters.shake++;
+    canvasWake(FX_SHAKE_MS+120, 900);
+    return q;
+  };
+
   // 깨우는 자리들. 전부 수동적이라 자는 동안에도 살아 있다.
   if(typeof ResizeObserver!=='undefined'){
     const ro=new ResizeObserver(()=>canvasWake());
-    ['forge','hearth','focus'].forEach(id=>{
+    ['forge','hearth','scene'].forEach(id=>{
       const e=document.getElementById(id); if(e) ro.observe(e); });
   }
   ['focus','manage'].forEach(id=>{
@@ -3869,19 +4456,30 @@ if(typeof requestAnimationFrame!=='undefined' && typeof document!=='undefined'
   const reels=document.getElementById('reels');
   if(reels && typeof MutationObserver!=='undefined'){
     let qAtSpin=0;
+    /* 047 3차 ① — `attributeOldValue` 를 켠다. 옛 감시는 「지금 `hit` 이 있는가」로
+       봤는데, 그러면 **이미 `hit` 인 칸에 다른 클래스가 붙기만 해도** 정렬로 읽는다.
+       마무리에서 `fgPaint()` 가 `.echo`(이은 고리)를 붙이는 순간이 정확히 그것이라
+       연출이 **두 번** 났다(검증 K5b: attack·bounce 0→2). `hit` 이 **새로 붙은**
+       변화에만 반응한다 — 041 부터 있던 「결과가 남은 동안 고정/해제하면 연출이
+       한 번 더」도 같은 원인이라 같이 사라진다. */
     new MutationObserver(muts=>{
       let started=false, hit=false;
       for(const m of muts){ const c=m.target.classList; if(!c) continue;
+        const had=/(^|\s)hit(\s|$)/.test(m.oldValue||'');
         if(c.contains('spin')) started=true;
-        if(c.contains('hit'))  hit=true; }
+        if(c.contains('hit') && !had) hit=true; }
       if(started) qAtSpin=S.queue.length;          // 스핀 시작: 대기열 길이 기억
       if(!hit) return;
       const hits=document.querySelectorAll('.reel.hit').length;
       if(hits<2) return;                           // 정렬 실패는 연출 없음
-      // 등급: 대기열이 늘었으면 방금 얻은 것. 자동 판매면 알 수 없어 0.
+      /* 047 §2⑤-5 — **정착이 아니라 «드러남» 에 묶는다.** CORE 는 420ms 뒤
+         (=첫 타 직후) `.reel.hit` 를 다는데, 그때 터뜨리면 아직 두 번 더 쳐야 할
+         결과가 첫 타에서 새어 나간다(검사 K5). 가려져 있으면 **미뤄 두었다가**
+         마무리가 꺼낸다. 가림막이 없는 판(가려지지 않은 경로)에서는 예전 그대로. */
       const g = S.queue.length>qAtSpin ? (S.queue[S.queue.length-1].g||0) : 0;
+      if(FG.veiled){ fgPending={hits,g}; return; }
       hitFx(hits,g);
-    }).observe(reels,{subtree:true,attributes:true,attributeFilter:['class']});
+    }).observe(reels,{subtree:true,attributes:true,attributeFilter:['class'],attributeOldValue:true});
   }
 }
 

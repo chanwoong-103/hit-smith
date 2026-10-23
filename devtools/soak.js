@@ -1,6 +1,11 @@
 /* devtools/soak.js — 2D 캔버스 누수 소크 (008 §4 · 013 §0 으로 재작성)
  *
- * 사용: node devtools/soak.js [분=5] [폭=380]
+ * 사용: node devtools/soak.js [분=5] [폭=380] [경로=spin|apprentice]
+ *   경로 apprentice(줄여 `g`) — 047 3차 검증 세션 신설(047 검증 제안 ③ · 계획 세션 채택).
+ *   047 이 주 경로를 `spin()` 직접 호출에서 **`strike()`·정착 감지·서두름 타이머**로
+ *   옮겼는데 기본 경로(spin)는 그 길을 하나도 안 탄다. apprentice 는 견습생(자동 제련)을
+ *   실제로 켜 두고 충전을 5초마다 다시 채워 서두름 켬/끔이 섞이게 한다. 몰아치기도
+ *   `strike()` 로 한다. 「정렬」 열은 이 경로에서 **만든 장비 수(FG.made)**다.
  * 종료 코드: 0 통과 / 1 누수 의심 / 2 **측정 불가**
  *
  * ── 왜 다시 썼나 ────────────────────────────────────────────────
@@ -40,6 +45,7 @@ const path = require('path');
 
 const MIN   = Number(process.argv[2] || 5);
 const WIDTH = Number(process.argv[3] || 380);
+const ROUTE = /^(g|apprentice)$/i.test(String(process.argv[4] || '')) ? 'apprentice' : 'spin';
 const GAME  = 'file://' + path.join(__dirname, '..', 'src', 'forge.html').replace(/\\/g, '/');
 
 const SAMPLE_MS = 30000;   // 표본 간격
@@ -156,7 +162,7 @@ const die = (code, msg) => { console.error('\n' + msg); process.exit(code); };
   await page.goto(GAME);
   await page.waitForTimeout(1500);
 
-  console.log(`소크 — ${MIN}분 · 폭 ${WIDTH}px · ${GAME}`);
+  console.log(`소크 — ${MIN}분 · 폭 ${WIDTH}px · 경로 ${ROUTE} · ${GAME}`);
 
   // 계측기가 살아남았는지부터. 못 심었으면 아래 숫자는 전부 거짓말이다.
   const inst = await page.evaluate(() => !!(window.__probe && window.__probe.installed));
@@ -190,18 +196,35 @@ const die = (code, msg) => { console.error('\n' + msg); process.exit(code); };
   /* ── 정렬 구동 (2초마다 3연 고정) ─────────────────────────────
      save 무력화는 **로드 뒤**에 한다 (호이스팅 함정). 구동 타이머는 계측기가
      세지 않도록 감싸기 전 원본 setInterval 을 쓴다. */
-  await page.evaluate(({ spinMs }) => {
-    window.save = () => {};
-    globalThis.__hits = 0;
-    globalThis.__soak = window.__probe.raw.si.call(window, () => {
-      const real = Math.random; let q = [0, 0, 0];
-      Math.random = () => q.length ? q.shift() : real();
-      S.charge = 10; S.queue = []; spinning = false; S.lockIdx = -1; S.pity = 0;
-      S.asell = Array(15).fill(false);
-      try { spin(); globalThis.__hits++; }
-      finally { window.__probe.raw.st.call(window, () => { Math.random = real; }, 600); }
-    }, spinMs);
-  }, { spinMs: SPIN_MS });
+  if (ROUTE === 'spin') {
+    await page.evaluate(({ spinMs }) => {
+      window.save = () => {};
+      globalThis.__hits = 0;
+      globalThis.__soak = window.__probe.raw.si.call(window, () => {
+        const real = Math.random; let q = [0, 0, 0];
+        Math.random = () => q.length ? q.shift() : real();
+        S.charge = 10; S.queue = []; spinning = false; S.lockIdx = -1; S.pity = 0;
+        S.asell = Array(15).fill(false);
+        try { spin(); globalThis.__hits++; }
+        finally { window.__probe.raw.st.call(window, () => { Math.random = real; }, 600); }
+      }, spinMs);
+    }, { spinMs: SPIN_MS });
+  } else {
+    /* 견습생 경로 — 승천 1(자동 정리가 도는 판)로 올려 대기열이 차서 서는 일이 없게
+       하고, 견습생을 켠다. 구동은 게임 자신의 250ms 틱이다(여기서 strike 를 부르지 않는다).
+       ⚠ 정렬을 강제하지 않는다 — 이 경로의 부하는 «주기»이고, 불티는 매 타 `fgBlow()` 가 낸다. */
+    const ok = await page.evaluate(() => typeof strike === 'function' && typeof FG === 'object' && FG);
+    if (!ok) die(2, '■ 측정 불가 — 이 빌드에는 견습생 경로(strike·FG)가 없다. 경로 spin 으로 돌릴 것.');
+    await page.evaluate(() => {
+      window.save = () => {};
+      S.star = Math.max(1, S.star | 0); S.autoRes = true; S.auto = true; S.charge = 90;
+      S.queue = []; S.lockIdx = -1; render();
+      globalThis.__m0 = FG.made; globalThis.__hits = 0;
+      globalThis.__soak = window.__probe.raw.si.call(window, () => {
+        try { if (S.charge < 20) S.charge = 90; globalThis.__hits = FG.made - globalThis.__m0; } catch (e) {}
+      }, 250);
+    });
+  }
 
   /* ── 표본 수집 ────────────────────────────────────────────── */
   const N = MIN * 2;                       // 30초 간격
@@ -223,6 +246,7 @@ const die = (code, msg) => { console.error('\n' + msg); process.exit(code); };
     const hits = await page.evaluate(() => globalThis.__hits);
     const el = Math.round((Date.now() - t0) / 1000);
     const v = {}; IDS.forEach(id => v[id] = r.out[id].v);
+    v.__hits = hits;
     rows.push(v);
     sawParticles = Math.max(sawParticles, v.particles);
     sawBurst = Math.max(sawBurst, r.witness.burst);
@@ -231,7 +255,21 @@ const die = (code, msg) => { console.error('\n' + msg); process.exit(code); };
     if (i < N) await page.waitForTimeout(SAMPLE_MS);
   }
   await page.evaluate(() => window.__probe.raw.ci.call(window, globalThis.__soak));
-  const hits = await page.evaluate(() => globalThis.__hits);
+  let hits = await page.evaluate(() => globalThis.__hits);
+  /* 견습생 경로: 표본 사이마다 장비가 늘었는가 — 주기가 가려진 채 서면(047 검증 B 꼴)
+     장비가 멈춘다. 그건 누수가 아니라 **멈춤**이라 따로 적는다. 분당 rAF 호출도 찍는다
+     (047 2차 검증 기준선: 2차 빌드 견습생 중 10,286/분 · 041 6,795/분). */
+  const stalls = [];
+  let rafPerMin = null;
+  if (ROUTE === 'apprentice') {
+    for (let i = 1; i < rows.length; i++)
+      if (rows[i].__hits <= rows[i - 1].__hits) stalls.push(`${i * SAMPLE_MS / 1000}s 표본: 장비 ${rows[i - 1].__hits}→${rows[i].__hits}`);
+    const rt = (await page.evaluate(READ)).witness.rafTotal;
+    rafPerMin = Math.round(rt / ((Date.now() - t0) / 60000));
+    await page.evaluate(() => { S.auto = false; render(); });
+    await page.waitForTimeout(3000);                    // 걸린 주기가 마저 끝나게(손 놓으면 1.5초 뒤 마저 친다)
+    hits = await page.evaluate(() => FG.made - globalThis.__m0);
+  }
 
   /* ── 공허성 검사: 계측기가 살아 있었다는 증거 ────────────────
      조건이 실제로 발생하지 않으면 어떤 검사도 통과한다 (CLAUDE.md). */
@@ -250,17 +288,32 @@ const die = (code, msg) => { console.error('\n' + msg); process.exit(code); };
 
   /* ── 몰아치기: 연속 12회 뒤 회수되는가 ───────────────────────── */
   const before = await page.evaluate(READ);
-  await page.evaluate(async () => {
-    const real = Math.random;
-    for (let i = 0; i < 12; i++) {
-      let q = [0, 0, 0];
-      Math.random = () => q.length ? q.shift() : real();
-      S.charge = 10; S.queue = []; spinning = false; S.lockIdx = -1; S.pity = 0;
-      spin();
-      await new Promise(r => setTimeout(r, 500));
-    }
-    Math.random = real;
-  });
+  if (ROUTE === 'spin') {
+    await page.evaluate(async () => {
+      const real = Math.random;
+      for (let i = 0; i < 12; i++) {
+        let q = [0, 0, 0];
+        Math.random = () => q.length ? q.shift() : real();
+        S.charge = 10; S.queue = []; spinning = false; S.lockIdx = -1; S.pity = 0;
+        spin();
+        await new Promise(r => setTimeout(r, 500));
+      }
+      Math.random = real;
+    });
+  } else {
+    // 같은 몰아치기를 **치기**로: 정렬을 심고 한 주기를 REELS() 번 쳐서 끝낸다.
+    await page.evaluate(async () => {
+      const real = Math.random;
+      for (let i = 0; i < 12; i++) {
+        let q = [0, 0, 0];
+        Math.random = () => q.length ? q.shift() : real();
+        S.charge = 10; S.queue = []; S.lockIdx = -1; S.pity = 0;
+        const n = REELS(); for (let k = 0; k < n; k++) strike('hand');
+        await new Promise(r => setTimeout(r, 500));
+      }
+      Math.random = real;
+    });
+  }
   const peak = await page.evaluate(READ);
 
   /* ── 정착 판정 — 한 순간이 아니라 6초를 200ms 간격으로 «훑는다» ──────────
@@ -330,11 +383,14 @@ const die = (code, msg) => { console.error('\n' + msg); process.exit(code); };
   if (settle.out.listeners.v > before.out.listeners.v)
     fails.push(`몰아치기로 리스너가 ${before.out.listeners.v}→${settle.out.listeners.v} 늘었다`);
 
+  if (ROUTE === 'apprentice')
+    console.log(`\n견습생 경로 — 만든 장비 ${hits} · 표본 사이 멈춤 ${stalls.length} · rAF 호출 분당 ${rafPerMin}`);
   console.log(`\n총 정렬 ${hits}회 · 불티 최대 ${pMax}/${cap} · 콘솔 assert/error ` +
     (logs.length ? logs.join(' | ') : '0건'));
   await browser.close();
 
   if (logs.length) fails.push(`콘솔 assert/error ${logs.length}건`);
+  if (stalls.length) fails.push(`견습생이 멈췄다(장비가 안 늘었다) — ${stalls.join(' · ')}`);
   if (fails.length) {
     console.error('\n■ 누수 의심 ' + fails.length + '건');
     fails.forEach(m => console.error('   · ' + m));

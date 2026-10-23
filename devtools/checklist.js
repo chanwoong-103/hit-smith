@@ -279,9 +279,16 @@ const chk = (name, cond, note) => {
     S.queue = []; S.asell = Array(15).fill(false); S.charge = 50; S.lockIdx = -1;
     S.pity = PITY(); render();
     const colFull = getComputedStyle(document.getElementById('pityfill')).backgroundColor;
-    const txt = document.getElementById('pitytxt').textContent;
+    /* 047 2차 (제안 ①) 대체 — 라벨이 **글자에서 `title` 로** 내려갔다(바늘·막대가
+       같은 말을 하고, 첫 화면의 글자 수를 줄이는 것이 §2① 의 목표). `#pitytxt` 는
+       비었고 `#pity.title` 이 「이름 · 라벨」을 든다. 라벨 문자열(`ui.pity`·
+       `ui.pityFull`)은 한 글자도 안 바뀌었으므로 **그 문자열과의 정확한 일치**를
+       계속 요구한다 — 아래 판정은 title 의 **끝**이 그 라벨과 같은지를 본다. */
+    const ttl = () => (document.getElementById('pity') || {}).title || '';
+    const txt = ttl();
+    const empty = document.getElementById('pitytxt').textContent;
     S.pity = Math.floor(PITY() / 2); render();       // 진행 중 라벨
-    const mid = document.getElementById('pitytxt').textContent;
+    const mid = ttl();
     S.pity = 0; render();
     const colNorm = getComputedStyle(document.getElementById('pityfill')).backgroundColor;
     // 강제 전릴 정렬
@@ -291,7 +298,7 @@ const chk = (name, cond, note) => {
     // 조준: 고정 릴이 있으면 천장이 그 부위로 터진다
     S.pity = PITY(); S.queue = []; S.lockIdx = 1; lockPart = 4; spinning = false;   // 4 = 장갑
     spin(); await new Promise(r => setTimeout(r, 500));
-    return { colFull, colNorm, txt, mid, forced, after, half: Math.floor(PITY() / 2), max: PITY(),
+    return { colFull, colNorm, txt, mid, empty, forced, after, half: Math.floor(PITY() / 2), max: PITY(),
              aimed: S.queue.length ? S.queue[S.queue.length - 1].part : null };
   });
   chk('3a 게이지 가득 시 색 변화', pity.colFull !== pity.colNorm, pity.colFull + ' vs ' + pity.colNorm);
@@ -302,25 +309,47 @@ const chk = (name, cond, note) => {
      `t()` 로 **같은 키를 풀어** 견준다 — 두 언어에서 같은 뜻을 지킨다. */
   const pityWant = await page.evaluate(({ h, m }) =>
     ({ mid: t('ui.pity', h, m), full: t('ui.pityFull') }), { h: pity.half, m: pity.max });
-  chk('3b 진행 중 라벨 `t(ui.pity)` = 「' + pityWant.mid + '」',
-    pity.mid.trim() === pityWant.mid.trim(), pity.mid);
-  chk('3b2 가득 라벨 `t(ui.pityFull)` = 「' + pityWant.full + '」',
-    pity.txt.trim() === pityWant.full.trim(), pity.txt);
+  const endsWith = (s, w) => s.trim().slice(-w.trim().length) === w.trim();
+  chk('3b 진행 중 라벨 `t(ui.pity)` = 「' + pityWant.mid + '」 (047 2차 — 글자가 아니라 #pity 의 title)',
+    endsWith(pity.mid, pityWant.mid), `title 「${pity.mid}」`);
+  chk('3b2 가득 라벨 `t(ui.pityFull)` = 「' + pityWant.full + '」 (title)',
+    endsWith(pity.txt, pityWant.full), `title 「${pity.txt}」`);
+  chk('3b4 #pitytxt 는 비어 있다 (요소는 남고 글자만 내려갔다 — 047 2차)',
+    pity.empty.trim() === '', `「${pity.empty}」`);
   chk('3b3 화면에 내부 용어 노출 0', !/천장|pity|슬롯|잭팟|룰렛|베팅/i.test(pity.txt + ' ' + pity.mid),
     pity.txt + ' / ' + pity.mid);
   chk('3c 강제 전릴 정렬 발동', pity.forced.startsWith('▣'), pity.forced);
   chk('3d 천장 후 게이지 리셋', pity.after === 0, 'pity=' + pity.after);
   chk('3e 고정 릴로 조준', pity.aimed === 'hands', String(pity.aimed));
 
-  // ── 4. 고정 → 해제 시 토큰 환불 ──
-  const lock = await page.evaluate(() => {
-    S.tok = 3; S.lockIdx = -1; render();
-    const reel = document.querySelectorAll('.reel')[0];
-    reel.onclick();                                 // 고정
-    const on = { tok: S.tok, idx: S.lockIdx, cls: reel.className };
-    reel.onclick();                                 // 해제
-    return { on, tok: S.tok, idx: S.lockIdx };
-  });
+  /* ── 4. 고정 → 해제 시 토큰 환불 ──
+     047 3차 ③ 대체 — 고정이 **클릭에서 0.45초 길게 누르기**로 옮겼다(짧은 탭은
+     언제나 치기). 그래서 `reel.onclick()` 을 직접 부르던 방식이 죽었다
+     (`onclick is not a function` — 이 검사가 바로 잡았다).
+     재는 것(고정 시 토큰 −1 · 시각 표시 · 해제 시 환불)은 **한 글자도 안 바뀐다.**
+     부르는 법만 **실제 포인터 제스처**로 옮긴다 — 길게 누르기는 합성 클릭으로
+     만들 수 없다. `page.mouse` 로 내렸다 떼고, 타이머(450ms)보다 길게 쥔다. */
+  const lockHoldAt = async () => {
+    const pt = await page.evaluate(() => {
+      const e = document.querySelectorAll('.reel')[0]; const b = e.getBoundingClientRect();
+      return { x: Math.round(b.x + b.width / 2), y: Math.round(b.y + b.height / 2) };
+    });
+    await page.mouse.move(pt.x, pt.y); await page.mouse.down();
+    await page.waitForTimeout(700); await page.mouse.up();
+    await page.waitForTimeout(120);
+  };
+  // 주기가 열려 있으면 고정 타이머를 안 건다(설계) — 먼저 주기를 닫는다.
+  await page.evaluate(() => { S.tok = 3; S.lockIdx = -1; spinning = false;
+    try { FG.veiled = false; FG.settled = false; FG.struck = 0; } catch (e) {}
+    render(); });
+  await lockHoldAt();                                // 고정
+  const lockOn = await page.evaluate(() => ({ tok: S.tok, idx: S.lockIdx,
+    cls: document.querySelectorAll('.reel')[0].className }));
+  await page.evaluate(() => { spinning = false;
+    try { FG.veiled = false; FG.settled = false; FG.struck = 0; } catch (e) {} render(); });
+  await lockHoldAt();                                // 해제
+  const lock = await page.evaluate(() => ({ tok: S.tok, idx: S.lockIdx }));
+  lock.on = lockOn;
   chk('4a 고정 시 토큰 1 소모', lock.on.tok === 2 && lock.on.idx === 0, 'tok=' + lock.on.tok);
   chk('4b 고정 릴 시각 표시', /lock/.test(lock.on.cls), lock.on.cls);
   chk('4c 해제 시 환불', lock.tok === 3 && lock.idx === -1, 'tok=' + lock.tok);
@@ -372,28 +401,48 @@ const chk = (name, cond, note) => {
     S.asell = Array(15).fill(false);
     while (S.queue.length < qmax()) S.queue.push(makeItem('head', 3));
     // 033 ②: 가득일 때 제련 버튼이 하는 말이 「정리」 스위치에 따라 갈린다. 두 판을 다 본다.
+    /* 047 §2③ 대체 — 옛 기대값은 «정리 켬이면 `#spin.disabled===true`» 였다.
+       R1 에서 `#spin` 은 **장면 전체를 덮는 투명한 버튼**이라 비활성으로 만들지
+       않는다(비활성이면 문양 칸 클릭까지 죽는다). 지키는 것은 그대로 «가득일 때
+       제련은 안 굴러간다» 이고, 재는 법만 깃발에서 **효과**로 옮긴다.
+       글자는 `#spin` 이 아니라 모루 아래 캡션(`#spincap`)에서 읽는다 —
+       `#spinlbl`·`#chg`·`#spinq` 가 거기로 옮겨 갔다(§2③). */
+    const cap = () => document.getElementById('spincap').textContent.trim();
     S.autoRes = true;  render();
-    const onDisabled = document.getElementById('spin').disabled;
+    /* ⚠ 기다리면 안 된다 — 「정리 켬」 판에서 600ms 를 기다리면 **그 사이 250ms
+       틱의 자동 정리가 칸을 비워** 뒤따르는 6b·6c·6d 가 가득이 아닌 판을 보게 된다
+       (실측: 대기열 11→10, `#msg` 가 「자동 정리 — …」로 덮였다). `strike()` 안의
+       `spin()` 호출은 **동기**라 기다릴 이유도 없다. */
+    const onQ0 = S.queue.length, onC0 = S.charge;
+    let onSpins = 0; { const o = spin; window.spin = function(){ onSpins++; return o.apply(this,arguments); };
+      spinning = false; strike('hand'); window.spin = o; }
+    const onQ1 = S.queue.length;
+    const onNoSpin = (onSpins === 0) && (onQ1 === onQ0) && (S.charge >= onC0 - 0.001);
+    while (S.queue.length < qmax()) S.queue.push(makeItem('head', 3));   // 판을 그대로 되돌린다
     S.autoRes = false; render();
     const offBtn = { dis: document.getElementById('spin').disabled,
-                     txt: document.getElementById('spin').textContent.trim(),
+                     txt: cap(),
                      want: t('ui.sortQueue') };          // 034: 말은 표가 정한다
     const msg = document.getElementById('msg').textContent;
     const q0 = S.queue.length;
     spinning = false; spin(); await new Promise(r => setTimeout(r, 500));
     const blocked = S.queue.length === q0;
     S.queue.shift(); render();
-    const reopened = !document.getElementById('spin').disabled;
-    spinning = false; spin(); await new Promise(r => setTimeout(r, 500));
-    return { onDisabled, offBtn, msg, msgWant: t('ui.queueFull'),
+    /* 「재개됐다」도 효과로 — 한 칸 비운 뒤 치면 실제로 굴러간다. */
+    const reopened = (() => { const c0 = S.charge, k0 = S.queue.length;
+      spinning = false; strike('hand');
+      return spinning === true || S.charge < c0 || S.queue.length !== k0; })();
+    await new Promise(r => setTimeout(r, 500));
+    return { onNoSpin, onSpins, onQ0, onQ1, offBtn, msg, msgWant: t('ui.queueFull'),
              blocked, reopened, q: S.queue.length, qmax: qmax() };
   });
-  /* 033: 이름을 고친다 — 「비활성」은 이제 절반만 맞다. 무르게 한 것이 아니라 **두 판을
-     다 못박는다**: 정리 켬이면 예전대로 비활성이고(곧 자동이 비워 준다), 정리 끔이면
-     버튼이 살아나 「대기열 정리」를 가리킨다. 어느 쪽이든 «가득일 때 제련은 안 굴러간다». */
-  chk('6a 가득 시 제련이 멈춘다 (정리 켬 = 비활성 · 정리 끔 = 「대기열 정리」)',
-    full.onDisabled === true && full.offBtn.dis === false && full.offBtn.txt === full.offBtn.want,
-    `켬 disabled=${full.onDisabled} · 끔 disabled=${full.offBtn.dis} 글자 "${full.offBtn.txt}"`);
+  /* 033 → 047. 지키는 것은 그대로 «가득일 때 제련은 안 굴러간다» 다.
+     정리 켬 = 쳐도 `spin()` 이 안 돌고 대기열·충전이 안 움직인다.
+     정리 끔 = 캡션 글자가 「대기열 정리」가 된다(033 ②). */
+  chk('6a 가득 시 제련이 멈춘다 (정리 켬 = 쳐도 안 굴러감 · 정리 끔 = 캡션 「대기열 정리」)',
+    full.onNoSpin === true && full.offBtn.txt === full.offBtn.want,
+    `켬: 쳐도 spin() ${full.onSpins}회 · 대기열 ${full.onQ0}→${full.onQ1} · ` +
+    `끔: 캡션 글자 "${full.offBtn.txt}" (기대 "${full.offBtn.want}")`);
   chk('6b 가득 안내 문구 = t(ui.queueFull)', full.msg.trim() === full.msgWant.trim(),
     `"${full.msg}" vs "${full.msgWant}"`);
   chk('6c 가득 상태에서 스핀 무시', full.blocked);
@@ -692,14 +741,12 @@ const chk = (name, cond, note) => {
   ];
   /* TB8 의 **이름 붙인 예외**. 한 칸씩, 왜 예외인지를 함께 든다 — 판정문이 매번
      그 칸과 이유를 출력한다(그래야 「조용히 빠진 칸」이 안 생긴다). */
-  const TB8_SKIPS = [
-    ['380×820 세로/배너/제련',
-     '027 판정 ① — 관문이 열리면 제련이 가장 값없는 동작이라 배너가 미는 것이 우선순위 그대로다'],
-    ['380×820 세로/승천1/정리',
-     '033 판정 ⓐ — 이 줄(「대기 N/10」)은 033 전에도 첫 화면 6px 아래였다(top 514 vs #focus 밑 508). ' +
-     '위로 올리면 여유 2px 인 #spin 이 밀린다. 「정리」는 기본 켜짐이라 필수 동작이 아니라 설정이다 ' +
-     '(041: 이 예외는 **승천 1 벌**에 붙는다 — 승천 0 벌은 「없는 것이 정답」이라 자리와 무관하다)']
-  ];
+  /* 047 §2⑥ — **비웠다.** 두 예외는 둘 다 「세로 3단에서 #focus 가 스크롤 통이라
+     아래가 잘린다」가 원인이었다(027 판정 ① · 033 판정 ⓐ). R1 은 스크롤 자체를
+     없앴고(L1) 승천 배너·대기열 띠가 각자 제 줄을 가지므로 그 원인이 사라졌다.
+     ⚠ 예외를 지운 것이지 검사를 무르게 한 것이 아니다 — 아홉 크기 전부가
+       이제 **예외 없이** 닿아야 하고, 안 닿으면 TB8 이 운다. */
+  const TB8_SKIPS = [];
   const TB8_SKIP_KEYS = TB8_SKIPS.map(s => s[0]);
   const TB8_SKIP = TB8_SKIP_KEYS[0];               // 옛 이름 (다른 곳에서 읽을 때를 위해 남긴다)
   const REACH_TIMEOUT = 8000;
@@ -1145,7 +1192,11 @@ const chk = (name, cond, note) => {
   // (014 제안 2번). 상수로 박으면 그 변경을 검사가 못 본다.
   const ocBg = await page.evaluate(async () => {
     if (typeof plate !== 'function' || typeof gradePalette !== 'function') return null;
-    const panel = document.querySelector('#manage .panel') || document.querySelector('.panel');
+    /* 047: `#manage` 단이 없어졌다(§2①). 탐침은 **실제 패널 안**에 심어야 진짜
+       배경이 나오므로(014 에서 밟았다) 새 골격의 패널을 집는다 — 모루 장면이
+       `.panel` 이고, 없으면 아무 `.panel` 이나. 재는 것은 그대로 「명판 ::before 가
+       깔아 둔 등급색 배경」이다. */
+    const panel = document.getElementById('forge') || document.querySelector('.panel');
     if (!panel) return null;
     // ⚠ 고정 위치로 띄우면 뒤에 있는 밝은 UI 가 비쳐 배경 실측이 오염된다.
     //   **실제 패널 안에** 심어야 진짜 배경이 나온다 (014 검증에서 밟았다).
@@ -1536,11 +1587,28 @@ const chk = (name, cond, note) => {
         const inForge = id => { let p = document.getElementById(id);
           while (p && p !== document.body) { if (p.id === 'tabForge') return true; p = p.parentElement; }
           return false; };
-        if (!cog) {                        // ── 톱니 없는 벌 (027 B 뒤)
+        /* 047 §2①④ 대체 — 옛 기대값은 «`#asell`·`#asc` 가 `#tabForge` 안» 이었다.
+           R1 이 `#manage` 단을 없애면서 `#asell` 은 **정보 절(`#popForge`)** 로,
+           `#asc` 는 **모루 장면(`#scene`)** 으로 갔다. 지키는 불변식은 그대로
+           «누르면 빈 창이 뜨는 버튼은 없다 · 설정에 있던 것이 진짜 자리에 산다» 이고,
+           기준선만 새 자리로 옮긴다. 정보 절이 **비어 있지 않은지**도 그대로 센다
+           (009 카운터 교훈 — 절의 존재가 아니라 보이는 조작 요소 수). */
+        const inside = (id, host) => { let p = document.getElementById(id);
+          while (p && p !== document.body) { if (p.id === host) return true; p = p.parentElement; }
+          return false; };
+        if (!cog) {                        // ── 톱니 없는 벌 (027 B 뒤 · 047 R1)
+          const pf = document.getElementById('popForge');
+          const bi = document.getElementById('bInfo');
+          let ctlF = -1;
+          if (pf && bi) { bi.click();
+            ctlF = [...pf.querySelectorAll('*')].filter(e => V(e) &&
+              (e.onclick || /^(BUTTON|SELECT|TEXTAREA|INPUT)$/.test(e.tagName))).length;
+            const pc = document.getElementById('pclose'); if (pc) pc.click(); }
           return { cog: false, keys,
             setPop: !!document.getElementById('popSet'), setKey: keys.indexOf('set') > -1,
-            sellInForge: inForge('asell'), ascInForge: inForge('asc'),
-            sellEl: !!document.getElementById('asell'), ascEl: !!document.getElementById('asc') };
+            sellInForge: inside('asell', 'popForge'), ascInForge: inside('asc', 'scene'),
+            sellEl: !!document.getElementById('asell'), ascEl: !!document.getElementById('asc'),
+            infoEl: !!bi, ctlF };
         }
         const before = V(document.getElementById('pop'));
         cog.click();
@@ -1559,17 +1627,21 @@ const chk = (name, cond, note) => {
           asc: !!document.querySelector('.popsec.on #asc') };
       }, TB_VIS);
       if (r.cog === false) {
-        const ok = !r.setPop && !r.setKey && r.sellInForge && r.ascInForge;
+        const ok = !r.setPop && !r.setKey && r.sellInForge && r.ascInForge
+                && r.infoEl && r.ctlF > 0;
         const why = [];
         if (r.setPop) why.push('#popSet 이 남아 있다');
         if (r.setKey) why.push('POPS.set 이 남아 있다');
         if (!r.sellEl) why.push('#asell 이 아예 사라졌다');
-        else if (!r.sellInForge) why.push('#asell 이 #tabForge 밖이다');
+        else if (!r.sellInForge) why.push('#asell 이 정보 절(#popForge) 밖이다');
         if (!r.ascEl) why.push('#asc 가 아예 사라졌다');
-        else if (!r.ascInForge) why.push('#asc 가 #tabForge 밖이다');
+        else if (!r.ascInForge) why.push('#asc 가 모루 장면(#scene) 밖이다');
+        if (!r.infoEl) why.push('정보 입구(#bInfo)가 없다');
+        else if (r.ctlF === 0) why.push('★ 정보 절이 **비어 있다** — 보이는 조작 요소 0개');
         chk('TB6 빈 설정 팝업은 없다 (톱니 유무 두 벌)', ok,
           why.length ? '톱니 없는 벌 — ' + why.join(' · ')
-            : '톱니 없는 벌 — 설정 팝업·POPS.set 없음 · #asell·#asc 가 #tabForge 안');
+            : `톱니 없는 벌 — 설정 팝업·POPS.set 없음 · #asell 은 정보 절 안 · #asc 는 모루 장면 안 · ` +
+              `정보 절의 보이는 조작 요소 ${r.ctlF}개`);
       } else {
         const ok = !!(r.cog && !r.before && r.opened && r.sec.length === 1 && r.sell && r.asc && r.ctl > 0);
         const why = [];
@@ -1598,9 +1670,15 @@ const chk = (name, cond, note) => {
     //   선택자를 박아 두면 입구가 사라져도 「없다」가 아니라 「못 찾았다」가 된다.
     // ⚠ 기준선은 톱니 유무로 **두 벌**이다(TB6 과 같은 규약). 기준선이 없는 키가
     //   오면 통과시키지 않고 FAIL 한다 — 못 재는 것을 통과로 적지 않는다.
+    /* 047 §2①④ 대체 — 옛 기준선은 «확률표·옵션 상세의 입구가 `#tabForge` 안» 이었다.
+       R1 이 `#manage` 를 없애면서 그 둘은 **정보 절(`#pop` 안)** 로 갔고, 거기로
+       가는 입구는 열기 줄의 `#bInfo` 다. `#asc`(승천 확인)는 모루 장면에 있다.
+       검사의 뜻은 그대로다 — «입구를 openPop 으로 부르지 않고 **찾아서 누른다**» 가
+       핵심이고, 바뀐 것은 어디 사는지의 기준선 한 줄이다.
+       ⚠ `scene` 을 `homeOf` 가 알아보게 아래에 한 줄을 더했다. */
     const TB7_HOME = {
       withCog: { odds: 'tabForge', stats: 'tabForge', set: 'hud', asc: 'pop' },
-      noCog:   { odds: 'tabForge', stats: 'tabForge', asc: 'tabForge' }
+      noCog:   { odds: 'pop', stats: 'pop', forge: 'openrow', asc: 'scene' }
     };
     {
       const bad = [], note = [];
@@ -1616,6 +1694,8 @@ const chk = (name, cond, note) => {
             while (p && p !== document.body) {
               if (p.id === 'pop') return 'pop';
               if (p.id === 'hud') return 'hud';
+              if (p.id === 'openrow') return 'openrow';   // 047 — 열기 줄(ⓘ 가 사는 곳)
+              if (p.id === 'scene') return 'scene';       // 047 — 모루 장면(#asc 가 사는 곳)
               if (p.id === 'tabs') return 'tabs';
               if (p.classList && p.classList.contains('tabpane')) return p.id;
               p = p.parentElement; }
@@ -1625,12 +1705,23 @@ const chk = (name, cond, note) => {
               if (p.classList && p.classList.contains('popsec')) return p.id;
               p = p.parentElement; }
             return null; };
+          /* 047 §2④ — 같은 절로 가는 입구가 **둘 이상**이 됐다: 정보 절의 버튼
+             (`#bStats`)과 **장비 띠의 칸**(띠에서 글자를 뺀 대신 눌러서 옵션 상세를
+             연다). 문서 순서로 첫 하나만 집으면 id 없는 `.slot` 이 「입구」가 되어
+             바로 아래 «id 가 없어 누를 수 없다» 로 운다.
+             ⚠ 무르게 넘기는 게 아니다 — **id 가 있는 것을 입구로 삼고**(사람이
+               찾아 누를 수 있는 것), 나머지는 `alt` 에 세어 판정문에 적는다.
+               id 있는 입구가 하나도 없으면 예전처럼 id 없는 것을 들고 가 운다. */
+          const alt = {};
           for (const el of document.querySelectorAll('*')) {
             const h = el.onclick; if (!h) continue;
             const m = String(h).match(/openPop\(\s*['"]([A-Za-z]+)['"]\s*\)/);
-            if (m && !out.ent[m[1]])
-              out.ent[m[1]] = { id: el.id || '', home: homeOf(el), sec: secOf(el) };
+            if (!m) continue;
+            const k = m[1], rec = { id: el.id || '', home: homeOf(el), sec: secOf(el) };
+            alt[k] = (alt[k] || 0) + 1;
+            if (!out.ent[k] || (!out.ent[k].id && rec.id)) out.ent[k] = rec;
           }
+          out.alt = alt;
           return out;
         });
         const base = found.cog ? TB7_HOME.withCog : TB7_HOME.noCog;
@@ -1843,6 +1934,7 @@ const chk = (name, cond, note) => {
       grEquip[p] = Object.assign({ part: p, g: 15, lv: 8, base: 999999, sp: 'pierce',
         ops: p === 'weapon' ? GR_OPSW : GR_OPS }, p === 'weapon' ? { wt: 'melee' } : {});
     const grBad = [], grRows = [];
+    const gr2Bad = [], gr2Rows = [];          // 047 2차 — GR2 보충
     let grWorst = 0, grWorstAt = '';
     for (const vp of TB8_SIZES) {
       const pg = await tbOpen(12, vp.w, vp.h, { equip: grEquip });
@@ -1862,6 +1954,12 @@ const chk = (name, cond, note) => {
           bump(Math.max(sr.right - inR, inL - sr.left), `.slot[${i}] 가 #gear 내용상자 밖`);
           for (const c of s.children) {
             const cr = c.getBoundingClientRect();
+            /* 047 §2① 대체 — 장비 띠에서 글자 줄 둘(`.gd`·`.op`)을 **숨겼다**
+               (등급색 테두리로만 말한다). `display:none` 인 자식의 사각형은
+               전부 0 이라 `sr.left - 0` 이 그대로 「칸 밖 314px」로 읽혔다 —
+               **보이지 않는 것은 넘칠 수 없다.** 요소를 지운 게 아니라 숨긴
+               것이므로 선택자는 살아 있고, 다시 보이게 되면 이 검사가 다시 문다. */
+            if (!(cr.width > 0 && cr.height > 0)) continue;
             bump(Math.max(cr.right - sr.right, sr.left - cr.left),
               `.slot[${i}] > .${String(c.className || c.tagName).split(' ')[0]} 가 칸 밖`);
           }
@@ -1872,7 +1970,15 @@ const chk = (name, cond, note) => {
         const gds = filled.map(s2 => { const e = s2.querySelector('.gd'); return e ? e.textContent.trim() : '(없다)'; });
         const ops = filled.map(s2 => { const e = s2.querySelector('.op');
           return e ? e.textContent.replace(/​/g, '').trim() : '(없다)'; });
-        return { slots: slots.length, filled: filled.length,
+        /* 047 2차 (제안 ③) — GR1 은 띠에서 글자를 숨긴 뒤로 「옵션 글자가 칸 밖」을
+           못 잰다(가로 넘침 둘은 그대로 잰다). 그 위험은 **`title`** 로 옮겨 갔다:
+           글자가 없으니 칸이 무엇인지 말해 주는 것은 `title` 뿐이고, 칸이 정사각이
+           아니면 아이콘이 찌그러진다. 그 둘을 GR2 가 든다. */
+        const sq = slots.map((s2, i) => { const b2 = s2.getBoundingClientRect();
+          return { i, w: Math.round(b2.width * 10) / 10, h: Math.round(b2.height * 10) / 10,
+                   d: Math.round(Math.abs(b2.width - b2.height) * 10) / 10,
+                   title: (s2.getAttribute('title') || '').trim() }; });
+        return { slots: slots.length, filled: filled.length, sq,
           out: Math.round(Math.max(0, out) * 10) / 10, at,
           gearW: Math.round(gr.width * 10) / 10, gds, ops,
           // 034: 「15등급 VIII」은 ko 의 말이다. 최악 조건의 «내용»은 그대로 두고
@@ -1887,6 +1993,11 @@ const chk = (name, cond, note) => {
       grRows.push(`${vp.nm} ${r.out}px(#gear ${r.gearW}px)`);
       if (r.out > grWorst) { grWorst = r.out; grWorstAt = `${vp.nm} — ${r.at}`; }
       if (r.out > 0.5) grBad.push(`${vp.nm}: 가로 ${r.out}px 넘침 (${r.at})`);
+      { const noTitle = (r.sq || []).filter(x => !x.title);
+        const notSq = (r.sq || []).filter(x => x.d > 1);
+        if (noTitle.length) gr2Bad.push(`${vp.nm}: ${noTitle.length}칸의 title 이 비었다 (칸 ${noTitle.map(x => x.i).join(',')})`);
+        if (notSq.length) gr2Bad.push(`${vp.nm}: ${notSq.length}칸이 정사각이 아니다 — 칸 ${notSq[0].i} ${notSq[0].w}×${notSq[0].h} (차 ${notSq[0].d}px)`);
+        gr2Rows.push(`${vp.nm} 칸 ${r.sq && r.sq[0] ? r.sq[0].w + '×' + r.sq[0].h : '—'} · 최대 차 ${Math.max(0, ...(r.sq || []).map(x => x.d))}px`); }
       { const badGd = (r.gds || []).filter(x => x !== r.gdWant);
         const badOp = (r.ops || []).filter(x => x.split('·').length !== 4);
         if (badGd.length) grBad.push(`${vp.nm}: 최악 조건이 ${badGd.length}칸에서 안 걸렸다 — .gd 「${badGd[0]}」 (「${r.gdWant}」이어야 한다)`);
@@ -1901,6 +2012,14 @@ const chk = (name, cond, note) => {
       `  · 최악 조건 고정: 여섯 칸 «전부» 15등급 · 세부등급 VIII · 옵션 4줄 (칸마다 확인한다)` +
       `  · 잰 값 셋의 최대: #gear scrollWidth / 칸이 내용상자 밖 / 글자가 칸 밖` +
       `  · 크기별: ${grRows.join(' · ')}`);
+    /* 047 2차 (제안 ③ 채택) — GR1 의 반쪽을 메운다. 띠에서 글자를 뺀 대신
+       **`title` 이 유일한 설명**이고, 칸이 정사각이어야 아이콘이 안 찌그러진다.
+       변이: `.slot` 의 `title` 을 지운 빌드 → 여기가 운다. */
+    chk(`GR2 장비 띠 여섯 칸 — title 이 비지 않고 칸이 정사각(±1px) (크기 ${TB8_SIZES.length})`,
+      gr2Bad.length === 0,
+      (gr2Bad.length ? `${gr2Bad.length}건 — ${gr2Bad.join(' · ')}` : `9크기 × 6칸 전부 title 있고 정사각`) +
+      `  · 047 §2① 이 띠에서 글자 줄 둘을 숨긴 뒤 「무엇인지」를 말하는 것은 title 뿐이다` +
+      `  · 크기별: ${gr2Rows.join(' · ')}`);
   } catch (e) {
     chk('GR1-예외 #gear 가로 넘침 검사가 완주했다', false, '조작 중 예외: ' + String((e && e.message) || e));
   }
@@ -2268,22 +2387,34 @@ const chk = (name, cond, note) => {
       const pg = await tbOpen(12, vp.w, vp.h, { queue: [], charge: 600 });
       const r = await pg.evaluate(() => {
         S.queue = []; S.charge = 600; render();
-        const sp = document.getElementById('spin');
+        /* 047 §2③ 대체 — `#spinlbl`·`#chg`·`#spinq` 세 조각이 `#spin` 안에서
+           **모루 아래 캡션(`#spincap`)** 으로 옮겨 갔다. `#spin` 은 장면 전체를
+           덮는 투명한 버튼이라 글자를 안 든다. 재는 것(글자에 공백 문자가 있고
+           자리에도 간격이 있다)은 **한 글자도 안 바뀐다** — 읽는 요소만 옮긴다.
+           대기열 줄은 `.qrow` → `#qband` 다(§2①). */
+        const sp = document.getElementById('spincap');
         const lb = document.getElementById('spinlbl');
         const ch = document.getElementById('chg');
-        if (!sp || !lb || !ch) return { err: '#spin·#spinlbl·#chg 중 하나가 없다' };
+        if (!sp || !lb || !ch) return { err: '#spincap·#spinlbl·#chg 중 하나가 없다' };
         const lr = lb.getBoundingClientRect(), cr = ch.getBoundingClientRect();
-        const row = sp.parentElement, qr = document.querySelector('.qrow');
+        const row = document.getElementById('spincap'), qr = document.getElementById('qband');
         return {
           // ⑴ 글자 — textContent 그대로 (innerText 금지)
           text: sp.textContent,
           inner: sp.innerText,                 // 참고로만 찍는다 (판정에 안 쓴다)
           lbl: lb.textContent, chg: ch.textContent,
-          want: t('ui.forge'),
+          // 047 §2③ — 캡션의 말은 「제련」이 아니라 「두드리기」다(새 키 ui.tapHint).
+          want: t('ui.tapHint'),
           // ⑵ 자리 — 좌표
           gapPx: Math.round((cr.left - lr.right) * 10) / 10,
           spinRowY: row ? Math.round(row.getBoundingClientRect().y * 10) / 10 : null,
           qrowY: qr ? Math.round(qr.getBoundingClientRect().y * 10) / 10 : null,
+          /* 047 §2② — 가로에서는 캡션(왼쪽 칸)과 대기열 띠(오른쪽 칸)가 **다른 칸**에
+             산다. 「대기열 줄이 제련 줄 위로 올라왔다」는 한 칸에 위아래로 쌓일 때만
+             뜻이 있는 말이라, 두 상자가 가로로 겹치는지를 같이 낸다(겹치면 같은 칸). */
+          sameCol: (() => { if (!row || !qr) return false;
+            const a = row.getBoundingClientRect(), b2 = qr.getBoundingClientRect();
+            return !(a.right <= b2.left + 0.5 || b2.right <= a.left + 0.5); })(),
           spinY: Math.round(sp.getBoundingClientRect().y * 10) / 10
         };
       });
@@ -2299,14 +2430,17 @@ const chk = (name, cond, note) => {
       // ⑵ 자리: 눈에 보이는 간격
       if (!(r.gapPx > 0))
         spcBad.push(`${vp.nm}: 자리 — #spinlbl 과 #chg 사이 간격이 ${r.gapPx}px 다 (0 보다 커야 한다)`);
-      if (r.qrowY !== null && r.spinRowY !== null && !(r.qrowY > r.spinRowY))
-        spcBad.push(`${vp.nm}: 자리 — 대기열 줄(y ${r.qrowY})이 제련 줄(y ${r.spinRowY}) 위로 올라왔다`);
-      spcRows.push(`${vp.nm} 「${r.text}」 간격 ${r.gapPx}px · 제련줄 y${r.spinRowY} · 대기열줄 y${r.qrowY}`);
+      /* 세로 순서는 **같은 칸일 때만** 따진다(위 `sameCol`). 가로 두 칸에서는
+         대기열 띠가 캡션보다 위에 있는 것이 정상이다 — 옆 칸이기 때문이다. */
+      if (r.sameCol && r.qrowY !== null && r.spinRowY !== null && !(r.qrowY > r.spinRowY))
+        spcBad.push(`${vp.nm}: 자리 — 대기열 띠(y ${r.qrowY})가 캡션(y ${r.spinRowY}) 위로 올라왔다`);
+      spcRows.push(`${vp.nm} 「${r.text}」 간격 ${r.gapPx}px · 캡션 y${r.spinRowY} · 대기열 띠 y${r.qrowY}` +
+        (r.sameCol ? '(같은 칸)' : '(옆 칸 — 순서 안 따짐)'));
     }
-    chk(`SPC1 「${'제련'}/Forge + 공백 + 숫자」 — 글자는 textContent · 자리는 좌표 (크기 ${TB8_SIZES.length})`,
+    chk(`SPC1 「${'두드리기'}/Strike + 공백 + 숫자」 — 글자는 textContent · 자리는 좌표 (크기 ${TB8_SIZES.length})`,
       spcBad.length === 0,
       (spcBad.length ? `${spcBad.length}건 — ${spcBad.join(' · ')}` +
-          `  ⚠ 033 이 만든 「제련600」 회귀다. 034 판정 ⓑ 가 라벨 끝 공백으로 되돌렸다`
+          `  ⚠ 033 이 만든 「제련600」 회귀다. 034 판정 ⓑ 가 라벨 끝 공백으로 되돌렸고, 047 은 그 세 조각을 캡션으로 옮기며 공백을 그대로 들고 갔다`
         : `9크기 전부 — 글자에 공백 문자가 있고(textContent) 자리에도 간격이 있다(좌표)`) +
       `  · 두 측정은 독립이다: innerText 는 flex 간격을 공백으로 메워 주므로 판정에 쓰지 않는다 (034 제안 ⑹)` +
       `  · 크기별: ${spcRows.join(' · ')}`);
@@ -3451,7 +3585,14 @@ const chk = (name, cond, note) => {
         const res = [];
         const forge = (state, prep) => {
           showTab('tabForge'); prep(); render(); renderFast();
-          for (const sel of ['.qrow', '#spin', '#auto']) res.push(Object.assign({ state, sel }, lines(document.querySelector(sel))));
+          /* 047 §2①③ 대체 — 옛 선택자 셋 가운데 둘이 자리를 옮겼다:
+               `.qrow`  → `#qband`   (대기열 줄이 띠가 됐다 · 요소 이름이 바뀜)
+               `#spin`  → `#spincap` (글자 세 조각이 모루 아래 캡션으로 갔다.
+                          `#spin` 자신은 장면 전체를 덮는 **투명한 버튼**이라
+                          글자가 0 개다 — 그대로 두면 「0줄」이 나와 늘 운다)
+               `#auto`  → 그대로 (견습생 버튼, 글자 한 줄)
+             재는 것(한 줄인가 · 줄 상자 밖으로 삐져나갔는가)은 한 글자도 안 바뀐다. */
+          for (const sel of ['#qband', '#spincap', '#auto']) res.push(Object.assign({ state, sel }, lines(document.querySelector(sel))));
         };
         /* 041 검증(제안 ⑥): 폭은 **자릿수가 가장 많은 상태**로 잰다 — 0/10 에서만 재면 「가득(10/10)」에서
            왼쪽 글자가 한 자리 넓어지는 것을 놓친다(041 1차가 그렇게 ko·en 두 줄을 놓쳤다).
@@ -3486,7 +3627,7 @@ const chk = (name, cond, note) => {
       }
       await c.close();
     }
-    chk(`LN1 한 줄이어야 하는 줄이 한 줄 (.qrow · #spin · #auto · #tech .t — ko·en × 4크기 · 대기열 최대 자릿수 포함 · ${lnN}칸)`,
+    chk(`LN1 한 줄이어야 하는 줄이 한 줄 (#qband · #spincap · #auto · #tech .t — ko·en × 4크기 · 대기열 최대 자릿수 포함 · ${lnN}칸)`,
       lnBad.length === 0 && lnErr.length === 0,
       (lnBad.length ? `${lnBad.length}칸 — ` + lnBad.slice(0, 8).join(' / ') + (lnBad.length > 8 ? ` …외 ${lnBad.length - 8}` : '')
                     : `${lnN}칸 전부 1줄 · 삐져나감 0`) +
@@ -3667,6 +3808,13 @@ const chk = (name, cond, note) => {
         try { if (!spinning && S.charge >= 1) { if (S.queue.length >= qmax()) w.__ua.blocked++; else w.__ua.spins++; } } catch (e) {}
         return s0.apply(this, arguments); };
       setInterval(() => w.__ua.samples.push(S.queue.length >= qmax()), 250);
+      /* 047 검증: 047 의 견습생은 `strike()` 안에서 **가득이면 `spin()` 을 부르기 전에**
+         거절한다(`fgDeny('queue')`). 그래서 위 «가득에 막힌 spin() 시도» 는 047 에서
+         구조적으로 0 이 되어 UA2 가 **공허하게 통과**했다(047 검증 실측: 자동 정리를 6틱에
+         한 번만 돌린 변이가 30초에 대기열 가득 거절 37회 · 제작 60→25 인데도 UA2 PASS).
+         막힌 타격을 VIEW 의 실제 거절 수(`FG.blocked.queue`)로도 센다 — 두 길 중 어느 쪽으로
+         막혀도 «막힌 스핀» 이다. 041 이전 빌드(FG 없음)에서는 0 을 더한다. */
+      w.__ua.fgq0 = (typeof FG === 'object' && FG && FG.blocked) ? (FG.blocked.queue || 0) : 0;
     };
     const uaOpen = async (star) => {
       const c = await browser.newContext({ viewport: { width: 380, height: 820 } });
@@ -3684,29 +3832,223 @@ const chk = (name, cond, note) => {
       p.__es = es; p.__c = c; return p;
     };
     // UA1 — 승천 0 · 저장값 true · 자동 제련 켬 · 10초: 정리 0, 가득에서 선다
-    const p1 = await uaOpen(0); await p1.waitForTimeout(10000);
+    /* 047 §2⑤-9 대체 — 견습생은 **`REELS()`×0.5초에 하나**다(옛 자동은 ≈0.5초에 하나).
+       10초로는 대기열(10칸)이 안 차서 「가득에서 선다」를 못 재고 늘 운다 — 결함이
+       아니라 R1 이 바꾼 산술이다(§2⑤ 끝 · 검사 K3). 10칸을 채우는 데 3릴 × 0.5초
+       × 10 = 15초가 드니 **24초**로 늘린다. 재는 것은 그대로다.
+       ⚠ 047 3차 검증 고침(047 검증 제안 ⑤) — 위 산술은 **1차** 것이다. 2차의 서두름
+         (충전 ≥60 이면 한 주기를 한 박 안에 끝낸다)으로 이 판(충전 600)은 **≈5초에
+         가득**이 된다(3차 검증 실측: 로드 뒤 4.2초 · 서두름 없는 충전 50 판은 13.0초).
+         그래서 10초로도 찬다. 24초를 그대로 두는 까닭은 **창이 길수록 엄격**해서다 —
+         승천을 무시하는 빌드는 그동안 정리를 계속 돌려 그만큼 크게 운다(047 검증:
+         24초에 resolve 47회). 서두름이 꺼진 판(15초)에도 여유가 남는다. */
+    const p1 = await uaOpen(0); await p1.waitForTimeout(24000);
     const u1 = await p1.evaluate(() => ({ r: __ua.resolve, sp: __ua.spins, bl: __ua.blocked, tail: __ua.samples.slice(-8),
       q: S.queue.length, qm: qmax(), ar: S.autoRes, star: S.star | 0,
-      spin: document.getElementById('spin').textContent.trim(), want: t('ui.sortQueue'),
+      // 047 §2③ — 「대기열 정리」 글자는 `#spin` 이 아니라 모루 아래 캡션에 산다.
+      spin: document.getElementById('spincap').textContent.trim(), want: t('ui.sortQueue'),
       btn: getComputedStyle(document.getElementById('autores')).display }));
     const ok1 = u1.star === 0 && u1.ar === true && u1.r === 0 && u1.tail.length > 0 && u1.tail.every(Boolean)
       && u1.spin === u1.want && u1.btn === 'none' && p1.__es.length === 0;
-    chk('UA1 승천 0 에서는 자동 정리가 안 돈다 (저장값 true 인 채로 · 10초 방치 · 효과로)', ok1,
+    chk('UA1 승천 0 에서는 자동 정리가 안 돈다 (저장값 true 인 채로 · 24초 방치 · 효과로)', ok1,
       `별 ${u1.star} · 저장값 autoRes ${u1.ar} · resolve() ${u1.r}회 · 스핀 ${u1.sp}회 · 가득에 막힌 시도 ${u1.bl}회 · 대기열 ${u1.q}/${u1.qm}` +
       ` (마지막 2초 내내 가득 ${u1.tail.every(Boolean)}) · #spin 「${u1.spin}」 · #autores ${u1.btn}` +
       (p1.__es.length ? ` · 콘솔 ${p1.__es.slice(0, 2).join(' | ')}` : ''));
     await p1.__c.close();
     // UA2 — 승천 1 · 자동 제련 켬 · 30초: 막힌 스핀 0, 정리가 실제로 돈다
     const p2 = await uaOpen(1); await p2.waitForTimeout(30000);
-    const u2 = await p2.evaluate(() => ({ r: __ua.resolve, sp: __ua.spins, bl: __ua.blocked, q: S.queue.length, qm: qmax(), w: S.wave }));
+    const u2 = await p2.evaluate(() => ({ r: __ua.resolve, sp: __ua.spins, bl: __ua.blocked, q: S.queue.length, qm: qmax(), w: S.wave,
+      fgq: (typeof FG === 'object' && FG && FG.blocked) ? (FG.blocked.queue || 0) - __ua.fgq0 : 0 }));
     chk('UA2 승천 1+ · 자동 제련 켬 · 30초 방치 → 가득에 막힌 스핀 0 (자동 정리가 실제로 돈다)',
-      u2.bl === 0 && u2.r > 0 && u2.sp > 0 && p2.__es.length === 0,
-      `가득에 막힌 시도 ${u2.bl}회 · 스핀 ${u2.sp}회 · resolve() ${u2.r}회 · 대기열 ${u2.q}/${u2.qm} · 웨이브 ${u2.w}` +
+      u2.bl === 0 && u2.fgq === 0 && u2.r > 0 && u2.sp > 0 && p2.__es.length === 0,
+      `가득에 막힌 시도 ${u2.bl}회(spin 호출) + ${u2.fgq}회(견습생 거절 FG.blocked.queue) · 스핀 ${u2.sp}회 · resolve() ${u2.r}회 · 대기열 ${u2.q}/${u2.qm} · 웨이브 ${u2.w}` +
       (p2.__es.length ? ` · 콘솔 ${p2.__es.slice(0, 2).join(' | ')}` : '') + '  · 033 방치 실측의 상설판(041 제안 ④)');
     await p2.__c.close();
   } catch (e) {
     chk('UA-예외 자동 정리 방치 검사가 완주했다', false, '조작 중 예외: ' + String((e && e.message) || e));
   }
+
+  /* ── FX1 · RF1 · L3 : 047 3차 검증 세션 신설 (047 검증 제안 ①②④ · 계획 세션 채택) · QD1 은 4차 검증 신설(아래) ──
+     셋 다 047 1·2차 검증이 **임시 프로브로만** 잡은 결함이다. 상설 검사로 옮긴다.
+     FX1 (제안 ②) 정렬 결과 한 번 → 연출 한 번. 2차 빌드(d20e8fd2)는 마무리에서
+         `.echo` 를 붙이는 순간 릴 클래스 감시가 그것을 「정착」으로 다시 읽어 attack·bounce
+         가 **+2** 였다. 효과(카운터)로 잰다. 결과가 남은 동안 길게 눌러 고정·해제해도
+         연출이 다시 나지 않는다(041 부터 있던 +1 — 3차의 감시 고침으로 함께 사라졌다).
+     RF1 (제안 ①) rAF 가 멈춘 판(숨은 탭 · 화면 밖 iframe 흉내: rAF 무동작 + document.hidden)
+         에서 견습생 20초 → `spin()` > 0, 보통 판과 ±10%. 2차 빌드는 정착을 rAF 로만 봐서
+         **0** 이었다(주기가 가려진 채 섰다).
+     L3  (제안 ④) 틱이 자리를 안 바꾼다 — **빈 대기열 · 자동 끔에서 기준을 잡고** 자동을
+         켠다. 이미 찬 판에서 재면 `#open` 의 display 토글 같은 결함이 일어나지 않아 조용히
+         통과한다(047 검증: 토글을 되살린 변이가 찬 판에서는 PASS · 빈 판에서는 711px).
+         그래서 «재는 동안 대기열이 0 → 1 이상이 됐다» 를 공허성 조건으로 함께 본다.
+     변이(3차 검증 실측): 2차 빌드 → FX1·RF1 이 운다 · `#open` display 토글 변이 → L3 이 운다. */
+  try {
+    const xOpen = async (save, w, h) => {
+      const c = await browser.newContext({ viewport: { width: w || 380, height: h || 820 } });
+      const p = await c.newPage(); const es = [];
+      p.on('pageerror', e => es.push('pageerror: ' + e.message));
+      p.on('console', m => { if (m.type() === 'error' || m.type() === 'assert') es.push(m.text()); });
+      p.on('dialog', d => d.accept().catch(() => {}));
+      await p.addInitScript(s => { try { localStorage.setItem('forge', JSON.stringify(Object.assign(
+        { wave: 12, top: 14, peak: 14, gold: 500, tok: 3, lv: 0, star: 0, charge: 600, queue: [], equip: {},
+          asell: new Array(15).fill(false), t: Date.now(), auto: false, autoRes: true,
+          dust: 0, tech: {}, tk: 0, pos: 0, best: 0 }, s))); } catch (e) {} }, save || {});
+      await p.goto(URL);
+      await p.evaluate(() => { try { window.save = () => {}; } catch (e) {} });
+      await p.waitForTimeout(1200);
+      p.__es = es; p.__c = c; return p;
+    };
+    // `#spin` 위에서 #spin 이 맨 위인 점(캡션·문양 칸을 피한다) · 실제 포인터로 누른다
+    const spinAt = p => p.evaluate(() => { const e = document.getElementById('spin'); const r = e.getBoundingClientRect();
+      for (const fy of [.55, .7, .4, .85, .25]) for (const fx of [.5, .3, .7, .15, .85]) {
+        const x = r.x + r.width * fx, y = r.y + r.height * fy; if (document.elementFromPoint(x, y) === e) return { x, y }; }
+      return null; });
+
+    // FX1 — 정렬 결과 한 번 → attack·bounce 각 +1 · 고정/해제로 다시 안 난다
+    {
+      const p = await xOpen({}); const pt = await spinAt(p);
+      const cnt = () => p.evaluate(() => ({ a: __view.counters.attack, b: __view.counters.bounce }));
+      const c0 = await cnt();
+      await p.evaluate(() => { window.__r0 = Math.random; Math.random = () => 0.01; });   // 첫 타의 spin() 이 정렬을 굴린다
+      await p.mouse.click(pt.x, pt.y); await p.waitForTimeout(30);
+      await p.evaluate(() => { Math.random = window.__r0; });
+      await p.waitForTimeout(700); const cMid = await cnt();                             // 정착 뒤 · 가려진 동안
+      for (let i = 1; i < 6; i++) {                                                      // 주기를 손으로 끝낸다
+        if (!(await p.evaluate(() => FG.veiled))) break;
+        await p.mouse.click(pt.x, pt.y); await p.waitForTimeout(120); }
+      await p.waitForTimeout(700); const c1 = await cnt();
+      const fin = await p.evaluate(() => ({ made: FG.made, veiled: FG.veiled,
+        aligned: (() => { const ks = [...document.querySelectorAll('#reels .reel')]; return ks.length > 1 && ks.every(k => k.dataset.p === ks[0].dataset.p); })() }));
+      const rp = await p.evaluate(() => { const e = document.querySelectorAll('#reels .reel')[1]; const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+      const lk = [];
+      for (let k = 0; k < 2; k++) {                                                     // 길게 → 고정 · 다시 길게 → 해제
+        await p.mouse.move(rp.x, rp.y); await p.mouse.down(); await p.waitForTimeout(700); await p.mouse.up();
+        await p.waitForTimeout(250); lk.push(await p.evaluate(() => S.lockIdx)); }
+      const c2 = await cnt();
+      const ok = !!pt && fin.aligned && fin.made === 1 && !fin.veiled
+        && cMid.a === c0.a && cMid.b === c0.b
+        && c1.a - c0.a === 1 && c1.b - c0.b === 1
+        && lk[0] === 1 && lk[1] === -1 && c2.a === c1.a && c2.b === c1.b && p.__es.length === 0;
+      chk('FX1 정렬 결과 한 번 → 연출 한 번 (attack·bounce 각 +1 · 드러나기 전 0 · 결과 위 고정/해제로 다시 안 남)', ok,
+        `정렬 ${fin.aligned} · made ${fin.made} · 가려진 동안 attack ${c0.a}→${cMid.a} bounce ${c0.b}→${cMid.b}` +
+        ` · 마무리 뒤 attack +${c1.a - c0.a} bounce +${c1.b - c0.b} · 고정→해제 lockIdx ${lk.join('→')} 뒤 attack +${c2.a - c1.a} bounce +${c2.b - c1.b}` +
+        (p.__es.length ? ` · 콘솔 ${p.__es.slice(0, 2).join(' | ')}` : '') + '  · 2차 빌드 +2 (047 검증 A)');
+      await p.__c.close();
+    }
+
+    // RF1 — rAF 를 멈춘 판에서 견습생 20초 → spin() > 0 · 보통 판 ±10%
+    {
+      const run = async (stopped) => {
+        const p = await xOpen({ star: 1, auto: true });
+        await p.evaluate(st => {
+          window.__rf = { spin: 0, raf: 0 };
+          const s0 = window.spin; window.spin = function () { const c = S.charge; const r = s0.apply(this, arguments); if (S.charge < c) __rf.spin++; return r; };
+          if (st) { window.requestAnimationFrame = () => 0;
+            Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+            Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' }); }
+          const r0 = window.requestAnimationFrame; window.requestAnimationFrame = function (f) { __rf.raf++; return r0.call(this, f); };
+        }, stopped);
+        await p.waitForTimeout(20000);
+        const r = await p.evaluate(() => ({ spin: __rf.spin, raf: __rf.raf, made: FG.made, veiled: FG.veiled, struck: FG.struck }));
+        r.es = p.__es; await p.__c.close(); return r;
+      };
+      const n = await run(false), s = await run(true);
+      const d = n.spin ? (s.spin / n.spin - 1) * 100 : NaN;
+      chk('RF1 rAF 가 멈춘 판(숨은 탭 흉내)에서도 견습생 20초 → 제작 > 0 · 보통 판 ±10%',
+        s.spin > 0 && n.spin > 0 && Math.abs(d) <= 10 && !n.es.length && !s.es.length,
+        `보통 판 spin() ${n.spin}회(made ${n.made} · rAF ${n.raf}) · rAF 멈춘 판 spin() ${s.spin}회(made ${s.made} · 가려짐 ${s.veiled} · 쌓인 타 ${s.struck})` +
+        ` · 차 ${isFinite(d) ? d.toFixed(1) : '—'}%` + ((n.es.length || s.es.length) ? ` · 콘솔 ${n.es.concat(s.es).slice(0, 2).join(' | ')}` : '') +
+        '  · 2차 빌드 0회 (047 검증 B)');
+    }
+
+    // L3 — 빈 대기열 · 자동 끔에서 기준 → 자동 켬 12초: 레이아웃 사각형 최대 변화 ≤1px
+    {
+      const L3_IDS = ['spin', 'auto', 'up', 'bInfo', 'open', 'autores', 'qband', 'gear', 'scene', 'asc', 'tbForge', 'pity', 'reels'];
+      const bad = [], rows = [];
+      for (const [w, h] of [[380, 820], [800, 450]]) {
+        const p = await xOpen({ star: 0, auto: false, queue: [] }, w, h);
+        const r = await p.evaluate(async ids => {
+          const rect = id => { const e = document.getElementById(id); if (!e) return null; const r = e.getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; };
+          const base = {}, mx = {}; ids.forEach(i => { base[i] = rect(i); mx[i] = 0; });
+          const q0 = S.queue.length; S.auto = true; render();
+          for (let k = 0; k < 48; k++) { await new Promise(z => setTimeout(z, 250));
+            ids.forEach(i => { const c = rect(i); if (!c || !base[i]) return; mx[i] = Math.max(mx[i], ...c.map((v, j) => Math.abs(v - base[i][j]))); }); }
+          return { mx, q0, q1: S.queue.length, made: FG.made };
+        }, L3_IDS);
+        const worst = Object.entries(r.mx).sort((a, b) => b[1] - a[1]);
+        const okS = r.q0 === 0 && r.q1 > 0 && worst[0][1] <= 1 && p.__es.length === 0;
+        rows.push(`${w}×${h} 대기 ${r.q0}→${r.q1} · 최대 ${worst.slice(0, 2).map(([k, v]) => `#${k} ${Math.round(v * 10) / 10}px`).join(' · ')}`);
+        if (!okS) bad.push(`${w}×${h}`);
+        await p.__c.close();
+      }
+      chk('L3 틱이 자리를 안 바꾼다 — 빈 대기열 · 자동 끔에서 기준, 자동 켬 12초 · 13요소 최대 ≤1px (380×820 · 800×450)',
+        bad.length === 0, rows.join(' / ') + (bad.length ? ` · 실패 ${bad.join(', ')}` : '') + '  · 대기 0→1+ 를 함께 본다(공허성)');
+    }
+
+    /* QD1 — 대기열 점의 「+N」 (047 4차 검증 신설 · 047 3차 검증 결함 · 계획 세션 지시로 상설화)
+       3차는 넘칠 때 마지막 점 자리(4px)를 「+N」 글자로 바꿨는데 글자가 13~20px 이라
+       `#qdots{overflow:hidden}` 에 잘렸다 — 「+N」이 난 **모든 칸**에서 숫자가 안 보이거나
+       「+3」(실제 +35)처럼 틀린 수로 읽혔다. 지금까지의 점 검사(9크기 × 승천 0·1)는 다 들어가는
+       크기라 「+N」 길을 **한 번도 열지 않았다.** days.js 진행대로 ★ 를 올려(제련 28 · ★0·13·20·28)
+       그 길을 연다: 9크기 × ★4 × 대기 0·가득 × ko·en = 144칸.
+       판정(칸마다): 띠 안에 다 보이는 점 + N = 실제 대기 · 「+N」 글자(텍스트 상자)의 오른쪽 끝 ≤ `#qdots`
+       오른쪽 끝 · 자식 전부 띠 안 · scrollWidth ≤ clientWidth(#qdots·#open·#qband·문서).
+       공허성: 「+N」이 난 칸이 하나도 없으면 실패(그 길을 못 열었다).
+       ⚠ 쪽은 (언어 × 크기)마다 한 번 열고 ★ 는 `S.star` 를 바꿔 `render()` 한다 — 새로 연 쪽과
+         칸마다 같은 값임을 확인했다(047 4차 검증). 변이 = 3차 빌드 `43bbd75c` → 「+N」 칸 15개가 운다. */
+    {
+      const QD_SIZES = [[380, 820], [1280, 720], [1280, 600], [821, 462], [907, 510], [1077, 606], [1216, 684], [800, 450], [1920, 1080]];
+      const QD_STARS = [0, 13, 20, 28];
+      const bad = []; let cells = 0, labels = 0, errs = [];
+      for (const lang of ['ko', 'en']) for (const [w, h] of QD_SIZES) {
+        const c = await browser.newContext({ viewport: { width: w, height: h } });
+        const p = await c.newPage(); const es = [];
+        p.on('pageerror', e => es.push('pageerror: ' + e.message));
+        p.on('console', m => { if (m.type() === 'error' || m.type() === 'assert') es.push(m.text()); });
+        p.on('dialog', d => d.accept().catch(() => {}));
+        await p.addInitScript(() => { try { localStorage.setItem('forge', JSON.stringify(
+          { wave: 12, top: 14, peak: 14, gold: 0, tok: 2, lv: 28, star: 0, charge: 0, queue: [], equip: {},
+            asell: new Array(15).fill(false), t: Date.now(), auto: false, autoRes: true,
+            dust: 0, tech: {}, tk: 0, pos: 0, best: 0 })); } catch (e) {} });
+        await p.goto(URL.replace(/\?lang=\w+$/, '') + '?lang=' + lang);
+        await p.evaluate(() => { try { window.save = () => {}; } catch (e) {} });
+        await p.waitForTimeout(800);
+        for (const st of QD_STARS) for (const full of [0, 1]) {
+          const r = await p.evaluate(([st, full]) => {
+            S.star = st; S.queue = []; if (full) while (S.queue.length < qmax()) S.queue.push(makeItem('head', 3));
+            render();
+            const qd = document.getElementById('qdots'), op = document.getElementById('open'), band = document.getElementById('qband');
+            const a = qd.getBoundingClientRect();
+            const out1 = r => Math.max(0, a.left - r.left, r.right - a.right, a.top - r.top, r.bottom - a.bottom);
+            let on = 0, N = 0, hasL = false, cut = 0, kidOut = 0, txt = '';
+            for (const k of qd.children) { const r = k.getBoundingClientRect(); const o = out1(r); kidOut = Math.max(kidOut, o);
+              if (k.classList.contains('on') && o < 0.5 && r.width > 0) on++;
+              if (k.classList.contains('more') && k.textContent) { hasL = true; txt = k.textContent;
+                const m = /^\+(\d+)$/.exec(k.textContent); N = m ? +m[1] : NaN;
+                const rg = document.createRange(); rg.selectNodeContents(k); const tr = rg.getBoundingClientRect();
+                cut = Math.max(0, tr.right - a.right, a.left - tr.left); } }
+            const sw = [['qdots', qd], ['open', op], ['qband', band], ['doc', document.scrollingElement]]
+              .filter(([, e]) => e.scrollWidth > e.clientWidth).map(([n, e]) => `${n} ${e.scrollWidth}>${e.clientWidth}`);
+            const seen = S.queue.length - (FG.veiled ? FG.qHeld : 0);
+            return { seen, on, N, hasL, txt, cut: +cut.toFixed(2), kidOut: +kidOut.toFixed(2), sw };
+          }, [st, full]);
+          cells++; if (r.hasL) labels++;
+          if (!(r.on + r.N === r.seen && r.cut === 0 && r.kidOut === 0 && r.sw.length === 0))
+            bad.push(`${lang} ${w}×${h} ★${st} ${full ? '가득' : '빈'}: 점 ${r.on}+${r.N} vs 대기 ${r.seen}` +
+              (r.hasL ? ` · 「${r.txt}」 잘림 ${r.cut}px` : '') + (r.kidOut ? ` · 칸 밖 ${r.kidOut}px` : '') + (r.sw.length ? ` · scrollWidth ${r.sw.join(',')}` : ''));
+        }
+        errs = errs.concat(es); await c.close();
+      }
+      chk(`QD1 대기열 「+N」 — 9크기 × ★0·13·20·28 × 대기 0·가득 × ko·en (${cells}칸): 점 + N = 대기 · 글자 끝 ≤ 띠 끝 · scrollWidth ≤ clientWidth`,
+        bad.length === 0 && labels > 0 && errs.length === 0,
+        `「+N」이 난 칸 ${labels}` + (bad.length ? ` · 실패 ${bad.length}칸 — ${bad.slice(0, 4).join(' / ')}` : ' · 전부 통과') +
+        (labels === 0 ? ' · ⚠ 「+N」 길을 한 번도 못 열었다(공허)' : '') + (errs.length ? ` · 콘솔 ${errs.slice(0, 2).join(' | ')}` : '') +
+        '  · 3차 빌드는 「+N」 칸이 전부 운다 (047 3차 검증)');
+    }
+  } catch (e) {
+    chk('FX-예외 FX1·RF1·L3·QD1 검사가 완주했다', false, '조작 중 예외: ' + String((e && e.message) || e));
+  }
+  // ── FX1·RF1·L3 끝
 
   await browser.close();
 
