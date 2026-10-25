@@ -96,8 +96,19 @@ body{
 body[data-tab="tower"] #scene,body[data-tab="tech"] #scene{display:none}
 
 /* ── 열기 줄 · 손잡이 줄 · 장비 띠 · 대기열 띠 ── 전부 고정 높이다. */
+/* 049 §2④ — HUD 스피커. 아이콘 하나뿐이라 버튼 기본 여백을 걷어낸다(40px 줄 안에 든다). */
+#snd{padding:0 4px;min-width:0;line-height:1;font-size:13px;background:none;border:0;
+  color:var(--dim);cursor:pointer;vertical-align:middle}
+#snd[aria-pressed="false"]{opacity:.45}
+#sndMusic.hot,#sndSfx.hot{color:var(--ember)}
 #openrow{flex:none;display:flex;align-items:center;gap:8px;height:32px;padding:0 10px}
 #bInfo{flex:none;font-size:11px;padding:5px 10px;min-height:26px;letter-spacing:.06em}
+/* 049 F3 — 자동 제련 버튼은 **켜고 꺼도 폭이 안 변해야 한다.** `.hot` 이 `font-weight:700`
+   을 주는데, 열기 줄에서는 그 한 끗이 글자를 넓혀 `#therm`·`#bInfo` 를 5.4px 밀었다
+   (en 「Auto Forge」에서 L3 가 울었다). 굵기를 **늘 700** 으로 못박아 상태가 자리를
+   안 건드리게 한다 — `.hot` 의 색·그림자는 그대로 든다. */
+#openrow>#auto{flex:none;font-size:11px;padding:5px 10px;min-height:26px;
+  letter-spacing:.06em;font-weight:700}
 #dock{display:flex;flex-direction:column;gap:6px;padding:6px 10px 0;min-width:0}
 #handles{flex:none;display:flex;gap:6px;height:44px}
 #handles>button{flex:1;min-width:0;font-size:12px;padding:6px 4px;white-space:nowrap;
@@ -367,7 +378,42 @@ body[data-appr="0"] #spincap #chg{display:none}
   z-index:2;font-size:12px;padding:7px 12px}
 /* 모루 아래 한 줄 캡션. 033 ② 의 「대기열 정리」 글자 바꿈이 여기서 일어난다 —
    바꾸는 쪽(renderFast)은 그대로 `#spinlbl`·`#chg`·`#spinq` 를 쓴다. */
-#spincap{font-size:11px;margin-top:auto;padding-top:6px;letter-spacing:.04em}
+/* ══ 049 §2⑥ — 메트로놈 띠 ════════════════════════════════════════════════
+   높이는 **16px 고정**이다(지시서: 장면이 좁으면 최소 14px). 장면 안에서 자리를
+   뺏는 유일한 새 요소라 L1(첫 화면 스크롤 0)이 여기서 갈린다 — 그래서 `flex:none`
+   으로 못박고 안쪽은 전부 `position:absolute` 다(줄 수가 늘 수 없다). */
+#beat{position:relative;flex:none;height:16px;margin-top:auto;border-radius:8px;
+  background:linear-gradient(180deg,#11161c,#0a0d11);
+  box-shadow:inset 0 0 6px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.04);overflow:hidden}
+#spincap{font-size:11px;margin-top:0;padding-top:6px;letter-spacing:.04em}
+/* 표적 칸 — 가운데에서 좋음·정확·완벽이 겹쳐 보인다(폭이 곧 너그러움이다). */
+#beat .zone{position:absolute;top:2px;bottom:2px;left:50%;transform:translateX(-50%);
+  border-radius:6px;pointer-events:none}
+#beat .z3{width:56%;background:rgba(255,255,255,.055)}
+#beat .z2{width:36%;background:rgba(255,107,44,.16)}
+#beat .z1{width:18%;background:rgba(223,185,111,.3)}
+/* 바늘 — 한 박에 한 번 좌↔우를 건넌다. 끝에 닿는 순간이 박이다. */
+#beatneedle{position:absolute;top:1px;bottom:1px;width:2px;margin-left:-1px;border-radius:1px;
+  background:var(--ember);box-shadow:0 0 6px -1px var(--ember);left:0}
+#beat.edge{box-shadow:inset 0 0 6px rgba(0,0,0,.85),0 0 9px -2px var(--ember)}
+/* 탭이 떨어진 자리 — 앞의 것들은 흐리게 남아 「이른지 늦은지」가 보인다. */
+#beatticks{position:absolute;inset:0;pointer-events:none}
+#beatticks>i{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;border-radius:1px;background:#fff}
+/* reducedMotion — 바늘이 안 움직이고 박마다 점 하나가 깜빡인다. */
+#beatdot{display:none;position:absolute;left:50%;top:50%;width:5px;height:5px;margin:-2.5px 0 0 -2.5px;
+  border-radius:50%;background:var(--dim)}
+#beatdot.on{background:var(--ember);box-shadow:0 0 7px -1px var(--ember)}
+@media (prefers-reduced-motion:reduce){
+  #beatneedle{display:none} #beatdot{display:block}
+}
+/* 판정 글자 — 모루 위로 잠깐 떠오른다. */
+#beatjudge{position:absolute;left:50%;bottom:17px;transform:translateX(-50%);
+  font-size:12px;font-weight:700;letter-spacing:.04em;white-space:nowrap;
+  opacity:0;pointer-events:none;text-shadow:0 1px 3px rgba(0,0,0,.9)}
+@keyframes judgePop{0%{opacity:0;transform:translate(-50%,4px)}
+  18%{opacity:1;transform:translate(-50%,-2px)}100%{opacity:0;transform:translate(-50%,-10px)}}
+#beatjudge.on{animation:judgePop .9s ease-out 1}
+@media (prefers-reduced-motion:reduce){ #beatjudge.on{animation:none;opacity:1} }
 #spincap>span:empty{display:none}
 
 /* ══ 047 §2⑤-3 — 가림막은 **부모 속성**이다 ════════════════════════════
@@ -434,6 +480,13 @@ body[data-appr="0"] #spincap #chg{display:none}
   50%{box-shadow:0 0 0 2px var(--ember),inset 0 0 5px rgba(0,0,0,.9)}}
 #therm.deny,#qband.deny>#open{animation:barDeny .3s ease-out 2}
 
+/* ══ 049 F5 — 미끄러진 탭을 삼키지 않는다 ════════════════════════════════
+   `touch-action:manipulation` 은 더블탭 확대·패닝을 끄고 **탭을 탭으로 남긴다**(300ms
+   지연도 같이 사라진다). `user-select:none` 은 길게 누를 때 글자가 잡히는 것을,
+   `-webkit-user-drag:none` 은 이미지 드래그를 막는다. 누르는 자리 전부에 건다 —
+   장면 버튼(`#spin`)과 문양 칸(`.reel`)과 그 속의 그림이다. */
+#spin,#reels,.reel,.reel *{touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.reel img,.reel .ico{-webkit-user-drag:none;user-drag:none;pointer-events:none}
 #reels{display:flex;justify-content:center;align-items:center;gap:6px;flex:1;min-width:0}
 /* 릴 = 화로 창. 세로 릴 스트립이 아니라 재료가 달궈지는 창 하나. */
 .reel{
@@ -469,7 +522,7 @@ body[data-appr="0"] #spincap #chg{display:none}
 /* 기준선(payline) — 창 가운데 한 줄. 맞으면 등급색으로 켜진다. */
 .reel .pay{position:absolute;left:3px;right:3px;top:50%;height:1px;margin-top:-1px;z-index:2;
   pointer-events:none;background:linear-gradient(90deg,transparent,rgba(214,166,94,.38),transparent)}
-.reel.done.hit .pay{background:linear-gradient(90deg,transparent,var(--payc,var(--ember)),transparent);
+#forge[data-match] .reel.done.hit .pay{background:linear-gradient(90deg,transparent,var(--payc,var(--ember)),transparent);
   box-shadow:0 0 7px -1px var(--payc,var(--ember))}
 /* 도는 동안: 잔상(세로 blur) + 위아래 가장자리 어둡게. 라벨은 **자리를 지킨 채**
    숨는다(`visibility` — `display` 면 L3「틱이 자리를 안 바꾼다」가 운다). */
@@ -486,6 +539,16 @@ body[data-appr="0"] #spincap #chg{display:none}
 /* 리치(긴장) — 마지막 한 칸이 느리게 돌며 빛난다. */
 .reel.tense{border-color:var(--brass);box-shadow:0 0 12px rgba(184,147,74,.5),inset 0 0 11px rgba(0,0,0,.9)}
 .reel.tense .strip{filter:blur(.6px) brightness(1.12)}
+/* 049 F2 — 자동 제련의 두 연출. **들썩**은 박마다 한 번(굴리지 않는다는 표시),
+   **쾅**은 정착 순간 모든 칸이 새 결과로 바뀌는 자리. 둘 다 transform·box-shadow 뿐이다. */
+@keyframes reelNudge{0%{transform:none}35%{transform:translateY(2px) scale(.985)}100%{transform:none}}
+.reel.nudge{animation:reelNudge .18s ease-out 1}
+@keyframes reelSlam{
+  0%{transform:translateY(-3px) scale(1.04);box-shadow:0 0 0 2px var(--ember),inset 0 0 11px rgba(0,0,0,.9)}
+  45%{transform:translateY(2px) scale(.99)}
+  100%{transform:none;box-shadow:inset 0 0 11px rgba(0,0,0,.9)}}
+.reel.slam{animation:reelSlam .38s ease-out 1}
+@media (prefers-reduced-motion:reduce){ .reel.nudge,.reel.slam{animation:none} }
 /* 선 그 순간 — 칸 테두리 번쩍 + 짧은 셰이크 (서지 않은 칸은 조용하다). */
 @keyframes reelLand{
   0%{box-shadow:0 0 0 2px var(--ember),inset 0 0 11px rgba(0,0,0,.9);transform:translateY(-2px)}
@@ -511,9 +574,11 @@ body[data-appr="0"] #spincap #chg{display:none}
   radial-gradient(circle 1.3px at 18% 46%,#ffc46b,transparent)}
 /* 048 §2③ — 맞음의 생김새는 **선 릴**(`.done`)에만 든다. CORE 는 420ms 에 맞은
    칸마다 `.hit` 를 다는데, 아직 도는 칸이 그때 빛나면 결과가 첫 타에 새어 나간다
-   (047 K5 가 가림막으로 막던 바로 그것). `.hit` 자체는 CORE 가 달던 그대로다. */
-.reel.done.hit .fl{animation:burst .62s ease-out}
-.reel.done.hit .sk{animation:sparks .82s ease-out}
+   (047 K5 가 가림막으로 막던 바로 그것). `.hit` 자체는 CORE 가 달던 그대로다.
+   049 F4 — 그 위에 **`#forge[data-match]`** 가 하나 더 붙는다: 같은 문양으로 선 칸이
+   **둘 이상**일 때만 켠다(첫 칸 하나가 선 순간에는 안 켜진다). */
+#forge[data-match] .reel.done.hit .fl{animation:burst .62s ease-out}
+#forge[data-match] .reel.done.hit .sk{animation:sparks .82s ease-out}
 @keyframes burst{
   0%{opacity:0;transform:translateY(18%) scale(.72,.3)}
   22%{opacity:1;transform:translateY(0) scale(1,1.1)}
@@ -541,7 +606,7 @@ body[data-appr="0"] #spincap #chg{display:none}
   content:"고정";position:absolute;top:0;right:0;font-size:11px;line-height:1.35;
   color:#22190a;background:linear-gradient(180deg,#dfb96f,#a8842f);
   padding:2px 4px;border-radius:0 3px 0 5px;letter-spacing:.04em}
-.reel.done.hit{border-color:var(--ember);
+#forge[data-match] .reel.done.hit{border-color:var(--ember);
   box-shadow:0 0 15px rgba(255,107,44,.55),inset 0 0 18px rgba(255,107,44,.35)}
 #msg{height:18px;font-size:12px;color:var(--dim);margin-bottom:8px}
 #msg.big{color:var(--ember);font-weight:700;text-shadow:0 0 10px rgba(255,107,44,.55)}
@@ -927,6 +992,8 @@ body[data-appr="0"] #spincap #chg{display:none}
     <div class="num" style="font-size:12px">
       <span style="color:var(--brass)"><svg class="ci"><use href="#s-gold"/></svg> <span id="gold">0</span></span>
       &nbsp;<span style="color:var(--ember)"><svg class="ci"><use href="#s-token"/></svg> <span id="tok">0</span></span>
+      <!-- 049 §2④ — 소리 끄고 켜기. HUD 한 줄 오른쪽 끝 · 아이콘만(글자를 넣으면 40px 줄이 넘친다). -->
+      &nbsp;<button id="snd" type="button" aria-pressed="true" data-stitle="ui.sndTip" title="소리">🔊</button>
     </div>
   </div>
 </div>
@@ -986,12 +1053,23 @@ body[data-appr="0"] #spincap #chg{display:none}
   <div id="msg"></div>
   <!-- 모루 아래 작은 캡션. 033 ② 의 「대기열 정리」 글자 바꿈이 여기서 일어난다 —
        바꾸는 쪽(renderFast)은 그대로 `#spinlbl`·`#chg`·`#spinq` 를 쓴다. -->
+  <!-- 049 §2⑥ — 모루 밑 메트로놈 + 판정 게이지. 캡션 **위**, 모루 **아래**다.
+       `aria-hidden` : 화면 낭독기에 바늘 좌표를 읽어 줄 이유가 없다(판정 글자는 #msg 가 든다). -->
+  <div id="beat" aria-hidden="true">
+    <i class="zone z3"></i><i class="zone z2"></i><i class="zone z1"></i>
+    <i id="beatticks"></i><i id="beatneedle"></i><i id="beatdot"></i>
+    <span id="beatjudge"></span>
+  </div>
   <div id="spincap" class="dim"><span id="spinlbl">두드리기 </span><svg class="ci" style="color:var(--ember)"><use href="#s-flame"/></svg> <span class="num" id="chg">0</span><span id="spinq"></span></div>
 </div>
 <!-- 열기 줄 — 충전 온도계를 **가로 막대**로 눕히고 오른쪽 끝에 정보 버튼. -->
 <div id="openrow">
   <div id="therm"><i id="thermf"></i></div>
   <button id="bInfo" data-s="ui.info" data-stitle="ui.infoTip">정보</button>
+  <!-- 049 F3 — 「견습생」이 **「자동 제련」**이 되어 손잡이 줄에서 여기로 왔다(사용자 결정).
+       요소도 id 도 그대로다 — 코드 이름(`apprOn`·`S.auto`·`'apprentice'` 출처)은 안 바꾼다.
+       모루 바로 아래, 「누르는 곳」과 「대신 누르게 하는 곳」이 한자리에 모인다. -->
+  <button id="auto" data-s="ui.autoForge" data-stitle="ui.autoForgeTip">자동 제련</button>
 </div>
 </div><!-- /#scene -->
 
@@ -1003,7 +1081,6 @@ body[data-appr="0"] #spincap #chg{display:none}
        `#lv`·`#up`·`#cost` 가 여기로 왔다(요소 그대로). -->
   <div id="handles">
     <button id="up"><span data-s="ui.upgrade">강화</span> <span class="dim" data-s="ui.forgeLvShort">Lv</span> <span class="num" id="lv">0</span> <svg class="ci" style="color:var(--brass)"><use href="#s-gold"/></svg> <span class="num" id="cost">50</span></button>
-    <button id="auto" data-s="ui.apprentice" data-stitle="ui.apprenticeTip">견습생</button>
     <button id="ad"><svg class="ci"><use href="#s-flame"/></svg> <span id="adtxt" data-s="ui.stokeShort">지피기</span></button>
   </div>
   <!-- 장비 띠 — 착용 6칸 한 줄. 원칙 8: 인벤토리가 아니다. -->
@@ -1115,6 +1192,11 @@ body[data-appr="0"] #spincap #chg{display:none}
     <div id="ascgate" class="dim"></div>
     <div id="asell"></div>
     <p class="dim" id="lockTipTxt" data-s="ui.tapLockTip">문양 칸을 누르면 한 번 두드린다 · 길게 누르면 고정 토큰으로 그 문양을 붙잡는다</p>
+    <!-- 049 §2④ — 음악 / 효과음 **따로**. HUD 스피커는 둘 다를 한 번에 끈다. -->
+    <div class="qrow" id="sndrow">
+      <button id="sndMusic" style="flex:1" data-s="ui.sndMusic">음악</button>
+      <button id="sndSfx" style="flex:1" data-s="ui.sndSfx">효과음</button>
+    </div>
     <button id="bOdds" style="width:100%;margin-top:8px" data-s="pop.odds">등급 확률표</button>
     <button id="bStats" style="width:100%;margin-top:6px" data-s="pop.stats">옵션 수치 상세</button>
   </div>
@@ -1208,9 +1290,20 @@ const STR={ko:{
   /* 047 3차 ③ — 탭은 치기, 고정은 길게 누르기. 옛 `ui.lockTip` 은 **값을 안 바꾸고**
      쓰지 않는다(§2⑦ 「기존 키의 값은 안 바꾼다」 · 안 쓰게 된 키는 제안에 적는다). */
   'ui.tapLockTip':'문양 칸을 누르면 한 번 두드린다 · 길게 누르면 고정 토큰으로 그 문양을 붙잡는다',
+  // 049 §2④⑥ — 새 키만. 판정 이름은 사용자가 바꿀 수 있게 키로 둔다(§2⑥).
+  'ui.sndTip':'소리 끄고 켜기 — 음악과 효과음을 한 번에',
+  'ui.sndMusic':'음악', 'ui.sndSfx':'효과음',
+  'judge.perfect':'완벽', 'judge.great':'정확', 'judge.good':'좋음', 'judge.miss':'아쉬움',
+  'judge.combo':'×{0}',
   'msg.autoresUnlocked':'자동 정리가 열렸다',
   // 048 §2⑥ — 새 키만. 기존 키 값은 한 글자도 안 바꾼다.
   'msg.apprentice':'견습생이 왔다',
+  /* ══ 049 F3 — 화면 글자만 「자동 제련」으로. 코드 이름은 그대로다 ══════════
+     사용자: 「견습생이란 단어는 자동으로 두드리는 게 직관적이지 않아서 헷갈린다」.
+     ⚠ 기존 키(`ui.apprentice`·`msg.apprentice`)는 **지우지도 바꾸지도 않는다** —
+       문서(046·048·DESIGN)가 설계 용어로 쓰고 있고, 지시서 F3 이 그대로 두라고 했다. */
+  'ui.autoForge':'자동 제련', 'ui.autoForgeTip':'켜 두면 박자에 맞춰 대신 두드린다',
+  'msg.autoForge':'자동 제련이 열렸다',
   /* 1차에서는 en 에 `reel` 을 못 써서 「one symbol」로 썼다(checklist `I_BAN` 이 034 판
      그대로 `reel`·`spin` 을 막았다). 2차 ② 가 그 목록을 원칙 7 에 맞춰 정리했으므로
      en 은 지시서 원문으로 돌아갔다. ko 는 1차 그대로 — 「릴」은 외래어라 쓰지 않는다. */
@@ -1323,9 +1416,17 @@ const STR={ko:{
   'ui.lockTip':'Tap a symbol to lock it with a token',
   'ui.pityTip':'Forge pressure',
   'ui.tapLockTip':'Tap a symbol to strike once · press and hold to lock it with a token',
+  // 049 §2④⑥
+  'ui.sndTip':'Sound on or off — music and effects together',
+  'ui.sndMusic':'Music', 'ui.sndSfx':'Effects',
+  'judge.perfect':'Perfect', 'judge.great':'Great', 'judge.good':'Good', 'judge.miss':'Miss',
+  'judge.combo':'×{0}',
   'msg.autoresUnlocked':'Auto-sort unlocked',
   // 048 §2⑥ — 새 키만. 원칙 7: slot·bet·jackpot·casino 낱말을 쓰지 않는다(S7).
   'msg.apprentice':'An apprentice joined',
+  // 049 F3 — 화면 글자만. 기존 키는 그대로 둔다(설계 용어로 남는다).
+  'ui.autoForge':'Auto Forge', 'ui.autoForgeTip':'Strikes for you in time while on',
+  'msg.autoForge':'Auto Forge unlocked',
   // 048 2차 ② — 원칙 7 이 릴의 모양·움직임을 열었고 checklist `I_BAN` 에서 `reel`·`spin`
   //   을 뺐다(`slot`·`jackpot`·`bet`·`casino` 는 그대로 막는다). 지시서 §2⑥ 원문으로 되돌린다.
   'ui.reelTip':'Each tap stops one reel',
@@ -1785,12 +1886,25 @@ const MID_COOL=3*60*1000;
 let midAt=0;
 let dadAt=0, dadReady=()=>false;        // 던전 블록이 진짜 술어로 갈아 끼운다
 
-const adWall=on=>{ if(typeof document==='undefined') return;
+/* ══ 049 2차 ① — 광고 막이 서고 내리는 **그 자리에서 소리도 재운다** ══════════
+   1차는 `sndGate()` 를 **250ms 틱과 `visibilitychange`** 에서만 불렀다. 그런데 틱은
+   맨 앞 `if(PLAT.paused) return;`(026) 에서 돌아가므로 **광고 중에는 `sndGate()` 에
+   영영 안 닿는다** — 효과음은 안 나지만 **이미 돌던 배경음악이 계속 나왔다**
+   (검증 실측: `PLAT.paused` 참인데 `ctx` running · 오디오 시계 5.692 → 6.191).
+   CrazyGames 요건이자 GD 필수 규칙(§2④)이라 결함이다.
+   `adWall(on)` 은 CG 보상형(`adStarted`)·GD `SDK_GAME_PAUSE/START`·미드롤이 **전부**
+   지나는 한 자리다. 세 길을 따로 고치지 않고 여기 한 줄로 모은다.
+   ⚠ 부르는 쪽은 모두 `PLAT.paused` 를 **먼저** 세우고 `adWall()` 을 부른다 — 그래서
+     `sndGate()` 가 보는 깃발이 맞다. */
+const adWall=on=>{
+  try{ sndGate(); }catch(e){}
+  if(typeof document==='undefined') return;
   const e=document.getElementById('adwall'); if(e&&e.classList) e.classList.toggle('on',!!on); };
 /* PLAT → __view 거울. **광고가 도는 동안에도 맞아야** 하므로 renderFast(250ms)에
    기대지 않고 광고의 시작·끝에서 직접 부른다 — 250ms 뒤에 보면 광고는 이미 끝나
    있고, 그러면 「광고 중에 멈췄는가」를 아무도 증명할 수 없다. */
 function platSync(){
+  try{ sndGate(); }catch(e){}     // 049 2차 ① — 멈춤이 세워지는 자리 둘째
   const V=globalThis.__view; if(!V||!V.plat) return; const p=V.plat;
   p.env=PLAT.env; p.ready=PLAT.ready; p.adsOn=PLAT.adsOn; p.paused=PLAT.paused;
   p.blocked=PLAT.blocked; p.ads=PLAT.ads; p.done=PLAT.done; p.failed=PLAT.failed;
@@ -1906,6 +2020,7 @@ const PLAT={
       PLAT.adsOn=(PLAT.env==='crazygames'&&ADS_LIVE)||PLAT.env==='local';
       PLAT.rewardOn=PLAT.adsOn;        // 037 ②-b: CG 는 지금처럼 하나로 둔다
       PLAT.playStart();
+      try{ sndCgWatch(SDK); }catch(e){}     // 049 §2④ — muteAudio(문서 확인한 이름)
       renderFast();
     }).catch(e=>{ PLAT.ready=false; PLAT.adsOn=false;
       PLAT.err=String((e&&e.message)||e); });
@@ -2508,7 +2623,11 @@ function icoPix(part,g,scale){
   // harness 는 로직 검사용이고 아이콘 픽셀은 검사 대상이 아니다.
   if(!u) return `<span class="ico"></span>`;
   const w=SPR_UNIT*scale;                // 화면 크기는 단위 배율이 정한다
-  return `<span class="ico"><img class="px" width="${w}" height="${w}" src="${u}" alt=""></span>`;
+  /* 049 F5 — `draggable="false"`. 이게 없으면 칸 위에서 손가락이 **조금만 미끄러져도**
+     브라우저가 네이티브 이미지 드래그를 시작하고 `pointerup`·`click` 이 아예 안 온다 —
+     그 탭이 통째로 사라진다(실측: 미끄러진 탭 → 손타격 **0회**). 폰 엄지에서 자주 난다.
+     그림은 한 곳(`icoPix`)에서만 나므로 여기 한 줄이면 전부 덮는다. */
+  return `<span class="ico"><img class="px" draggable="false" width="${w}" height="${w}" src="${u}" alt=""></span>`;
 }
 
 // 등급 명판. 색은 인라인 color 하나로만 들어가고 나머지는 CSS 가 파생시킨다.
@@ -2651,7 +2770,8 @@ function apprUI(){
   try{ document.body.setAttribute('data-appr', on?'1':'0'); }catch(e){}
   if(born){
     const m=document.getElementById('msg');
-    if(m){ m.textContent=t('msg.apprentice'); m.className='big'; }
+    if(m){ m.textContent=t('msg.autoForge'); m.className='big'; }   // 049 F3
+    try{ sfx('sfx-chime'); }catch(e){}                              // 049 §2③
     popAutores(document.getElementById('auto'));     // 041 과 같은 반짝임
   }
 }
@@ -2736,6 +2856,7 @@ function renderFast(){
   // ③ 첫 승천의 그 순간에만 한 줄. (부팅 시 기억을 S.star 로 잡으므로 다시 안 뜬다)
   if(unlocked && lastStar<1){ const m=document.getElementById('msg');
     if(m){ m.textContent=t('msg.autoresUnlocked'); m.className='big'; }
+    try{ sfx('sfx-chime'); }catch(e){}                              // 049 §2③
     popAutores(arb);   // 2차 — 자동 제련이 #msg 를 덮어도 이쪽은 남는다
   }
   lastStar=S.star||0;
@@ -3192,7 +3313,12 @@ const RL=[];                 // 릴 하나당 상태 하나 (아래 reelSync 가
 let reelRaf=null, reelLastAt=0, reelFrames=0;
 let reelHumanAt=0, reelStillAt=0;   // 048 2차 ① — 마지막 사람 입력 · 마지막 릴이 선 때
 // 사람이 만졌다. 탭(장면·문양 칸·「+N」)과 키가 여기를 지난다 — 견습생은 안 지난다.
-function reelTouch(){ reelHumanAt=Date.now(); }
+function reelTouch(){
+  reelHumanAt=Date.now();
+  // 049 §2① — **첫 사람 입력**에서 소리를 켠다. 첫 화면에는 아무것도 안 부른다.
+  try{ if(!SND.boot) sndBoot(); }catch(e){}
+  try{ rhyLoop(); }catch(e){}            // 049 §2⑥ — 바늘은 사람이 볼 때만 돈다
+}
 const reelRed=()=>{ try{ return !!(globalThis.__view&&globalThis.__view.reducedMotion); }catch(e){ return false; } };
 const reelHidden=()=>{ try{ return typeof document!=='undefined' && !!document.hidden; }catch(e){ return false; } };
 function reelEls(){ try{ return [...document.querySelectorAll('#reels .reel')]; }catch(e){ return []; } }
@@ -3255,10 +3381,29 @@ function reelClass(r){
    타가 들어온 순간에 나는데, 릴은 그 뒤로도 0.12초 간격 × 감속만큼 더 선다 —
    그 사이에 글이 먼저 떴다(K4 실측: 마무리 시각에 상태 [stopped,stopped,land]).
    `FG.veiled` 를 늘리면 자동 정리·대기열 수까지 늦춰지므로(K6) **글만** 늦춘다. */
+/* ══ 049 F4 — 「맞는다」는 **둘이 같은 문양으로 섰을 때부터** ══════════════
+   048 은 `.reel.done.hit` 하나로 켰다. CORE 는 420ms 에 맞은 칸 **전부**에 `.hit` 를
+   달아 두므로, 첫 릴이 서는 순간 그 한 칸이 곧바로 빛난다 — 아직 아무것도 안 맞았는데
+   「맞는다」가 먼저 켜지는 것이다(048 검증 제안). 선 칸 중 `.hit` 가 **둘 이상**일
+   때만 부모에 `data-match` 를 달고, 생김새는 그 안에서만 든다.
+   ⚠ 세는 것은 **선 칸**뿐이다 — 아직 도는 칸의 `.hit` 를 세면 결과가 샌다(047 K5). */
+function reelMatchMark(){
+  try{ const f=fgEl(); if(!f||!f.setAttribute) return;
+    let n=0;
+    for(const r of RL){ const e=r&&r.el;
+      if(!e||!e.classList||!e.classList.contains('done')) continue;
+      if(e.classList.contains('hit')) n++; }
+    if(n>=2) f.setAttribute('data-match','1'); else f.removeAttribute('data-match');
+  }catch(e){}
+}
+let sfxMadeSeen=0;
 function reelMark(){
+  reelMatchMark();
   const roll=RL.some(r=>r&&(r.st==='spin'||r.st==='slow'||r.st==='queued'||r.st==='land'));
   // 마지막 릴이 **선 그 순간**을 적는다 — 「마무리 뒤 1.5초」가 여기서부터다.
-  if(!roll && reelWasRolling) reelStillAt=Date.now();
+  if(!roll && reelWasRolling){ reelStillAt=Date.now();
+    // 049 §2③ — 그 순간이 곧 「장비가 나왔다」다. 주기당 한 번만 낸다.
+    try{ if(FG.made>sfxMadeSeen){ sfxMadeSeen=FG.made; sfxMade(); } }catch(e){} }
   reelWasRolling=roll;
   try{ const f=fgEl(); if(!f||!f.setAttribute) return;
     /* ⚠ 천천히 도는 것(`drift`)은 여기 **안 센다.** 「`#msg` 도 그대로」(2차 ①)라
@@ -3274,6 +3419,20 @@ const reelReady=()=>(!FG.veiled || FG.settled);
 function reelsStart(){
   const ks=reelSync(); if(!ks.length) return;
   reelLastAt=0;
+  /* ══ 049 F2 — **자동 제련 주기는 릴을 굴리지 않는다** ════════════════════
+     048 의 자동은 손과 똑같이 굴리고 0.12초씩 차례로 세웠다. 그런데 서두름은 한 박
+     (500ms)에 한 주기를 끝내므로 뒤쪽 칸이 서는 시각이 **다음 박보다 늦다** — 그래서
+     칸이 「선 상태」를 거의 못 거치고 부위 글자가 안 보였다(실측: 자동 서두름 10초에
+     칸별로 글자가 보인 시간 43 · 41 · 0 · 0 %, 네 칸 동시 0%).
+     계획 판정(2026-10-24): 자동은 **박에 한 번 들썩**하고 정착하는 순간 **모든 칸이
+     한꺼번에 «쾅»** 선다. 그 사이엔 **앞 결과와 글자가 그대로** 보인다.
+     「하나에 하나」는 **손 탭의 규칙**이다 — 자동에 걸 이유가 없다. */
+  /* ⚠ 앞 주기의 **차례 세우기가 아직 돌고 있을 수 있다**(릴이 많고 빨리 치면 흔하다).
+     그대로 두면 그 릴들이 새 주기 동안 옛 결과로 서고, 새 주기의 `reelReveal()` 은
+     「이미 섰다」며 건너뛴다 — 주기당 선 릴이 하나 모자라고 소리도 그만큼 샌다
+     (실측: 3릴 10주기에 선 릴 20 · thud 4). 새 주기를 열기 전에 **끝낸다.** */
+  reelFinishPending();
+  if(FG.autoCycle){ reelNudgeAll(); return; }
   for(let i=0;i<ks.length;i++){
     const r=RL[i];
     if(i===S.lockIdx){ r.st='locked'; r.tens=false; reelClass(r); continue; }
@@ -3288,10 +3447,56 @@ function reelsStart(){
   }
   reelLoop();
 }
+/* 049 — 앞 주기에서 아직 서는 중인 릴을 그 자리에서 끝낸다(옛 결과 그대로). */
+function reelFinishPending(){
+  try{
+    for(let i=0;i<RL.length;i++){
+      const r=RL[i], e=r&&r.el; if(!e) continue;
+      if(r.st!=='queued'&&r.st!=='land'&&r.st!=='slow') continue;
+      const want=(e.dataset&&e.dataset.p!=null)?+e.dataset.p:null;
+      if(want==null||isNaN(want)){ r.st='stopped'; reelClass(r); continue; }
+      r.pos=0; r.sym0=want; r.sym=-1; r.st='stopped'; r.tens=false;
+      reelShow(r); reelLabel(r); reelClass(r);
+      try{ sfxReelStop(i); }catch(x){}
+    }
+  }catch(e){}
+}
+/* 049 F2 — 박에 한 번 **들썩**. 칸은 선 채로 있고 짧게 흔들릴 뿐이다(굴리지 않는다). */
+function reelNudgeAll(){
+  try{
+    for(let i=0;i<RL.length;i++){
+      const r=RL[i], e=r&&r.el; if(!e||!e.classList) continue;
+      if(r.st==='locked') continue;
+      if(r.st==='rest') { r.st='stopped'; reelClass(r); }   // 쉬고 있었으면 깨워만 둔다
+      e.classList.remove('nudge'); void e.offsetWidth; e.classList.add('nudge');
+      setTimeout(()=>{ try{ e.classList.remove('nudge'); }catch(x){} },180);
+    }
+  }catch(e){}
+}
+/* 049 F2 — 정착하는 순간 **모든 칸이 새 결과로 한꺼번에** 선다. 굴리지 않았으므로
+   내려앉을 길이 없다 — 그 자리에서 문양만 바뀌고 한 번 «쾅» 한다. */
+function reelSlamAll(){
+  try{
+    for(let i=0;i<RL.length;i++){
+      const r=RL[i], e=r&&r.el; if(!e) continue;
+      if(r.st==='locked') continue;
+      const want=(e.dataset&&e.dataset.p!=null)?+e.dataset.p:null;
+      if(want==null||isNaN(want)) continue;
+      r.pos=0; r.sym0=want; r.sym=-1; r.st='stopped'; r.tens=false;
+      reelShow(r); reelLabel(r); reelClass(r);
+      if(!reelRed()&&e.classList){ e.classList.remove('slam'); void e.offsetWidth; e.classList.add('slam');
+        setTimeout(()=>{ try{ e.classList.remove('slam'); }catch(x){} },380); }
+    }
+    reelMatchMark();
+    try{ sfxSlam(); }catch(e){}
+  }catch(e){}
+}
 /* 047 의 「드러난 문양 수」를 릴로 옮긴 것 — 앞에서 n 개가 **서 있어야 한다.**
    정착 순간 세 타가 한꺼번에 반영돼도 한 번에 서지 않는다: 0.12초씩 벌려 세운다. */
 function reelReveal(n){
   const ks=reelSync(); if(!ks.length) return;
+  // 049 F2 — 자동 주기: 차례 세우기가 없다. 정착하면 한꺼번에 «쾅».
+  if(FG.autoCycle){ if(reelReady()) reelSlamAll(); return; }
   const now=Date.now();
   for(let i=0;i<n && i<ks.length;i++){
     const r=RL[i];
@@ -3300,7 +3505,17 @@ function reelReveal(n){
        (실측: 정착 순간 첫째와 둘째가 16ms 차). 세우는 시각은 **여기 한 곳**이
        정한다 — `queued` 로 찍어 두 번 잡히지 않게 한다. */
     if(!r||r.st==='stopped'||r.st==='locked'||r.st==='land'||r.st==='queued') continue;
-    const at=Math.max(now, reelLastAt+REEL_GAP);
+    /* ══ 049 F1 — 격자는 **한꺼번에 풀리는 묶음에만** 쓴다 ════════════════════
+       048 은 `max(now, reelLastAt+REEL_GAP)` 로 **언제나** 0.12초 격자에 실었다.
+       그런데 `reelLastAt` 은 한 번 현재보다 앞서면 계속 앞선 채로 간다 — 그러면
+       그 뒤의 탭은 **탭 시각이 아니라 격자**에 실린다. 릴이 5개면 격자가 훨씬 멀리
+       달아난다(실측 380×820·릴5·탭 180ms 간격: 탭 0·233·467·697·935ms 인데
+       선 릴 650·799·932·1065·1214ms — 130ms 기관총이 탭과 따로 돈다. 사람 눈에는
+       「한 번에 두 개씩 선다」로 보인다 — 사용자 피드백 §0 이 그것이다).
+       고치는 법: 격자는 **아직 서는 중인 릴이 있을 때만** 민다. 묶음(정착 순간 한꺼번에
+       풀리는 쌓인 타)은 예전 그대로 0.12초씩 벌어지고, 혼자 온 탭은 **그 자리에서** 선다. */
+    const pend=RL.some(x=>x&&(x.st==='queued'||x.st==='land'));
+    const at=pend?Math.max(now, reelLastAt+REEL_GAP):now;
     reelLastAt=at;
     r.st='queued'; reelClass(r);
     const d=at-now;
@@ -3397,7 +3612,8 @@ function reelStep(now){
       const u=Math.min(1,(now-r.t0)/Math.max(1,r.dur));
       r.pos=r.p0+r.T*backOut(u); reelShow(r); moved=true;
       if(u>=1){ r.pos=r.p0+r.T; reelShow(r); r.st='stopped'; r.tens=false;
-                reelLabel(r); reelClass(r); reelHitFlash(r); reelTension(); }
+                reelLabel(r); reelClass(r); reelHitFlash(r); reelTension();
+                try{ sfxReelStop(i); }catch(e){} }
       else live=true;
     }
   }
@@ -3498,18 +3714,36 @@ function buildReels(){
       render();
     };
     let hT=null, held=false;
-    const hStart=e=>{ held=false; reelTouch();    // 048 2차 ① — 길게 누르기도 사람 입력이다
+    /* ══ 049 F5 — 미끄러진 탭을 삼키지 않는다 ══════════════════════════════
+       실측(진짜 터치): 칸 위에서 손가락이 6·12px 미끄러지면 `<img>` 네이티브 드래그가
+       `pointerup` 을 삼켜 **그 탭이 통째로 사라졌고**(손타격 0회), 20px 이 넘으면
+       브라우저가 제스처로 **가로채 `pointercancel`** 을 보내 역시 사라졌다.
+       폰 엄지는 거의 늘 몇 px 미끄러진다 — 「가끔 안 먹는다」가 이것이다.
+       고치는 법 셋: ⑴ 그림을 못 끌게(`icoPix` 의 `draggable="false"`),
+       ⑵ 누르는 자리에 `touch-action:manipulation`(CSS), ⑶ 여기 — **포인터를 칸에
+       붙잡고**(`setPointerCapture`) 가로채이더라도 **짧은 누름은 치기로 센다.**
+       ⚠ `pointercancel` 과 `pointerleave` 를 가른다: 가로채임은 「사람은 탭했다」이고,
+         칸을 벗어난 것은 아니다(붙잡아 두면 벗어나는 일 자체가 거의 없다). */
+    let downAt=0;
+    const hStart=e=>{ held=false; downAt=Date.now(); reelTouch();
+      try{ if(e&&e.pointerId!=null&&d.setPointerCapture) d.setPointerCapture(e.pointerId); }catch(x){}
       if(hT){ clearTimeout(hT); hT=null; }
       if(FG.veiled) return;                       // 주기 안에서는 고정이 없다
       hT=setTimeout(()=>{ hT=null; held=true; lockHold(); }, LOCK_HOLD_MS); };
-    const hEnd=()=>{ if(hT){ clearTimeout(hT); hT=null; }
-      if(!held) strike('hand'); held=false; };    // 짧은 탭 = 치기 (주기 안이든 밖이든)
+    const hEnd=e=>{ if(hT){ clearTimeout(hT); hT=null; }
+      // 049 §2⑥ — 판정은 **이 사건의 시각**으로 잰다(틱이 아니라).
+      if(!held){ strikeAt(e); strike('hand'); strikeAt(null); } held=false; };
+    // 브라우저가 제스처로 가로챘다 — 사람은 **탭한 것**이다. 길게 누르기가 이미
+    // 걸렸으면(고정) 아무 일도 없다. 길면 탭이 아니므로 LOCK_HOLD_MS 로 자른다.
+    const hSteal=()=>{ if(hT){ clearTimeout(hT); hT=null; }
+      if(!held && Date.now()-downAt < LOCK_HOLD_MS) strike('hand');
+      held=false; };
     const hCancel=()=>{ if(hT){ clearTimeout(hT); hT=null; } held=false; };
     if(typeof d.addEventListener==='function' && typeof PointerEvent!=='undefined'){
       d.addEventListener('pointerdown',hStart);
       d.addEventListener('pointerup',hEnd);
       d.addEventListener('pointerleave',hCancel);
-      d.addEventListener('pointercancel',hCancel);
+      d.addEventListener('pointercancel',hSteal);
       // 길게 눌러 글자가 잡히거나 맥락 메뉴가 뜨면 고정이 「눌린 느낌」을 잃는다
       d.addEventListener('contextmenu',e=>e.preventDefault());
     } else {
@@ -3536,7 +3770,7 @@ buildReels();
 /* 047 §2③⑤ — `#spin` 은 이제 장면 전체를 덮는 투명한 버튼이고, 누르는 것은
    `spin()` 이 아니라 **한 타**다. 033 ② 의 「가득 + 정리 꺼짐 → 비교 팝업」은
    `strike()` 안으로 옮겼다(거기가 주기 밖의 첫 갈림길이다). */
-document.getElementById('spin').onclick=()=>strike('hand');
+document.getElementById('spin').onclick=e=>{ strikeAt(e); strike('hand'); strikeAt(null); };
 /* 키보드(데스크톱 포털) — 팝업이 안 열려 있을 때 Space/Enter 가 한 타다.
    버튼이 포커스를 들고 있으면 브라우저가 이미 click 을 내므로 두 번 치지 않게
    그 경우는 건너뛴다. */
@@ -3562,6 +3796,26 @@ document.getElementById('autores').onclick=()=>{
    `.more` 에 `pointer-events:none` 이 붙는 날 조용히 죽지 않게 검사로 못을 박았다.
    `reelTouch()` 는 2차 ① 의 「사람 입력」 표시다. */
 document.getElementById('open').onclick=()=>{ reelTouch(); openCmp(); };
+/* 049 §2④ — 소리 끄고 켜기. HUD 스피커는 **둘 다**, 팝업의 두 줄은 각각.
+   ⚠ 누르는 것 자체가 사람 입력이라 `reelTouch()` 가 소리를 켠다 — 끈 채로 눌러도
+     문맥은 생긴다(그래야 다시 켤 때 바로 난다). */
+(function(){
+  const sb=document.getElementById('snd');
+  if(sb) sb.onclick=()=>{ reelTouch();
+    const on=!((SND.music||SND.sfx)&&!SND.cgMute);
+    SND.music=on; SND.sfx=on; sndSavePrefs(); sndApply(); sfx('sfx-tink'); };
+  const m=document.getElementById('sndMusic');
+  if(m) m.onclick=()=>{ reelTouch(); SND.music=!SND.music; sndSavePrefs(); sndApply(); };
+  const x=document.getElementById('sndSfx');
+  if(x) x.onclick=()=>{ reelTouch(); SND.sfx=!SND.sfx; sndSavePrefs(); sndApply(); sfx('sfx-tink'); };
+  /* ⚠ `sndLoadPrefs()` 를 **여기서 부르면 안 된다** — `const SND` 는 파일 아래쪽에서
+     만들어지고 그 전까지는 TDZ 라 `ReferenceError` 가 난다. try/catch 가 그것을
+     조용히 삼켜서, 소리를 끄고 새로고침하면 다시 켜져 있었다(검사 A6 가 울었다).
+     읽는 자리는 SND 블록 끝이다. */
+  // 탭이 숨었다 돌아오는 순간은 틱을 기다리지 않는다
+  if(typeof document.addEventListener==='function')
+    document.addEventListener('visibilitychange',()=>{ try{ sndGate(); }catch(e){} });
+})();
 document.getElementById('cclose').onclick=()=>document.getElementById('cmp').classList.remove('on');
 document.getElementById('cmp').onclick=e=>{ if(e.target.id==='cmp') e.target.classList.remove('on'); };
 document.getElementById('bEquip').onclick=()=>resolve('equip');
@@ -3678,7 +3932,10 @@ const FG={ need:0, struck:0, shown:0, veiled:false, settled:false, qHeld:0, last
               비례해 승천 보너스」를 얹을 때 쓸 계수기다. ⚠ `S` 에는 안 넣는다 —
               저장 형식을 바꾸는 것은 R3 몫이고, 여기서 넣으면 048 이 저장 형식을
               건드린 것이 된다(§3 「저장 형식」). 이번 접속 동안만 센다. */
-           handMade:0 };
+           handMade:0,
+           /* 049 F2 — 이 주기를 **자동 제련이 열었는가**. 자동 주기는 릴을 굴리지 않는다
+              (아래 reelsStart). 손이 중간에 섞이면 그 순간 거짓이 되고 굴리기 시작한다. */
+           autoCycle:false };
 /* ══ 048 §2⑦ — 릴의 검증 창구 ══════════════════════════════════════════
    **노출되지 않는 연출은 완료로 인정하지 않는다**(CLAUDE.md). 릴은 캔버스가
    아니라 DOM 이지만 「지금 어느 상태인가」는 클래스만으로는 못 읽는다 —
@@ -3848,6 +4105,8 @@ function fgPaint(){
 // 못 쳤을 때의 거절 — 새 팝업·새 글자 없이 막대 하나를 깜빡인다(§2⑤-1).
 function fgDeny(why){
   FG.blocked[why]=(FG.blocked[why]||0)+1;
+  try{ sfx('sfx-tink'); }catch(e){}     // 049 §2③ — 막힌 탭도 손맛이 있어야 한다
+
   try{
     const el = why==='charge' ? document.getElementById('therm')
                               : document.getElementById('qband');
@@ -3856,11 +4115,17 @@ function fgDeny(why){
     setTimeout(()=>{ try{ el.classList.remove('deny'); }catch(e){} }, 700);
   }catch(e){}
 }
+/* 049 §2⑥ — 탭 시각을 재려면 그 `PointerEvent` 가 필요하다. 서명을 바꾸지 않고
+   (부르는 곳이 여럿이다) 직전 사건을 한 칸에 둔다 — 없으면 지금 시각으로 본다. */
+let strikeEv=null;
+function strikeAt(ev){ strikeEv=ev||null; }
 /* 한 타. `src` = 'hand' | 'apprentice' | 'idle'. */
 function strike(src){
   if(typeof PLAT==='object' && PLAT && PLAT.paused) return;
   // 048 2차 ① — 「사람 입력」은 탭·키다. 견습생·마무리 타격은 여기를 안 지난다.
-  if(src==='hand') reelTouch();
+  if(src==='hand'){ reelTouch();
+    // 049 §2⑥ — **손 탭만** 판정한다. 견습생·마무리 타격은 판정하지 않는다(R3).
+    try{ rhyJudge(strikeEv); }catch(e){} }
   if(!FG.veiled){
     /* 048 §2①④ — **이 주기가 공짜인가는 「처음 시작한 쪽」이 정한다.** 손이 열면
        공짜, 견습생이 열면 충전 1. 중간에 손이 섞여도 그 주기의 값은 안 바뀐다
@@ -3876,12 +4141,16 @@ function strike(src){
     // 조건을 다시 보고 아무 일도 안 할 수 있다.
     if(!spinning){ fgDeny((!free&&S.charge<1)?'charge':'queue'); return; }
     FG.free=free;
+    FG.autoCycle=!free;                      // 049 F2 — 자동이 연 주기인가
     if(free) FG.handMade++;                  // 048 2차 ③ — 손이 연 주기 (R3 가 쓸 계수기)
     FG.veiled=true; FG.settled=false; FG.need=REELS(); FG.struck=1; FG.qHeld=0;
     try{ reelsStart(); }catch(e){}  // 048 — 릴이 돈다. 이 타가 곧 첫 멈춤이다.
     fgWatch();                      // 주기가 열릴 때만 감시를 켠다(위 ⚠)
   }else{
     FG.struck++;
+    /* 049 F2 — **손이 섞이면 그 주기는 손의 것이다.** 자동으로 열린 주기라도 사람이
+       치는 순간부터는 굴리고 차례로 세운다(판정 절: 「손이 섞인 주기는 지금처럼」). */
+    if(src==='hand' && FG.autoCycle){ FG.autoCycle=false; try{ reelsStart(); }catch(e){} }
   }
   FG.strikes[src]=(FG.strikes[src]||0)+1;
   FG.lastHitAt=Date.now();
@@ -4057,6 +4326,8 @@ try{ document.body.setAttribute('data-tab','forge'); }catch(e){}
 setInterval(()=>{
   // 026: 광고가 도는 동안은 **게임이 진행되지 않는다** (CrazyGames 요건).
   // 충전도 자동 제련도 전투도 멈춘다 — 광고 길이만큼 시간이 얼어붙을 뿐이다.
+  /* 049 2차 ① — **`return` 앞**이다. 이 줄이 뒤에 있으면 광고 중엔 영영 안 닿는다. */
+  try{ sndGate(); }catch(e){}
   if(PLAT.paused) return;
   S.charge=Math.min(CHG_MAX(),S.charge+250/CHG_MS()*(boosted()?1.5:1));
   // 033: `autoResolve()` 는 `S.auto` 와 **무관**하게 돈다 — 손으로 제련하면서 정리만
@@ -4071,6 +4342,8 @@ setInterval(()=>{
   /* 048 §2③ — 릴의 안전망. rAF 가 멈춘 판·숨은 탭에서도 릴이 결과를 보이고,
      손도 견습생도 10초 안 닿으면 `rest` 로 내려 **프레임을 안 먹는다**(원칙 1). */
   reelPump();
+  // 049 §2③④ — 소리는 **관찰자**다. 틱이 변화를 훑고, 광고·숨김이면 문맥을 재운다.
+  sfxWatch(); sndGate();
   if(autoResOn() && !FG.veiled) autoResolve();
   /* 047 §2⑤-9 — 자동은 `spin()` 을 부르지 않는다. **견습생이 박자로 친다**:
      500ms 마다 한 박(120 BPM — R2 에서 배경음악 박자와 맞춘다). 사람이 같이
@@ -4204,11 +4477,556 @@ const VIEW={
     reelFrames:0},                     // 048 §2⑦ — 릴이 실제로 움직인 프레임 수
   // 026 — **노출되지 않는 것은 완료로 인정하지 않는다**(CLAUDE.md). 광고는
   // 자동 검사가 눈으로 볼 수 없는 연출이라 여기 전부 내건다.
+  /* 049 §2⑥ — 박자 창구. 실제 값은 rhyView() 가 채운다. */
+  // ⚠ `RHY_BPM` 을 여기 쓰면 안 된다 — VIEW 가 먼저 만들어져 TDZ 다(실측: 하네스가
+  //   「Cannot access 'RHY_BPM' before initialization」으로 죽어 smoke·days 가 통째로 멈췄다).
+  //   부팅 직후 `rhyView()` 가 같은 값으로 덮는다.
+  rhythm:{bpm:120.15, clock:'perf', beat:0, phase:0, last:{grade:'',ms:0},
+    counts:{perfect:0,great:0,good:0,miss:0}, combo:0, best:0, running:false},
+  // 049 §2⑤ — 소리 창구. 실제 값은 아래 sndView() 가 채운다(부팅 전에는 ctx:'none').
+  sfx:{ctx:'none', music:true, sfx:true, packs:{sfx:'none',forge:'none'}, bgm:'none',
+       loopLen:0, played:{}, skipped:0, dropped:0, lat:0},
   plat:{env:'none', ready:false, adsOn:false, paused:false, blocked:false,
     ads:0, done:0, failed:0, adLeft:0, adReady:false, dadReady:false, err:'',
     rewardOn:false, mids:0, midDone:0}                                  // 037 ⑥
 };
 globalThis.__view=VIEW;                // 브라우저에선 window.__view. node 검증에서도 안 죽는다.
+
+/* ══════════════════════════════════════════════════════════════════════════
+   049 §2 — 소리.  **소리는 관찰자다**(040 원칙).
+
+   CORE 에 소리 호출을 한 줄도 심지 않는다. 릴 사건은 VIEW 의 릴 상태 기계가, 전투는
+   `VIEW.counters`·`S` 의 **변화**가 알려 준다. 그래서 이 절을 통째로 지워도 게임은
+   한 글자도 안 달라진다 — 소리가 규칙을 만들지 않는다는 뜻이다.
+
+   ⚠ node 하네스에는 `AudioContext`·`document`·`window` 가 없다. 바깥 세계를 만지는
+     줄은 전부 `typeof` 로 가린다 — 041 ④ 에서 이걸 빠뜨려 `days.js` 가 죽고 md5 가
+     빈 출력로 바뀐 적이 있다.
+   ⚠ **첫 화면에는 아무것도 안 부른다.** 첫 사람 입력에서 `AudioContext` 를 만들고
+     묶음을 싣는다(§2①). 자동재생 정책상 그 전에는 소리를 낼 수도 없다.
+   ══════════════════════════════════════════════════════════════════════════ */
+const SND={
+  ctx:null, master:null, mGain:null, sGain:null,
+  buf:{},                    // 키 → AudioBuffer
+  packs:{sfx:'none', forge:'none'},
+  bgm:'none', bgmSrc:null, loopLen:0, loopAt:0,   // loopAt = 반복이 시작된 ctx 시각
+  music:true, sfx:true, cgMute:false,
+  played:{}, skipped:0, dropped:0, lat:0,
+  live:0, lastAt:{}, ascAt:[],
+  boot:false,
+};
+/* ══ 049 — **소리는 게임의 난수를 먹지 않는다** ══════════════════════════
+   피치 흔들림에 `Math.random()` 을 쓰면 효과음 한 번이 난수열을 한 칸 밀어 **장비
+   등급이 달라진다.** 검사 R5(같은 시드에서 완벽만 친 판과 아쉬움만 친 판이 같은가)가
+   그것을 잡았다 — 등급이 `[8,1,1,6,…]` 대 `[1,2,7,1,…]` 로 갈렸다.
+   「소리는 관찰자다」(040)는 **난수에도** 걸린다. 소리는 제 난수를 쓴다. */
+let sfxSeed=0x5EED049;
+function sfxRnd(){ sfxSeed=(sfxSeed*1103515245+12345)&0x7fffffff; return sfxSeed/0x7fffffff; }
+const SND_MAX=12;                      // 동시 발음 상한 — 넘으면 버린다(dropped++)
+const SND_LOOP_LEN=127.840;            // 대장간 곡 반복 길이(초) · ±5ms 를 검사로 못박는다
+const SND_BGM_VOL=0.35;
+
+/* 저장은 `localStorage` 의 `hs.snd` 다 — **세이브 `S` 에 넣지 않는다**(저장 형식 불변). */
+function sndLoadPrefs(){
+  try{ const v=localStorage.getItem('hs.snd');
+    if(typeof v==='string'&&v.length>=2){ SND.music=v[0]==='1'; SND.sfx=v[1]==='1'; }
+  }catch(e){}
+}
+function sndSavePrefs(){
+  try{ localStorage.setItem('hs.snd',(SND.music?'1':'0')+(SND.sfx?'1':'0')); }catch(e){}
+}
+/* CrazyGames 의 `muteAudio` 는 **게임 내 설정보다 우선한다**(SDK 문서). 그래서 켜져
+   있는 동안에는 `#snd` 를 눌러도 소리가 안 난다 — 아래 `sndOnMusic`·`sndOnSfx` 가 못이다. */
+const sndOnMusic=()=>SND.music && !SND.cgMute;
+const sndOnSfx  =()=>SND.sfx   && !SND.cgMute;
+
+function sndState(){
+  if(!SND.ctx) return 'none';
+  try{ return SND.ctx.state==='running'?'running':'suspended'; }catch(e){ return 'none'; }
+}
+/* `__view.sfx` — **깃발이 아니라 효과**를 낸다(026 AD6 교훈). `played` 는 실제로
+   소리 노드를 만들어 예약한 수다. */
+function sndView(){
+  const V=globalThis.__view; if(!V) return;
+  V.sfx={ctx:sndState(), music:SND.music, sfx:SND.sfx, cgMute:SND.cgMute,
+    packs:{sfx:SND.packs.sfx, forge:SND.packs.forge},
+    bgm:SND.bgm, loopLen:+SND.loopLen.toFixed(4),
+    played:SND.played, skipped:SND.skipped, dropped:SND.dropped,
+    lat:+SND.lat.toFixed(2), live:SND.live, ascAt:SND.ascAt};
+}
+
+/* ── 묶음 싣기 — `<script src>` 는 `file://` 에서도 된다(§2①) ─────────────── */
+function sndPack(name){
+  return new Promise(res=>{
+    try{
+      if(SND.packs[name]==='ready'||SND.packs[name]==='loading') return res(false);
+      SND.packs[name]='loading'; sndView();
+      const sc=document.createElement('script');
+      sc.src='audio/pack-'+name+'.js';
+      sc.onload=()=>{ sndDecodePack(name).then(()=>res(true)); };
+      sc.onerror=()=>{ SND.packs[name]='none'; sndView(); res(false); };
+      document.head.appendChild(sc);
+    }catch(e){ SND.packs[name]='none'; res(false); }
+  });
+}
+function b64buf(b64){
+  const bin=atob(b64), n=bin.length, u=new Uint8Array(n);
+  for(let i=0;i<n;i++) u[i]=bin.charCodeAt(i);
+  return u.buffer;
+}
+async function sndDecodePack(name){
+  const H=(typeof window!=='undefined')?window.HS_AUDIO:null;
+  if(!H||!SND.ctx){ SND.packs[name]='none'; sndView(); return; }
+  const keys=Object.keys(H).filter(k=>H[k]);
+  for(const k of keys){
+    try{
+      const ab=b64buf(H[k]);
+      // 끝나면 base64 문자열을 놓아 준다 — 2.6MB 짜리가 그대로 남으면 아깝다(§2①).
+      H[k]=null;
+      SND.buf[k]=await SND.ctx.decodeAudioData(ab);
+    }catch(e){}
+  }
+  SND.packs[name]='ready'; sndView();
+  if(name==='forge') sndBgmStart();
+}
+
+/* ── 켜기 — **첫 사람 입력**에서 한 번 ──────────────────────────────────── */
+function sndBoot(){
+  if(SND.boot) return; SND.boot=true;
+  try{
+    const AC=(typeof AudioContext!=='undefined')?AudioContext
+            :(typeof webkitAudioContext!=='undefined')?webkitAudioContext:null;
+    if(!AC||typeof document==='undefined') return;
+    SND.ctx=new AC();
+    SND.master=SND.ctx.createGain(); SND.master.gain.value=1; SND.master.connect(SND.ctx.destination);
+    SND.mGain=SND.ctx.createGain(); SND.mGain.gain.value=0; SND.mGain.connect(SND.master);
+    SND.sGain=SND.ctx.createGain(); SND.sGain.gain.value=1; SND.sGain.connect(SND.master);
+    sndView();
+    /* ══ 049 2차 ③ — **첫 주기를 지킨다** ═══════════════════════════════════
+       1차는 첫 입력에서 `sfx`(0.8MB) 에 이어 **곧바로 `forge`(2.6MB)** 를 실었다.
+       base64 를 풀고 디코딩하는 동안 메인 스레드가 막혀 **rAF 가 밀렸고**, 그래서
+       첫 주기에서 릴 멈춤 둘이 34ms·15ms 로 붙는 판이 났다(검증 ② 의 「새 흔들림」).
+       첫 주기는 사람이 이 게임을 처음 보는 자리다 — 거기서 손맛이 흔들리면 안 된다.
+       그래서 배경음악 묶음은 **첫 주기가 정착한 뒤** 한가한 틈에 싣는다. */
+    sndPack('sfx');
+    sndForgeLater();
+  }catch(e){ SND.ctx=null; sndView(); }
+}
+
+/* 049 2차 ③ — 배경음악 묶음을 **첫 주기가 끝난 뒤 · 한가한 틈에** 싣는다.
+   ⚠ 「첫 주기 정착」은 `FG.made` 가 처음 오르는 때다. 그 전에 손을 떼도 마무리가
+     주기를 끝내므로(047 ⑤-8) 영영 안 실리는 일은 없다. 그래도 보루로 8초를 둔다.
+   ⚠ `requestIdleCallback` 이 없는 브라우저(사파리 계열)에서는 1초 뒤 `setTimeout`. */
+let sndForgeArmed=false;
+function sndForgeLater(){
+  if(sndForgeArmed) return; sndForgeArmed=true;
+  const go=()=>{ try{ sndPack('forge'); }catch(e){} };
+  const idle=()=>{ try{
+      if(typeof requestIdleCallback==='function') requestIdleCallback(go,{timeout:2000});
+      else if(typeof setTimeout==='function') setTimeout(go,1000);
+      else go();
+    }catch(e){ go(); } };
+  if(typeof setTimeout!=='function'){ go(); return; }
+  const made0=(typeof FG==='object'&&FG)?FG.made:0;
+  let waited=0;
+  const tick=()=>{
+    waited+=120;
+    const done=(typeof FG==='object'&&FG&&FG.made>made0);
+    if(done || waited>=8000){ idle(); return; }
+    setTimeout(tick,120);
+  };
+  setTimeout(tick,120);
+}
+
+/* ── 한 소리 ─────────────────────────────────────────────────────────────
+   `gap` 은 「이 키를 N ms 안에 다시 내지 않는다」 — 전투 소리처럼 쏟아지는 것에만 건다.
+   **탭 효과음에는 걸지 않는다**: 사람이 친 만큼 소리가 나야 한다(§2③). */
+function sfx(key,opt){
+  opt=opt||{};
+  try{
+    if(!SND.ctx||!sndOnSfx()){ SND.skipped++; return 0; }
+    if(SND.ctx.state!=='running'){ SND.skipped++; return 0; }
+    const b=SND.buf[key]; if(!b){ SND.skipped++; return 0; }
+    const now=SND.ctx.currentTime;
+    if(opt.gap){ const t=SND.lastAt[key]||-1e9;
+      if((now-t)*1000<opt.gap){ SND.skipped++; return 0; } }
+    if(SND.live>=SND_MAX){ SND.dropped++; return 0; }
+    SND.lastAt[key]=now;
+    const src=SND.ctx.createBufferSource(); src.buffer=b;
+    if(opt.rate) src.playbackRate.value=opt.rate;
+    const g=SND.ctx.createGain(); g.gain.value=(opt.vol==null?1:opt.vol);
+    src.connect(g); g.connect(SND.sGain);
+    const at=now+(opt.at||0);
+    src.start(at);
+    SND.live++; src.onended=()=>{ SND.live=Math.max(0,SND.live-1); };
+    SND.played[key]=(SND.played[key]||0)+1;
+    sndView();
+    return at;
+  }catch(e){ return 0; }
+}
+// 040 의 합성 둘 — 파일이 없는 소리는 즉석에서 만든다(에셋을 늘리지 않는다).
+function sfxTone(kind){
+  try{
+    if(!SND.ctx||!sndOnSfx()||SND.ctx.state!=='running'){ SND.skipped++; return; }
+    if(SND.live>=SND_MAX){ SND.dropped++; return; }
+    const t=SND.ctx.currentTime, o=SND.ctx.createOscillator(), g=SND.ctx.createGain();
+    const hit=(kind==='hit');
+    o.type=hit?'square':'sawtooth';
+    o.frequency.setValueAtTime(hit?420:220,t);
+    o.frequency.exponentialRampToValueAtTime(hit?260:90,t+(hit?0.07:0.28));
+    g.gain.setValueAtTime(hit?0.25:0.3,t);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+(hit?0.09:0.32));
+    o.connect(g); g.connect(SND.sGain); o.start(t); o.stop(t+(hit?0.1:0.34));
+    SND.live++; o.onended=()=>{ SND.live=Math.max(0,SND.live-1); };
+    SND.played[kind]=(SND.played[kind]||0)+1; sndView();
+  }catch(e){}
+}
+
+/* ── 배경음악 — 도입 한 번 → 반복 무한(예약) ────────────────────────────── */
+function sndBgmStart(){
+  try{
+    if(!SND.ctx||!SND.buf['bgm-loop']) return;
+    // 양 끝 0 샘플을 **잘라** 반복 길이를 맞춘다 — 그 몇 ms 가 「뚝」 소리가 된다(§2②).
+    SND.loopLen=sndTrim(SND.buf['bgm-loop']);
+    const t0=SND.ctx.currentTime+0.06;
+    const intro=SND.buf['bgm-intro'];
+    let at=t0;
+    if(intro){ const s=SND.ctx.createBufferSource(); s.buffer=intro;
+      s.connect(SND.mGain); s.start(t0); at=t0+intro.duration; SND.bgm='intro'; }
+    const l=SND.ctx.createBufferSource(); l.buffer=SND.buf['bgm-loop'];
+    l.loop=true; l.loopStart=SND.trimA; l.loopEnd=SND.trimB;
+    l.connect(SND.mGain); l.start(at,SND.trimA);
+    SND.bgmSrc=l; SND.loopAt=at;
+    if(!intro) SND.bgm='loop';
+    else if(typeof setTimeout==='function')
+      setTimeout(()=>{ SND.bgm='loop'; sndView(); }, Math.max(0,(at-SND.ctx.currentTime)*1000));
+    // 1초 페이드인
+    SND.mGain.gain.setValueAtTime(0.0001,t0);
+    SND.mGain.gain.exponentialRampToValueAtTime(sndOnMusic()?SND_BGM_VOL:0.0001,t0+1);
+    sndView();
+  }catch(e){}
+}
+/* 양 끝의 **무음**을 찾아 반복 구간을 정한다. 0 이 아니라 아주 작은 값까지 무음으로 본다
+   (mp3 디코딩은 정확히 0 을 잘 안 준다). 못 찾으면 통째로 쓴다. */
+function sndTrim(b){
+  try{
+    const d=b.getChannelData(0), n=d.length, sr=b.sampleRate, eps=1e-4;
+    let a=0, z=n-1;
+    while(a<n && Math.abs(d[a])<eps) a++;
+    while(z>a && Math.abs(d[z])<eps) z--;
+    SND.trimA=a/sr; SND.trimB=(z+1)/sr;
+    return SND.trimB-SND.trimA;
+  }catch(e){ SND.trimA=0; SND.trimB=b.duration; return b.duration; }
+}
+function bgmGain(v,sec){
+  try{ if(!SND.ctx||!SND.mGain) return;
+    const t=SND.ctx.currentTime;
+    SND.mGain.gain.cancelScheduledValues(t);
+    SND.mGain.gain.setValueAtTime(Math.max(0.0001,SND.mGain.gain.value),t);
+    SND.mGain.gain.exponentialRampToValueAtTime(Math.max(0.0001,v),t+(sec||0.4));
+  }catch(e){}
+}
+// 피버 곡·화로 곡 전환 — **자리만**. 부르는 곳이 없다(R2b·R3 몫).
+function bgmSwitch(name){ return name; }
+
+/* ── 끄고 켜기 ───────────────────────────────────────────────────────────── */
+function sndApply(){
+  try{
+    if(SND.mGain) bgmGain(sndOnMusic()?SND_BGM_VOL:0.0001,0.3);
+    const sb=document.getElementById('snd');
+    const on=(SND.music||SND.sfx)&&!SND.cgMute;
+    if(sb){ sb.textContent=on?'🔊':'🔇'; sb.setAttribute('aria-pressed',on?'true':'false'); }
+    const m=document.getElementById('sndMusic'), x=document.getElementById('sndSfx');
+    if(m) m.className=sndOnMusic()?'hot':'';
+    if(x) x.className=sndOnSfx()?'hot':'';
+  }catch(e){}
+  sndView();
+}
+/* 광고 중(`PLAT.paused`)·탭 숨김이면 **문맥을 재운다** — 깃발이 아니라 `ctx.suspend()` 다.
+   돌아오면 `resume()` + 음악 1초 페이드인(§2④). */
+function sndGate(){
+  try{
+    if(!SND.ctx) return;
+    const stop=(typeof PLAT==='object'&&PLAT&&PLAT.paused)
+            || (typeof document!=='undefined'&&document.hidden);
+    if(stop && SND.ctx.state==='running') SND.ctx.suspend();
+    else if(!stop && SND.ctx.state==='suspended'){
+      SND.ctx.resume().then(()=>{ bgmGain(sndOnMusic()?SND_BGM_VOL:0.0001,1); }).catch(()=>{});
+    }
+    sndView();
+  }catch(e){}
+}
+/* ══ 049 §2③ — **관찰자 배선**. 소리가 규칙을 만들지 않는다 ═══════════════
+   릴 사건은 VIEW 의 릴 상태 기계가, 전투는 `VIEW.counters`·`S` 의 **변화**가 알려
+   준다. CORE 에는 한 줄도 안 들어간다. */
+let sfxClank=0, sfxTing=0, sfxThud=0;
+function sfxReelStop(i){
+  const r=RL[i]; if(!r) return;
+  const prev=(i>0&&RL[i-1])?RL[i-1]:null;
+  const stoodBefore=prev&&(prev.st==='stopped'||prev.st==='locked');
+  const same=stoodBefore&&prev.sym===r.sym;
+  // 탭 → 소리까지의 지연을 낸다(§2③ — 예약 기준 ≤30ms)
+  const t=sfx(same?('sfx-ting-'+'abc'[(sfxTing++)%3])
+                 :('sfx-clank-'+(((sfxClank++)%2)?'b':'a')),
+    same?{}:{rate:1+(sfxRnd()*0.06-0.03)});          // 피치 ±3% — **제 난수**로(위 ⚠)
+  if(t&&SND.ctx&&reelHumanAt) SND.lat=Math.max(0,(t-SND.ctx.currentTime)*1000);
+  /* 「마지막 릴이 섰다 = 장비가 나왔다」는 **여기서 세지 않는다.** 이 함수가 도는
+     순간의 상태를 훑으면 한 칸이 다른 길(스냅·자동)로 서 있을 때 새어 버린다
+     (실측: 3릴 10주기에 thud 0 · clank 20). 전이를 이미 아는 곳은 `reelMark()` 다. */
+}
+function sfxSlam(){                                   // 자동의 «쾅» — 한 번에 선다
+  try{ if(FG.made>=sfxMadeSeen){ sfxMadeSeen=FG.made+1; sfxMade(); } }catch(e){ sfxMade(); }
+}
+function sfxMade(){
+  sfx('sfx-thud-'+(((sfxThud++)%2)?'b':'a'));
+  try{
+    const lit=document.querySelectorAll('#forge[data-match] .reel.done.hit').length;
+    if(lit>=2) sfx('sfx-match',{at:0.07});
+    const it=S.queue[S.queue.length-1];
+    if(it&&(it.g||0)>=10) sfx('sfx-legend',{at:0.12});
+  }catch(e){}
+}
+/* 전투·웨이브 — 카운터와 `S` 의 **변화**만 본다. 250ms 틱이 부른다. */
+let sfxSeen={dissolve:0, attack:0, wave:0, star:0, lv:0, tech:0};
+function sfxWatch(){
+  try{
+    const V=globalThis.__view; if(!V||!SND.ctx) return;
+    const c=V.counters||{};
+    if((c.dissolve||0)>sfxSeen.dissolve){ sfxSeen.dissolve=c.dissolve;
+      sfx('sfx-kill-'+((sfxSeen.dissolve%2)?'b':'a'),{vol:0.6,gap:120}); }
+    if((c.attack||0)>sfxSeen.attack){ sfxSeen.attack=c.attack; sfxTone('hit'); }
+    if(S.wave>sfxSeen.wave){ const back=false; sfxSeen.wave=S.wave; sfx('sfx-wave',{gap:3000}); }
+    else if(S.wave<sfxSeen.wave){ sfxSeen.wave=S.wave; sfxTone('fail'); }
+    if((S.star||0)>sfxSeen.star){ sfxSeen.star=S.star||0; sfxAscend(); }
+    const tech=Object.values(S.tech||{}).reduce((a,c2)=>a+c2,0);
+    if(tech>sfxSeen.tech){ sfxSeen.tech=tech; sfx('sfx-chime'); }
+  }catch(e){}
+}
+/* 승천 — 곡을 −12dB 로 눌렀다가 라이저 → 파이널 → **도입부터** 다시 1.5초 페이드인.
+   순서를 `__view.sfx.ascAt` 에 시각으로 적는다(A9 가 그것을 읽는다). */
+function sfxAscend(){
+  try{
+    if(!SND.ctx) return;
+    const t=SND.ctx.currentTime; SND.ascAt=[];
+    bgmGain(SND_BGM_VOL*0.25,0.25);              SND.ascAt.push(['duck',+t.toFixed(3)]);
+    const a=sfx('sfx-ascend-riser');             if(a) SND.ascAt.push(['riser',+a.toFixed(3)]);
+    const b=sfx('sfx-final-strike',{at:4});      if(b) SND.ascAt.push(['final',+b.toFixed(3)]);
+    if(typeof setTimeout==='function') setTimeout(()=>{
+      try{ if(SND.bgmSrc){ SND.bgmSrc.stop(); SND.bgmSrc=null; }
+        SND.bgm='none'; sndBgmStart();
+        SND.ascAt.push(['bgm',+SND.ctx.currentTime.toFixed(3)]); sndView();
+      }catch(e){}
+    },4300);
+    SND.bgm='duck'; sndView();
+  }catch(e){}
+}
+
+/* CrazyGames 의 `muteAudio` — **SDK 문서에서 확인한 이름**이다(추측 아님):
+   `SDK.game.settings.muteAudio` + `addSettingsChangeListener`. 문서가 「이 설정이
+   게임 내 설정보다 우선한다」고 못박아, 켜져 있으면 `#snd` 로도 못 켠다. */
+/* 저장해 둔 설정을 읽는다 — **SND 가 다 만들어진 뒤**여야 한다(위 ⚠). */
+try{ sndLoadPrefs(); sndApply(); }catch(e){}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   049 §2⑥ — 박자. 모루 밑 메트로놈 + 판정 게이지.
+
+   **이번엔 보이고 판정하는 것까지다 — 판정이 게임에 주는 이득은 0.**
+   그래서 이 절은 `S` 를 한 글자도 안 쓰고 CORE 를 안 부른다(검사 R5 가 그것을 잰다).
+   R2b 가 여기에 보상(피버·「대장장이의 감!」·불씨)을 붙인다.
+
+   ⚠ 049 2차 ④ 로 **시계는 하나다**(아래 `rhyNow`·`rhyRef`·`rhySlide` 의 긴 주석).
+     그리고 재는 자는 `performance.now()` 하나 — 곡(`ctx.currentTime`)은 **기준**으로만
+     쓰고, 그 기준 쪽으로 프레임마다 박의 0.4%씩 민다. 1차처럼 갈아타면 그 프레임에
+     바늘이 튀고(~104ms), 오디오 시계로 직접 그리면 프레임마다 떨린다(6.4%).
+   ⚠ 탭 시각은 `PointerEvent.timeStamp`(= `performance` 기준)로 온다 — 재는 자가
+     그것 하나이므로 변환이 없다.
+   ⚠ **판정은 릴 멈춤을 막지 않는다.** 어느 판정이든 탭은 그 릴을 세운다.
+   ══════════════════════════════════════════════════════════════════════════ */
+const RHY_BPM=120.15, RHY_BEAT=60/RHY_BPM;          // 0.49938 초
+const RHY_PERFECT=45, RHY_GREAT=90, RHY_GOOD=140;   // ms
+const RHY_TICKS=6;                                  // 게이지에 남기는 눈금 수
+const RHY={ origin:null, clock:'perf', beat:0, phase:0, edge:-1, raf:null,
+            last:{grade:'', ms:0}, counts:{perfect:0,great:0,good:0,miss:0},
+            combo:0, best:0, ticks:[] };
+
+/* ⚠ 049 2차 ④ — **시계 하나로 그린다.** 바늘·판정은 늘 성능 시계(`performance.now`)로
+     세고, 곡(오디오 시계)은 **기준**으로만 쓴다. 1차는 음악이 돌면 오디오 시계로
+     **갈아탔다** — 그래서 두 가지가 났다:
+       ⑴ 갈아타는 그 프레임에 바늘이 튀었다(검증 세션 실측 ~104ms).
+       ⑵ `ctx.currentTime` 은 렌더 블록 단위로 ~10ms씩 **뛴다**. 그것으로 직접 그리면
+          바늘이 프레임마다 떨린다(2차 실측: 한 프레임 6.4% · 한계 5%).
+     그리고 음악을 **끈** 사람도 갈아탔다(버퍼는 무음으로 돌기 때문에).
+     그래서: 성능 시계로 매끄럽게 그리고, 곡과의 차이는 프레임마다 박의 0.4%(≈2ms)
+     씩만 **밀어서** 따라간다(`rhySlide` — 느린 위상 추적). 뛰는 값을 평균 내어
+     받으므로 바늘이 안 떨리고, 오디오·성능 두 시계의 **속도 차이도 계속 흡수**된다
+     (1차의 한 번 박기와 달리 2분 뒤에도 안 밀린다 — R1).
+   `RHY.clock` 의 뜻: `'audio'` = 곡에 물려 있다 · `'perf'` = 맞출 곡이 없어 혼자 돈다. */
+function rhyPerf(){
+  return (typeof performance==='object'&&performance.now)?performance.now()/1000:Date.now()/1000;
+}
+function rhyNow(){ return rhyPerf(); }               // 그리는 시계는 늘 이것 하나다
+/* 곡이 **들리게** 돌면 그 박에 맞는 기준점을 성능 시계 자로 바꿔 돌려준다.
+   음악을 껐으면(`sndOnMusic()` 거짓) `null` — 맞출 곡이 없다. */
+function rhyRef(){
+  try{
+    if(sndOnMusic() && SND.ctx && SND.ctx.state==='running' && SND.bgm!=='none' && SND.loopAt)
+      return rhyPerf() - (SND.ctx.currentTime - SND.loopAt);
+  }catch(e){}
+  return null;
+}
+const RHY_SLIDE=RHY_BEAT*0.004;                      // 한 프레임에 밀 수 있는 최대(초)
+const RHY_FRAME_CAP=RHY_BEAT*0.048;                  // 한 프레임에 바늘이 갈 수 있는 몫
+function rhyOrigin(){
+  if(RHY.origin===null) RHY.origin=rhyPerf();
+  return RHY.origin;
+}
+/* 곡 쪽으로 **조금씩** 민다. 프레임마다 한 번(8ms 안에 두 번 부르면 뒤는 무시).
+   ⚠ 0.4%(2ms)는 넉넉히 잡은 값이다. 60fps 한 프레임이 이미 박의 3.3%(16.7ms)를
+     먹으므로, 미는 몫까지 더해도 5% 아래로 남는다. 반 박을 당기는 데 2초쯤 걸리지만
+     그 2초는 **32초 도입부 안**이라 곡의 박이 아직 안 들린다. 미는 동안에도 바늘과
+     판정은 **같은 기준점**이라 「바늘에 맞춰 친 탭」은 그대로 완벽이다. */
+function rhySlide(){
+  const now=rhyPerf();
+  const dt=(RHY._slid===undefined)?0.016:(now-RHY._slid);
+  if(dt<0.008) return;                               // 한 프레임에 한 번
+  RHY._slid=now;
+  const want=rhyRef();
+  RHY.clock=(want===null)?'perf':'audio';
+  RHY._want=want;
+  if(want===null){ RHY._hold=0; return; }
+  rhyOrigin();
+  /* 이 프레임의 몫 — **실제로 흐른 시간**이 이미 한 프레임 몫(박의 4.8%)을 먹었으면
+     밀지 않는다. 그래야 rAF 가 밀린 프레임에서 바늘이 더 건너뛰지 않는다.
+     다만 느린 기기(30fps)에서 영영 못 맞추면 안 되니, 30프레임을 내리 쉬었으면 한 번은 민다. */
+  let step=Math.min(RHY_SLIDE, Math.max(0, RHY_FRAME_CAP-dt));
+  if(step<=0){ RHY._hold=(RHY._hold||0)+1; if(RHY._hold<30) return; step=RHY_SLIDE; }
+  RHY._hold=0;
+  let d=(want-RHY.origin)%RHY_BEAT;                  // 박 하나 안의 차이로 접는다
+  if(d>RHY_BEAT/2) d-=RHY_BEAT; else if(d<-RHY_BEAT/2) d+=RHY_BEAT;
+  RHY.origin += (Math.abs(d)<=step) ? d : (d>0?step:-step);
+}
+function rhyPhase(now){
+  const t=now-rhyOrigin();
+  const b=Math.floor(t/RHY_BEAT);
+  return {beat:b, phase:t/RHY_BEAT-b};
+}
+/* 사람의 탭 시각(초). `PointerEvent.timeStamp` 가 곧 성능 시계다 — 이제 바꿀 일이 없다
+   (1차는 `getOutputTimestamp()` 로 오디오 시계에 옮겼다. 시계가 하나뿐이니 그 변환도,
+   변환이 실패할 때의 어림짐작도 사라졌다). */
+function rhyTapTime(ev){
+  return (ev&&typeof ev.timeStamp==='number'&&ev.timeStamp>0) ? ev.timeStamp/1000 : rhyPerf();
+}
+/* 손 탭 하나를 판정한다. **견습생 타격은 여기 안 온다**(검사 R3). */
+function rhyJudge(ev){
+  try{
+    const now=rhyTapTime(ev);
+    const p=rhyPhase(now);
+    // 가장 가까운 박까지의 시차(ms). phase 0.5 를 넘으면 다음 박이 가깝다.
+    const d=(p.phase<=0.5?p.phase:p.phase-1)*RHY_BEAT*1000;
+    const a=Math.abs(d);
+    const g = a<=RHY_PERFECT?'perfect' : a<=RHY_GREAT?'great' : a<=RHY_GOOD?'good' : 'miss';
+    RHY.counts[g]++;
+    RHY.last={grade:g, ms:+d.toFixed(1)};
+    if(g==='miss') RHY.combo=0;
+    else { RHY.combo++; if(RHY.combo>RHY.best) RHY.best=RHY.combo; }
+    // 이른 탭은 왼쪽, 늦은 탭은 오른쪽. RHY_GOOD 을 반폭으로 잡아 자리를 낸다.
+    RHY.ticks.push({x:Math.max(-1,Math.min(1,d/RHY_GOOD)), g});
+    while(RHY.ticks.length>RHY_TICKS) RHY.ticks.shift();
+    rhyPaintTicks(); rhyShowJudge(g);
+    rhyView();
+  }catch(e){}
+}
+const RHY_COL={perfect:'#dfb96f', great:'var(--ember)', good:'#e9eef5', miss:'#6b7686'};
+function rhyPaintTicks(){
+  try{
+    const box=document.getElementById('beatticks'); if(!box) return;
+    const n=RHY.ticks.length;
+    if(box.children.length!==n){ box.innerHTML='';
+      for(let i=0;i<n;i++) box.appendChild(document.createElement('i')); }
+    for(let i=0;i<n;i++){
+      const t=RHY.ticks[i], e=box.children[i];
+      e.style.left=(50+t.x*28)+'%';
+      e.style.background=RHY_COL[t.g]||'#fff';
+      e.style.opacity=String(0.18+0.82*((i+1)/n));     // 앞의 것은 흐리게 남는다
+    }
+  }catch(e){}
+}
+function rhyShowJudge(g){
+  try{
+    const e=document.getElementById('beatjudge'); if(!e) return;
+    e.textContent=t('judge.'+g)+(RHY.combo>=2?(' '+t('judge.combo',RHY.combo)):'');
+    e.style.color=RHY_COL[g]||'#fff';
+    e.classList.remove('on'); void e.offsetWidth; e.classList.add('on');
+  }catch(e){}
+}
+/* 바늘. 한 박에 **한 번** 좌↔우를 건넌다 — 끝에 닿는 순간이 곧 박이다
+   (한 박에 왕복시키면 끝에 두 번 닿아 박이 두 배로 보인다). */
+function rhyFrame(){
+  try{
+    const now=rhyNow();
+    rhyOrigin(); rhySlide();                  // 049 2차 ④ — 프레임마다 한 번만 민다
+    const p=rhyPhase(now);
+    RHY.beat=p.beat; RHY.phase=p.phase;
+    const red=reelRed();
+    const n=document.getElementById('beatneedle'), bar=document.getElementById('beat');
+    if(bar){
+      if(!red && n){
+        const x=(p.beat%2===0)?p.phase:(1-p.phase);
+        n.style.left=(2+x*96)+'%';
+      }
+      if(p.beat!==RHY.edge){                        // 박이 바뀌는 그 순간
+        RHY.edge=p.beat;
+        bar.classList.remove('edge'); void bar.offsetWidth; bar.classList.add('edge');
+        if(typeof setTimeout==='function') setTimeout(()=>{ try{ bar.classList.remove('edge'); }catch(e){} },90);
+        const d=document.getElementById('beatdot');
+        if(red&&d){ d.classList.add('on');
+          if(typeof setTimeout==='function') setTimeout(()=>{ try{ d.classList.remove('on'); }catch(e){} },120); }
+      }
+    }
+    rhyView();
+  }catch(e){}
+}
+/* 돌 때만 돈다 — 048 2차 ① 과 **같은 규칙**이다(보고 있고, 30초 안에 만졌을 때).
+   제련 탭이 아니면 아예 안 돈다. 그래서 유휴 duty 가 048 과 같다(검사 R6). */
+function rhyShould(){
+  try{
+    if(typeof document==='undefined'||document.hidden) return false;
+    const pane=document.getElementById('tabForge');
+    if(!pane||!pane.classList||!pane.classList.contains('on')) return false;
+    return (Date.now()-(reelHumanAt||0))<REEL_IDLE_MS;
+  }catch(e){ return false; }
+}
+function rhyLoop(){
+  if(typeof requestAnimationFrame!=='function') return;
+  if(RHY.raf!==null) return;
+  const step=()=>{
+    if(!rhyShould()){ RHY.raf=null; rhyView(); return; }
+    rhyFrame();
+    RHY.raf=requestAnimationFrame(step);
+  };
+  RHY.raf=requestAnimationFrame(step);
+}
+function rhyView(){
+  const V=globalThis.__view; if(!V) return;
+  V.rhythm={bpm:RHY_BPM, clock:RHY.clock, beat:RHY.beat, phase:+RHY.phase.toFixed(4),
+    last:{grade:RHY.last.grade, ms:RHY.last.ms},
+    counts:RHY.counts, combo:RHY.combo, best:RHY.best,
+    running:RHY.raf!==null, sliding:!(RHY._want===null||RHY._want===undefined),
+    window:{perfect:RHY_PERFECT, great:RHY_GREAT, good:RHY_GOOD}};
+}
+rhyView();
+
+
+function sndCgWatch(sdk){
+  try{
+    if(!sdk||!sdk.game) return;
+    const read=st=>{ SND.cgMute=!!(st&&st.muteAudio); sndApply(); };
+    read(sdk.game.settings);
+    if(typeof sdk.game.addSettingsChangeListener==='function')
+      sdk.game.addSettingsChangeListener(read);
+  }catch(e){}
+}
+
 
 // 017: Phaser 를 걷어냈다. 남은 것은 브라우저 2D 캔버스뿐이다.
 // **브라우저 판별은 requestAnimationFrame 으로 한다** — 옛 `typeof Phaser` 자리다.

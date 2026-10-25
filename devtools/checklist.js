@@ -239,12 +239,23 @@ const chk = (name, cond, note) => {
   // ── 2. 니어미스 하이라이트 / 강조 메시지 ──
   const style = await page.evaluate(() => {
     const els = [...document.querySelectorAll('.reel')];
+    /* ══ 049 F4 대체 ══════════════════════════════════════════════════════
+       맞음의 생김새가 **`.hit` 하나**로 들던 것이, 049 F4 부터 「선 칸(`.done`)이고
+       같은 문양으로 선 칸이 **둘 이상**(`#forge[data-match]`)일 때」로 좁아졌다
+       (사용자 피드백: 첫 릴이 서자마자 「맞는다」가 먼저 켜졌다).
+       **재는 것은 한 글자도 안 바꾼다** — 「hit 과 평상이 다른가」 그대로다.
+       F4 가 요구하는 **조건을 만들어 놓고** 잰다(CLAUDE.md 「조건을 만들어 놓고 재라」). */
+    const fg = document.getElementById('forge');
+    const hadMatch = fg && fg.hasAttribute('data-match');
+    els.forEach(e => e.classList.add('done'));
+    if (fg) fg.setAttribute('data-match', '1');
     els.forEach(e => e.classList.add('hit'));
     const h = getComputedStyle(els[0]);
     const hit = h.borderTopColor + '/' + h.boxShadow;
     els.forEach(e => e.classList.remove('hit'));
     const p = getComputedStyle(els[0]);
     const plain = p.borderTopColor + '/' + p.boxShadow;
+    if (fg && !hadMatch) fg.removeAttribute('data-match');   // 판을 되돌린다
     const m = document.getElementById('msg');
     m.className = 'big';
     const b = getComputedStyle(m); const big = b.color + '/' + b.fontWeight;
@@ -4099,6 +4110,173 @@ const chk = (name, cond, note) => {
     chk('FX-예외 FX1·RF1·L3·QD1·RL1 검사가 완주했다', false, '조작 중 예외: ' + String((e && e.message) || e));
   }
   // ── FX1·RF1·L3 끝
+
+  /* ── SND1~SND4 : 소리·박자 상설 (049 2차 ② · 계획 세션 지시 「A1·A5·A6·R3 넷을 상설로」) ──
+     049 까지 이 체크리스트는 소리를 **한 줄도** 안 봤다. 넷만 올린다 — 남는 소리 검사
+     (A2·A3·A4·A7~A10 · R1·R2·R4~R6)는 묶음 7MB 와 2분짜리 드리프트 측정이 들어가
+     상설로는 너무 무겁다. 넷의 기준은 모두 **효과**다(깃발이 아니라 — 026 AD6 교훈).
+     SND1 (A1) 첫 입력 **전**: `ctx 'none'` · 묶음 스크립트 요청 0건. 첫 화면을 소리로
+         무겁게 만드는 회귀를 잡는다(049 ③ 이 2.6MB 를 첫 주기 뒤로 미룬 그 계약).
+     SND2 (A5) 광고 중: `ctx suspended` · **오디오 시계가 멈춘다** · 8번 쳐도 난 소리 0 ·
+         끝나면 running. 049 1차가 바로 여기서 울었다(틱이 `PLAT.paused` 에서 먼저 돌아서
+         `sndGate()` 에 영영 안 닿았다). CrazyGames 요건이자 GD 필수 규칙이다.
+     SND3 (A6) 소리 끔: `played` 증가 0 · `skipped` 증가 · **새로고침 뒤에도 꺼짐**
+         (`hs.snd`. 세이브 `S` 에는 안 들어간다 — 저장 형식 불변).
+     SND4 (R3) 견습생은 판정 안 됨: 자동 제련 10초 → `rhythm.counts` 변화 0.
+         공허성 조건으로 그 동안 **실제로 만들었는가**(`FG.made` 증가)를 같이 본다.
+     ⚠ 소리는 **진짜 포인터**로만 깨어난다(브라우저 자동재생 정책). evaluate 로 부른
+       `resume()` 는 거부된다 — 그래서 넷 다 `#spin` 을 실제로 누른다. */
+  try {
+    const sOpen = async (save, pref) => {
+      const c = await browser.newContext({ viewport: { width: 380, height: 820 } });
+      const p = await c.newPage(); const es = []; const reqs = [];
+      p.on('pageerror', e => es.push('pageerror: ' + e.message));
+      p.on('console', m => { if (m.type() === 'error' || m.type() === 'assert') es.push(m.text()); });
+      p.on('dialog', d => d.accept().catch(() => {}));
+      p.on('request', r => { if (/pack-[a-z]+\.js/.test(r.url())) reqs.push(r.url().replace(/^.*\//, '')); });
+      await p.addInitScript(([s, pf]) => { try {
+        localStorage.setItem('forge', JSON.stringify(Object.assign(
+          { wave: 14, top: 160, peak: 160, gold: 9e6, tok: 3, lv: 10, star: 0, charge: 600, queue: [], equip: {},
+            lockIdx: -1, dust: 0, asell: new Array(15).fill(true), tech: {}, tk: 2, pos: 0, best: 0,
+            auto: false, autoRes: true, t: Date.now() }, s)));
+        if (pf) localStorage.setItem('hs.snd', pf);
+      } catch (e) {} }, [save || {}, pref || null]);
+      await p.goto(URL);
+      await p.evaluate(() => { try { window.save = () => {}; } catch (e) {} });
+      await p.waitForTimeout(1200);
+      p.__es = es; p.__reqs = reqs; p.__c = c; return p;
+    };
+    const sSpinAt = p => p.evaluate(() => { const e = document.getElementById('spin'); const r = e.getBoundingClientRect();
+      for (const fy of [.55, .7, .4, .85, .25]) for (const fx of [.5, .3, .7, .15, .85]) {
+        const x = r.x + r.width * fx, y = r.y + r.height * fy; if (document.elementFromPoint(x, y) === e) return { x, y }; }
+      return null; });
+
+    // SND1 (A1) — 첫 입력 전에는 ctx 도 묶음도 없다
+    {
+      const p = await sOpen({});
+      const v0 = await p.evaluate(() => ({ ctx: __view.sfx.ctx, packs: JSON.stringify(__view.sfx.packs) }));
+      const n0 = p.__reqs.length;                            // ⚠ **누르기 전에** 센다(목록은 계속 쌓인다)
+      const pt = await sSpinAt(p);
+      await p.mouse.click(pt.x, pt.y);                       // 첫 입력 — 여기서부터는 실려도 된다
+      await p.waitForFunction("__view.sfx.ctx==='running'", null, { timeout: 8000 }).catch(() => {});
+      await p.waitForTimeout(300);
+      const v1 = await p.evaluate(() => ({ ctx: __view.sfx.ctx, packs: JSON.stringify(__view.sfx.packs) }));
+      const n1 = p.__reqs.length;
+      chk('SND1 첫 입력 전 소리 0 — ctx none · 묶음 스크립트 요청 0건 (첫 입력 뒤에 선다)',
+        v0.ctx === 'none' && n0 === 0 && v1.ctx === 'running' && n1 > n0 && p.__es.length === 0,
+        `입력 전 ctx ${v0.ctx} · 묶음 ${v0.packs} · 요청 ${n0}건` +
+        ` → 입력 뒤 ctx ${v1.ctx} · 묶음 ${v1.packs} · 요청 ${n1}건(${p.__reqs.slice(0, 3).join(',') || '없다 — 공허'})` +
+        (p.__es.length ? ` · 콘솔 ${p.__es.slice(0, 2).join(' | ')}` : '') +
+        '  · 첫 화면에서 묶음을 실으면 운다 (049 ②)');
+      await p.__c.close();
+    }
+
+    // SND2 (A5) — 광고 중 ctx suspended · 오디오 시계 정지 · 난 소리 0 · 끝나면 running
+    for (const route of ['CrazyGames 보상형', 'GD SDK_GAME_PAUSE/START']) {
+      const p = await sOpen({});
+      const pt = await sSpinAt(p);
+      await p.mouse.click(pt.x, pt.y);
+      await p.waitForFunction("__view.sfx.ctx==='running'", null, { timeout: 8000 }).catch(() => {});
+      await p.waitForTimeout(400);
+      const hid0 = await p.evaluate(() => document.hidden);
+      // 광고를 **그 길 그대로** 연다 — 탭 숨김(A7)은 건드리지 않는다
+      await p.evaluate(cg => { PLAT.paused = true; adWall(true);
+        if (cg && PLAT.playStop) PLAT.playStop();
+        platSync(); SND.played = {}; SND.skipped = 0; sndView(); }, route[0] === 'C');
+      await p.waitForTimeout(500);
+      const mid = await p.evaluate(() => ({ ctx: __view.sfx.ctx, t: SND.ctx.currentTime, hid: document.hidden }));
+      for (let k = 0; k < 8; k++) { await p.mouse.click(pt.x, pt.y); await p.waitForTimeout(80); }
+      await p.waitForTimeout(400);
+      const dur = await p.evaluate(() => ({ ctx: __view.sfx.ctx, t: SND.ctx.currentTime,
+        n: Object.values(__view.sfx.played).reduce((a, c) => a + c, 0) }));
+      await p.evaluate(cg => { PLAT.paused = false; adWall(false); platSync();
+        if (cg && PLAT.playStart) PLAT.playStart(); }, route[0] === 'C');
+      await p.waitForTimeout(700);
+      const aft = await p.evaluate(() => ({ ctx: __view.sfx.ctx, t: SND.ctx.currentTime }));
+      const drift = dur.t - mid.t, moved = aft.t - dur.t;
+      chk(`SND2 ${route} 광고 중 소리 0 — ctx suspended · 오디오 시계 정지 · 8번 쳐도 0건 · 끝나면 running`,
+        mid.ctx === 'suspended' && Math.abs(drift) <= 0.02 && dur.n === 0 && aft.ctx === 'running'
+        && moved > 0 && mid.hid === false && p.__es.length === 0,
+        `탭 숨김 ${hid0}→${mid.hid}(건드리지 않았다) · 광고 중 ctx ${mid.ctx} · 시계 ${drift >= 0 ? '+' : ''}${drift.toFixed(3)}초(멈췄으면 0)` +
+        ` · 난 소리 ${dur.n}건 · 광고 뒤 ctx ${aft.ctx} · 그 뒤 시계 +${moved.toFixed(2)}초` +
+        (p.__es.length ? ` · 콘솔 ${p.__es.slice(0, 2).join(' | ')}` : '') +
+        '  · 049 1차(3b3ab24b)는 시계가 +1.17초 흘러 운다');
+      await p.__c.close();
+    }
+
+    // SND3 (A6) — 소리를 끄면 난 소리 0 · 건너뛴 수가 늘고 · 새로고침 뒤에도 꺼짐
+    {
+      const p = await sOpen({});
+      const pt = await sSpinAt(p);
+      await p.mouse.click(pt.x, pt.y);
+      await p.waitForFunction("__view.sfx.ctx==='running'", null, { timeout: 8000 }).catch(() => {});
+      await p.waitForTimeout(300);
+      // ⓐ 켠 채로 같은 손놀림 10번 — **소리가 나는지** 먼저 본다(끈 판의 0 이 공허하지 않게)
+      await p.evaluate(() => { SND.played = {}; SND.skipped = 0; sndView(); });
+      for (let k = 0; k < 10; k++) { await p.mouse.click(pt.x, pt.y); await p.waitForTimeout(70); }
+      await p.waitForTimeout(300);
+      const onN = await p.evaluate(() => ({ n: Object.values(__view.sfx.played).reduce((a, c) => a + c, 0),
+        skipped: __view.sfx.skipped }));
+      const on = await p.evaluate(() => __view.sfx.music);
+      const sndBtn = await p.evaluate(() => { const e = document.getElementById('snd'); if (!e) return null;
+        const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+      await p.mouse.click(sndBtn.x, sndBtn.y);                        // HUD 스피커 — 음악+효과음 둘 다
+      await p.waitForTimeout(200);
+      const off = await p.evaluate(() => { SND.played = {}; SND.skipped = 0; sndView();
+        return { music: __view.sfx.music, sfx: __view.sfx.sfx }; });
+      for (let k = 0; k < 10; k++) { await p.mouse.click(pt.x, pt.y); await p.waitForTimeout(70); }
+      await p.waitForTimeout(300);
+      const q = await p.evaluate(() => ({ n: Object.values(__view.sfx.played).reduce((a, c) => a + c, 0),
+        skipped: __view.sfx.skipped, stored: (() => { try { return localStorage.getItem('hs.snd'); } catch (e) { return null; } })(),
+        inSave: /"snd"|"music"/.test(JSON.stringify(S)) }));
+      /* ⓒ 「새로고침 뒤에도 꺼짐」 — **같은 판을 새로고침하지 않는다.** `file://` 에서는
+         Chromium 이 `localStorage` 를 새로고침 사이에 더러 흘린다(4판에 1판꼴로 `hs.snd`
+         가 `null` 로 돌아온다 — ko·en 둘 다, 049 2차 실측). 그러면 제품이 아니라 저장소
+         때문에 우는 검사가 된다. 그래서 ⓑ 가 **쓴 값**(`'00'`)을 가진 **새 판**이
+         꺼진 채로 서는지를 본다 — A6 의 계약(쓴다 + 읽는다)은 그대로 덮인다. */
+      const p2 = await sOpen({}, q.stored || '00');
+      const pt2 = await sSpinAt(p2);
+      await p2.mouse.click(pt2.x, pt2.y);
+      await p2.waitForTimeout(800);
+      for (let k = 0; k < 5; k++) { await p2.mouse.click(pt2.x, pt2.y); await p2.waitForTimeout(70); }
+      await p2.waitForTimeout(300);
+      const re = await p2.evaluate(() => ({ music: __view.sfx.music, sfx: __view.sfx.sfx,
+        n: Object.values(__view.sfx.played).reduce((a, c) => a + c, 0), skipped: __view.sfx.skipped }));
+      const es2 = p2.__es.length; await p2.__c.close();
+      chk('SND3 소리 끔 — 난 소리 0 · 건너뛴 수 증가 · 새로고침 뒤에도 꺼짐 (hs.snd · 세이브 S 불변)',
+        on === true && onN.n > 0 && off.music === false && off.sfx === false && q.n === 0 && q.skipped > 0
+        && q.stored === '00' && q.inSave === false && re.music === false && re.sfx === false && re.n === 0
+        && re.skipped > 0 && p.__es.length === 0 && es2 === 0,
+        `켠 채로 10번 쳐서 난 소리 ${onN.n}건(공허성: 0 이면 안 된다 · 건너뜀 ${onN.skipped})` +
+        ` · 끄기 전 음악 ${on} → 끈 뒤 음악 ${off.music}·효과음 ${off.sfx} · 10번 쳐서 난 소리 ${q.n}건 · 건너뜀 ${q.skipped}` +
+        ` · localStorage hs.snd "${q.stored}" · 세이브 S 안에 소리 키 ${q.inSave ? '있다(규약 위반)' : '0'}` +
+        ` · 그 값을 가진 **새 판**: 음악 ${re.music}·효과음 ${re.sfx} · 6번 쳐서 난 소리 ${re.n}건(건너뜀 ${re.skipped})` +
+        (p.__es.length ? ` · 콘솔 ${p.__es.slice(0, 2).join(' | ')}` : ''));
+      await p.__c.close();
+    }
+
+    // SND4 (R3) — 견습생 타격은 판정되지 않는다 (자동 10초 → counts 변화 0 · 그 동안 실제로 만든다)
+    {
+      const p = await sOpen({ auto: true, star: 1 });
+      const pt = await sSpinAt(p);
+      await p.mouse.click(pt.x, pt.y);                        // 소리를 세우고 — 이 한 탭은 판정된다
+      await p.waitForTimeout(600);
+      const a = await p.evaluate(() => ({ c: JSON.stringify(__view.rhythm.counts), made: FG.made,
+        auto: S.auto, run: __view.rhythm.running }));
+      await p.waitForTimeout(10000);
+      const b = await p.evaluate(() => ({ c: JSON.stringify(__view.rhythm.counts), made: FG.made,
+        struck: FG.struck, clock: __view.rhythm.clock }));
+      chk('SND4 견습생 타격은 판정 안 된다 — 자동 제련 10초 → rhythm.counts 변화 0 (그 동안 실제로 만든다)',
+        a.c === b.c && a.auto === true && b.made > a.made && p.__es.length === 0,
+        `자동 ${a.auto} · counts ${a.c} → ${b.c} · 만든 장비 ${a.made}→${b.made}(공허성: 늘어야 한다)` +
+        ` · 쌓인 타 ${b.struck} · 시계 ${b.clock}` + (p.__es.length ? ` · 콘솔 ${p.__es.slice(0, 2).join(' | ')}` : '') +
+        '  · 견습생 타격이 rhyJudge 를 부르면 운다');
+      await p.__c.close();
+    }
+  } catch (e) {
+    chk('SND-예외 SND1~SND4 소리·박자 검사가 완주했다', false, '조작 중 예외: ' + String((e && e.message) || e));
+  }
+  // ── SND1~SND4 끝
 
   await browser.close();
 
