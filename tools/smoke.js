@@ -1,5 +1,7 @@
 // 상호작용 스모크: 스핀·교체 왕복·천장·층·주사위·테크·승천 전 구간.
 // 실행: node tools/smoke.js  (실패 있으면 exit 1)
+// 050: 어긋난 판으로 검사가 도는 일을 막는다 — 조각과 forge.html 이 같은지 먼저 본다.
+try { require('child_process').execFileSync(process.execPath, [require('path').join(__dirname, 'build.js'), '--check'], { stdio: 'inherit' }); } catch (e) { process.exit(1); }
 require('./harness')(`
 
 // ── 상호작용 스모크 ──

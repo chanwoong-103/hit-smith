@@ -1,0 +1,293 @@
+</style>
+</head>
+<body>
+<div id="stage"></div><!-- 뒤 겹 캔버스: 배경·화로·모루 (007/008) -->
+<div id="fx"></div><!-- 앞 겹 캔버스: 불티·바운스 (008) -->
+
+<!-- ══ 인라인 SVG 심볼 — 재화·UI 6개만 ══
+     부위 아이콘 18개는 011 에서 지웠다. 009 가 픽셀 스프라이트로 갈아탄 뒤
+     캔버스 없는 환경(node harness)의 폴백으로만 남아 있었는데, harness 는
+     로직 검사용이고 아이콘 픽셀은 검사 대상이 아니다 — 폴백을 위해 4KB 를
+     두 벌 유지하는 것이 원칙 2(최소 해법)에 어긋난다. 지금은 캔버스가 없으면
+     빈 칸이 나온다.
+     아래 6개는 DOM 에 직접 박혀 있어 스프라이트로 대체되지 않는다.
+     016 이 더했던 톱니(s-cog)는 **027 이 걷었다** — 그 버튼이 열던 설정 팝업이
+     없어졌다. 심볼도 같이 지운다(쓰는 곳 없는 그림을 남기지 않는다, 원칙 2). -->
+<svg id="sprite" xmlns="http://www.w3.org/2000/svg"><defs>
+
+<!-- ── 재화·UI ── -->
+<symbol id="s-gold" viewBox="0 0 32 32">
+  <path d="M5.6 19h20.8l3.4 7.4H2.2z" fill="currentColor" opacity=".55"/>
+  <path d="M9.4 9.6h13.2l2.8 7.6H6.6z" fill="currentColor"/>
+</symbol>
+<symbol id="s-token" viewBox="0 0 32 32">
+  <path d="M16 2.4 27.8 9.2v13.6L16 29.6 4.2 22.8V9.2z" fill="currentColor" opacity=".24"/>
+  <path d="M16 2.4 27.8 9.2v13.6L16 29.6 4.2 22.8V9.2z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/>
+  <path d="M16 9.6 21.9 13v6.8L16 23.2 10.1 19.8V13z" fill="currentColor"/>
+</symbol>
+<symbol id="s-dust" viewBox="0 0 32 32">
+  <path d="M16 1.6 18.7 13.3 30.4 16 18.7 18.7 16 30.4 13.3 18.7 1.6 16 13.3 13.3Z" fill="currentColor"/>
+</symbol>
+<symbol id="s-ticket" viewBox="0 0 32 32">
+  <path d="M3.4 8.4h25.2v4.6a3 3 0 0 0 0 6v4.6H3.4V19a3 3 0 0 0 0-6z" fill="currentColor" opacity=".26" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>
+  <path d="M12.4 11.4v9.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-dasharray="2 2.6" stroke-linecap="round"/>
+</symbol>
+<symbol id="s-flame" viewBox="0 0 32 32">
+  <path d="M16 1.6c1.1 5.6-1.6 7.7-4.5 10.8C8.4 15.6 6.8 18.5 6.8 21.6 6.8 26.4 10.9 30.3 16 30.3s9.2-3.9 9.2-8.7c0-3.5-1.9-6-4.1-8.6-1 1.6-2.3 2.2-3.3 1.8 1.6-3.5 1-8.2-1.8-13.2z" fill="currentColor"/>
+  <path d="M16 30.3c-2.9 0-4.9-2-4.9-4.7 0-2.4 1.8-3.7 3.1-5.7.8 2 2 2.7 3.5 3.9 1.4 1.2 2 2.2 2 3.9 0 1.7-1.4 2.6-3.7 2.6z" fill="#ffe08a"/>
+</symbol>
+<symbol id="s-charge" viewBox="0 0 32 32">
+  <path d="M18.4 1.6 7.2 17.8h7.1L13 30.4 24.8 13.6h-7.4z" fill="currentColor"/>
+</symbol>
+</defs></svg>
+
+
+<!-- ══ 세로 3단 (010 §1) ══
+     상단 HUD(고정) / 중앙 포커스(모루·화로) / 하단 관리 패널(자체 스크롤).
+     감싸기만 했다 — 안쪽 id·class·라벨은 하나도 바뀌지 않았다. -->
+<!-- ══ 047 R1 — 세로 우선 골격 ══════════════════════════════════════
+     위에서 아래로: HUD / 무대 / 모루 장면 / 열기 줄 / 손잡이 줄 / 장비 띠 /
+     대기열 띠 / 탭바. 010 의 세로 3단(#hud·#focus·#manage)을 대신한다.
+
+     ⚠ **`#scene`(모루 장면 + 열기 줄)은 탭 판 «밖»이다.** 047 §2②가 요구하는
+       「가로에서는 오른쪽 칸만 탭 판으로 바뀌고 왼쪽(무대·모루)은 그대로」는
+       장면이 `#tabForge` 안에 있으면 성립하지 않는다 — 탭을 바꾸면 판이
+       통째로 사라지기 때문이다. 세로에서 장면이 함께 사라지는 것(§2②의
+       「장면 포함」)은 `body[data-tab]` 로 세로에서만 숨겨 만든다.
+     ⚠ 요소는 **하나도 지우지 않았다.** `#mob`·`#bar`·`#hpbar`·`#foes`·`#plate`·
+       `#spinlbl`·`#chg`·`#spinq`·`#ascgate`·`#asell`·`#bOdds`·`#bStats` 전부
+       id 와 `data-s` 그대로 자리만 옮겼다(CORE 가 쓰거나 검사가 읽는다). -->
+<div id="hud">
+<div id="plate"><span>Hit Smith</span></div>
+
+<div class="panel" id="hudbar">
+  <div class="row">
+    <div><span class="dim" data-s="ui.wave">웨이브</span> <b class="num gv" id="wv">1</b><span id="wvg"></span>
+      <span id="star" style="color:var(--g14)"></span>
+      <span class="dim num" style="font-size:11px"> <span data-s="ui.best">최고</span> <b id="top">0</b></span></div>
+    <div class="num" style="font-size:12px">
+      <span style="color:var(--brass)"><svg class="ci"><use href="#s-gold"/></svg> <span id="gold">0</span></span>
+      &nbsp;<span style="color:var(--ember)"><svg class="ci"><use href="#s-token"/></svg> <span id="tok">0</span></span>
+      <!-- 049 §2④ — 소리 끄고 켜기. HUD 한 줄 오른쪽 끝 · 아이콘만(글자를 넣으면 40px 줄이 넘친다). -->
+      &nbsp;<button id="snd" type="button" aria-pressed="true" data-stitle="ui.sndTip" title="소리">🔊</button>
+    </div>
+  </div>
+</div>
+<!-- 전투 무대 (013). **빈 칸이다** — 3층 패럴랙스·몹·용사는 뒤 겹 캔버스가
+     이 사각형 안에 그린다. z-index:-1 캔버스가 비쳐야 하므로 배경을 주지 않는다
+     (017 의 「칠했다 ≠ 보인다」 — 감싼 요소가 불투명하면 캔버스가 통째로 가려진다).
+     047: 몹 줄·체력 막대·적 글자는 무대 «위에 겹친다» — HUD 한 줄을 40px 로
+     묶으려면 이 넷이 HUD 밖으로 나와야 했다. `#foes` 는 CORE 의 newWave() 가
+     글자를 쓰는 자리라 **남아 있어야 한다**(보이지 않아도 된다 — §3). -->
+<div id="arena">
+  <div id="mob"></div>
+  <div id="arenafoot">
+    <div id="bar"><div id="fill"></div></div>
+    <div id="hpbar"><div id="hpghost"></div><div id="hpfill"></div></div>
+    <div id="foes">—</div>
+  </div>
+</div>
+</div><!-- /#hud -->
+
+<!-- ══ 모루 장면 + 열기 줄 (047 §2①③) ══
+     탭 판 밖에 있다(위 ⚠). 세로에서는 다른 탭을 고르면 `body[data-tab]` 로 숨는다. -->
+<div id="scene">
+<div class="panel" id="forge">
+  <!-- 047 §2③ — `#spin` 이 **장면 전체를 덮는 투명한 버튼**이 된다. 장면 어디를
+       눌러도 친다. id·`.primary` 는 그대로다(026·033·AD6 이 읽는다). 위에 얹힌
+       것(`#asc`·`.reel`·`#pity`)은 쌓임 순서로 이 버튼보다 앞이라 각자의 일을 한다.
+       **DOM 에서 먼저 둔다** — 뒤에 오는 형제가 같은 z 에서 위에 쌓인다. -->
+  <button id="spin" class="primary" aria-describedby="spincap"></button>
+  <!-- 027 B-2: 승천은 한 주기의 **끝**인데 016 이 톱니 안에 숨겨 뒀다. 조건이
+       찼을 때만, 굴리지 않고 보이는 자리에 둔다. 047: 장면 맨 위에 얹힌다. -->
+  <button id="asc" class="hot" style="display:none" data-s="ui.ascend">승천</button>
+  <!-- 화로 압력계: 바늘이 스핀마다 오르고 적색 구간에 닿으면 강제 정렬.
+       047: 장면 왼쪽 위에 작게 얹힌다. -->
+  <!-- 047 2차 (제안 ①) — **글자를 내리고 `title` 로.** 바늘과 막대가 같은 말을
+       하고 있었고, 첫 화면의 글자 수를 줄이는 것이 §2① 의 목표다. `#pitytxt` 는
+       지우지 않는다 — 비워 두고, 숫자는 `renderFast` 가 이 요소의 `title` 에 쓴다. -->
+  <div id="pity" data-stitle="ui.pityTip" title="화로압">
+    <div id="pgauge">
+      <svg viewBox="0 0 44 30">
+        <path d="M5.26 21.05A17 17 0 0 1 38.74 21.05" fill="none" stroke="#39434f" stroke-width="4.6" stroke-linecap="round"/>
+        <path d="M5.26 21.05A17 17 0 0 1 22 7" fill="none" stroke="#6f7c8b" stroke-width="4.6" stroke-linecap="round"/>
+        <path d="M34.02 11.98A17 17 0 0 1 38.74 21.05" fill="none" stroke="#c9401a" stroke-width="4.6" stroke-linecap="round"/>
+        <g id="pneedle"><path d="M22 24 21.05 10.6h1.9z" fill="#e8eef5"/></g>
+        <circle cx="22" cy="24" r="2.7" fill="#8e99a8" stroke="#39434f" stroke-width="1.2"/>
+      </svg>
+    </div>
+    <div class="pcol">
+      <span id="pitytxt" class="dim num"></span>
+      <div class="bar"><div id="pityfill"></div></div>
+    </div>
+  </div>
+  <!-- 문양 칸. 047: 고정 안내는 대기열 줄에서 빼고 이 칸의 `title` 로 옮겼다
+       (§2① — 첫 화면의 글자를 줄인다). `#hearth` 는 문양 칸을 담는 띠로 남는다. -->
+  <div id="hearth" data-stitle="ui.tapLockTip" title="문양 칸을 누르면 한 번 두드린다 · 길게 누르면 고정 토큰으로 그 문양을 붙잡는다">
+    <div id="reels"></div>
+  </div>
+  <div id="msg"></div>
+  <!-- 모루 아래 작은 캡션. 033 ② 의 「대기열 정리」 글자 바꿈이 여기서 일어난다 —
+       바꾸는 쪽(renderFast)은 그대로 `#spinlbl`·`#chg`·`#spinq` 를 쓴다. -->
+  <!-- 049 §2⑥ — 모루 밑 메트로놈 + 판정 게이지. 캡션 **위**, 모루 **아래**다.
+       `aria-hidden` : 화면 낭독기에 바늘 좌표를 읽어 줄 이유가 없다(판정 글자는 #msg 가 든다). -->
+  <div id="beat" aria-hidden="true">
+    <i class="zone z3"></i><i class="zone z2"></i><i class="zone z1"></i>
+    <i id="beatticks"></i><i id="beatneedle"></i><i id="beatdot"></i>
+    <span id="beatjudge"></span>
+  </div>
+  <div id="spincap" class="dim"><span id="spinlbl">두드리기 </span><svg class="ci" style="color:var(--ember)"><use href="#s-flame"/></svg> <span class="num" id="chg">0</span><span id="spinq"></span></div>
+</div>
+<!-- 열기 줄 — 충전 온도계를 **가로 막대**로 눕히고 오른쪽 끝에 정보 버튼. -->
+<div id="openrow">
+  <div id="therm"><i id="thermf"></i></div>
+  <button id="bInfo" data-s="ui.info" data-stitle="ui.infoTip">정보</button>
+  <!-- 049 F3 — 「견습생」이 **「자동 제련」**이 되어 손잡이 줄에서 여기로 왔다(사용자 결정).
+       요소도 id 도 그대로다 — 코드 이름(`apprOn`·`S.auto`·`'apprentice'` 출처)은 안 바꾼다.
+       모루 바로 아래, 「누르는 곳」과 「대신 누르게 하는 곳」이 한자리에 모인다. -->
+  <button id="auto" data-s="ui.autoForge" data-stitle="ui.autoForgeTip">자동 제련</button>
+</div>
+</div><!-- /#scene -->
+
+<!-- ══ 탭 넷 (016) ══ 제련(손잡이·장비·대기열) · 던전 · 테크.
+     **라우터가 아니다** — 판이 전부 DOM 에 살아 있고 보이는 것 하나만 바뀐다. -->
+<div class="tabpane on" id="tabForge">
+<div id="dock">
+  <!-- 손잡이 줄 — 강화 · 견습생 · 지피기. 047: 옛 `#manage` 첫 패널의
+       `#lv`·`#up`·`#cost` 가 여기로 왔다(요소 그대로). -->
+  <div id="handles">
+    <button id="up"><span data-s="ui.upgrade">강화</span> <span class="dim" data-s="ui.forgeLvShort">Lv</span> <span class="num" id="lv">0</span> <svg class="ci" style="color:var(--brass)"><use href="#s-gold"/></svg> <span class="num" id="cost">50</span></button>
+    <button id="ad"><svg class="ci"><use href="#s-flame"/></svg> <span id="adtxt" data-s="ui.stokeShort">지피기</span></button>
+  </div>
+  <!-- 장비 띠 — 착용 6칸 한 줄. 원칙 8: 인벤토리가 아니다. -->
+  <div id="gearband">
+    <span id="pwrap" class="dim num"><span data-s="ui.power">전투력</span> <b id="pw">0</b></span>
+    <div id="gear"></div>
+  </div>
+  <!-- 대기열 띠 — 041 제안 9: **틱마다 나타났다 사라지지 않는다.** 비어도 같은
+       자리·같은 높이로 있다(빈 점). 누르면 하는 일은 지금과 같다(openCmp). -->
+  <div id="qband">
+    <button id="open"><span class="dim" data-s="ui.queue">대기</span> <span class="num" id="qn">0</span><span class="dim">/</span><span class="num" id="qm">10</span><span id="qdots"></span></button>
+    <button id="autores" data-s="ui.sort">정리</button>
+    <span id="autoresLock" class="dim" data-s="ui.autoresLocked" data-stitle="ui.autoresLockedTip" title="자동 정리는 첫 승천에 열린다">자동 정리 · 승천 후</span>
+  </div>
+</div>
+</div><!-- /#tabForge -->
+
+<div class="tabpane" id="tabTower">
+<div class="panel" id="pTower" style="display:none">
+  <div class="row" style="margin-bottom:7px">
+    <span class="dim"><span data-s="tower.title">무한의 층</span> <span style="color:var(--g9)"><svg class="ci"><use href="#s-ticket"/></svg> <b class="num" id="tk">2</b></span></span>
+    <span class="dim num"><span data-s="ui.best">최고</span> <b id="best" style="color:var(--text)">0</b><span data-s="tower.floor">층</span></span>
+  </div>
+  <!-- 던전 띠 (019): 013 타일 + 015 몹을 팔레트만 갈아 다시 쓴다. 새 그림 0장. -->
+  <div class="dband" id="tband"><i id="tguard"></i><b id="tfloor" data-s="tower.unvisited">미답</b></div>
+  <button id="tower" class="primary" style="width:100%" data-s="tower.challenge">도전 — 오른 층만큼 별가루</button>
+</div>
+</div><!-- /#tabTower -->
+
+<div class="tabpane" id="tabTech">
+<div class="panel" id="pTech" style="display:none">
+  <div class="row" style="margin-bottom:8px">
+    <span class="dim" data-s="tech.title">테크트리</span>
+    <span class="num" style="color:var(--g9)"><svg class="ci"><use href="#s-dust"/></svg> <span id="dust">0</span> <span data-s="tech.dust">별가루</span></span>
+  </div>
+  <div id="tech"></div>
+</div>
+</div><!-- /#tabTech -->
+
+<!-- 하단 탭바. 최고 웨이브 10 전까지 **탭바 자체가 없다** (원칙 7).
+     탭이 하나뿐인 탭바는 거짓말이다 — 게이트가 열리는 순간 셋이 함께 나타난다. -->
+<div id="tabs" style="display:none">
+  <button id="tbForge" class="on" data-s="tab.forge">제련</button>
+  <button id="tbTower" data-s="tab.dungeon">던전</button>
+  <button id="tbTech" data-s="tab.tech">테크</button>
+</div>
+
+<div id="dice">
+  <!-- 층 등반 (019): 숫자가 오르는 동안 띠가 한 주기 흐른다. 캔버스를 쓰지 않아
+       절전과 무관하고, 색은 층수에서 무대와 같은 공식으로 파생한다. -->
+  <div class="dband" id="dband"><i id="dguard"></i><b id="dfloor" data-s="tower.floor0">0층</b></div>
+  <div style="text-align:center;margin-bottom:10px">
+    <div class="dim" id="dmsg" data-s="dice.hint">주사위를 굴려 보상 칸을 정하세요</div>
+    <div id="dval">
+      <svg class="die" id="ddie" data-v="0" viewBox="0 0 32 32">
+        <rect x="2.6" y="2.6" width="26.8" height="26.8" rx="5" fill="#b9c3cf" stroke="#5b6673" stroke-width="1.6"/>
+        <rect x="4.6" y="4.6" width="22.8" height="10" rx="3" fill="#d3dae3"/>
+        <g fill="#1a1f26">
+          <circle class="p tl" cx="10.5" cy="10.5" r="2.6"/><circle class="p tr" cx="21.5" cy="10.5" r="2.6"/>
+          <circle class="p ml" cx="10.5" cy="16"   r="2.6"/><circle class="p mr" cx="21.5" cy="16"   r="2.6"/>
+          <circle class="p bl" cx="10.5" cy="21.5" r="2.6"/><circle class="p br" cx="21.5" cy="21.5" r="2.6"/>
+          <circle class="p c"  cx="16"   cy="16"   r="2.6"/>
+        </g>
+      </svg>
+      <span id="dnum">—</span>
+    </div>
+  </div>
+  <div id="board"></div>
+  <div class="row" style="margin-top:12px">
+    <button id="droll" class="primary" style="flex:1" data-s="dice.roll">굴리기</button>
+    <button id="dad" style="flex:1"><svg class="ci"><use href="#s-flame"/></svg><span data-s="dice.reroll">재굴림</span> <span id="dleft">2</span></button>
+  </div>
+  <button id="dtake" style="width:100%;margin-top:6px;display:none" data-s="dice.claim">보상 받기</button>
+</div>
+
+<div id="cmp">
+  <div class="dim" style="text-align:center;margin-bottom:8px">
+    <span data-s="cmp.left">남은 대기</span> <span class="num" id="qn2">0</span> · <span data-s="cmp.note">교체하면 빠진 장비가 맨 앞에 남습니다</span>
+    <div id="cstat" class="num" style="margin-top:4px;color:var(--text)"></div>
+  </div>
+  <div class="card" id="cOld"></div>
+  <div class="card new" id="cNew"></div>
+  <div class="row">
+    <button id="bSell" style="flex:1" data-s="cmp.sell">판매</button>
+    <button id="bEquip" class="primary" style="flex:1" data-s="cmp.swap">교체</button>
+  </div>
+  <button id="cclose" style="width:100%;margin-top:6px" data-s="cmp.close">닫기 — 화면 확인</button>
+</div>
+
+<!-- 026: 광고 중 입력 차단막. 통을 새로 만드는 것이 아니라 «막» 하나다. -->
+<div id="adwall"></div>
+
+<!-- ══ 상세 팝업 (016) ══ 통 하나 · 절 넷. 메인에서 덜어낸 표와 상세가 여기 산다.
+     절들은 닫혀 있어도 DOM 에 그대로 있어 render() 와 checklist 선택자가 살아 있다. -->
+<div id="pop">
+  <div class="pophead"><b id="ptitle"></b><button id="pclose" data-s="pop.close">닫기</button></div>
+  <div id="pstat" class="num"></div>
+  <div class="popsec" id="popOdds">
+    <div class="odds"><span class="ol" data-s="odds.base">기본</span><div class="obar" id="ob0"></div></div>
+    <div class="odds"><span class="ol" data-s="odds.three">3연</span><div class="obar" id="ob2"></div></div>
+    <div id="olegend"></div>
+  </div>
+  <div class="popsec" id="popStats"><div id="stats"></div></div>
+  <!-- 047 §2④ — 정보 절. 없어진 `#manage` 둘째 단에 있던 것이 전부 여기로 왔다:
+       승천 진행 `#ascgate` · 자동 판매 `#asell` · 확률표/옵션 상세로 가는 두 버튼 ·
+       고정 토큰 안내 한 문장. **요소는 그대로 옮겼다** — id·`data-s` 가 안 바뀌어
+       render() 와 checklist 선택자가 살아 있다(016 「통 하나」 규약 그대로). -->
+  <div class="popsec" id="popForge">
+    <div id="ascgate" class="dim"></div>
+    <div id="asell"></div>
+    <p class="dim" id="lockTipTxt" data-s="ui.tapLockTip">문양 칸을 누르면 한 번 두드린다 · 길게 누르면 고정 토큰으로 그 문양을 붙잡는다</p>
+    <!-- 049 §2④ — 음악 / 효과음 **따로**. HUD 스피커는 둘 다를 한 번에 끈다. -->
+    <div class="qrow" id="sndrow">
+      <button id="sndMusic" style="flex:1" data-s="ui.sndMusic">음악</button>
+      <button id="sndSfx" style="flex:1" data-s="ui.sndSfx">효과음</button>
+    </div>
+    <button id="bOdds" style="width:100%;margin-top:8px" data-s="pop.odds">등급 확률표</button>
+    <button id="bStats" style="width:100%;margin-top:6px" data-s="pop.stats">옵션 수치 상세</button>
+  </div>
+  <!-- 027 B-3: 설정 절(#popSet)은 **비었으므로 걷었다.** 안에 있던 자동 판매와
+       승천은 제련 탭으로 갔다(B-1·B-2). 승천 «확인» 절(#popAsc)은 그대로 남는다 —
+       016 의 통 하나를 계속 쓴다. -->
+  <div class="popsec" id="popAsc">
+    <div class="dim" id="ascTxt"></div>
+    <button id="ascGo" class="hot" style="width:100%;margin-top:10px" data-s="asc.do">승천한다</button>
+  </div>
+  <div id="popend"></div>
+</div>
+
+<!-- 017: 외부 라이브러리 0개. Phaser 3 (vendor 1,196,122B) 를 걷어냈고
+     `src/vendor/` 도 지웠다. 이제 게임은 **정말로 이 파일 하나**다 —
+     포털 업로드도 Pages 배포도 forge.html 복사 한 번이다.
+     새 라이브러리는 다시 계획 세션 승인 사항이다 (원칙 2). -->
+<script>

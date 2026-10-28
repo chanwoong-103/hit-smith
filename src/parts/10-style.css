@@ -1,0 +1,909 @@
+:root{
+  --iron:#12161b; --panel:#1f262e; --panel2:#28313b; --line:#3a4552;
+  --text:#c5cedb; --dim:#7d8b9c; --brass:#b8934a; --ember:#ff6b2c;
+  /* 금속·숯 톤 (표시 전용. 등급색은 아래 --g1~--g15 그대로 둔다) */
+  --edge:#4d5866; --coal:#0c1014; --steel:#8e99a8;
+  --g1:#6b7683; --g2:#7d9c7a; --g3:#5f93bd; --g4:#8a76c9;
+  --g5:#c06fb8; --g6:#d4903f; --g7:#e05a4a; --g8:#ffd166;
+  --g9:#5ce1c4; --g10:#ff3d7f;
+  --g11:#4dd0e1; --g12:#b388ff; --g13:#ff8a80; --g14:#ffe57f; --g15:#ffffff;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{
+  /* 화로 잔광은 008에서 캔버스로 이관했다 (__view.background==='canvas').
+     여기 남은 단색은 캔버스가 못 뜨는 경우의 바닥색이다 — 그라디언트를 여기
+     되살리면 캔버스 잔광과 두 겹이 된다. */
+  background:var(--iron);
+  color:var(--text);
+  font-family:-apple-system,"Apple SD Gothic Neo","Pretendard","Malgun Gothic",sans-serif;
+  font-size:14px; line-height:1.5; overscroll-behavior:none;
+  /* ── 세로 3단 (010 §1) ──
+     모바일 세로가 기준이고 데스크톱은 그 **확대**다. 좌우로 펼치지 않는다 —
+     판이 넓어지면 aspect-ratio 타일이 세로로 커져 008 이 고친 하단 차단이
+     되살아난다 (CLAUDE.md 검증 세션 「반응형 검사는 최소 두 크기로」).
+     그래서 폭은 480px 로 묶고 가운데 둔다.
+     body 에 z-index 를 주지 않는다 — 쌓임 맥락이 생기면 캔버스 층이 어긋난다
+     (007 실측). display:flex 와 overflow 는 쌓임 맥락을 만들지 않는다. */
+  max-width:480px; margin:0 auto; padding:0;
+  height:100vh; height:100dvh;
+  display:flex; flex-direction:column; overflow:hidden;
+  /* 026: CrazyGames 기술 요건 — 모바일·태블릿에서 길게 눌러 글자가 잡히거나
+     두 번 눌러 확대되지 않게 한다. 이 게임에는 사용자가 복사할 글이 없다. */
+  -webkit-user-select:none; -moz-user-select:none; -ms-user-select:none; user-select:none;
+}
+/* 026: 광고가 도는 동안 덮는 막. **입력을 삼키는 것이 목적**이고 보이는 것은 덤이다
+   (CrazyGames 요건 「광고를 요청·재생하는 동안 게임이 진행되면 안 된다」).
+   무대 루프와 250ms 틱은 따로 멈춘다 — 막 하나로는 rAF 가 안 멈춘다. */
+#adwall{position:fixed;inset:0;z-index:9998;display:none;background:rgba(8,11,15,.78)}
+/* 037 ④ — GD 에서만 DOM 에 붙는 시작 막. 광고 막(#adwall)보다 **아래**에 둔다 —
+   프리롤이 도는 동안 광고 막이 이 위를 덮어야 입력이 광고 쪽으로 간다. */
+#gdStart{position:fixed;inset:0;z-index:9990;background:#0d1116;
+  display:flex;align-items:center;justify-content:center;text-align:center}
+#gdStart h2{font-size:22px;letter-spacing:.18em;color:var(--brass);margin:0 0 18px}
+#gdStart button{min-width:160px;padding:12px 18px;font-size:15px}
+#adwall.on{display:block}
+/* ══ 047 R1 — 세로 우선 골격 ══════════════════════════════════════
+   010 의 세로 3단(#hud·#focus·#manage)을 여덟 줄로 바꾼다. **스크롤이 없는 것이
+   목표다**(L1): 남는 세로를 먹는 것은 모루 장면 하나뿐이고 나머지는 전부 고정
+   높이다. `#focus`·`#manage` 규칙은 지웠다 — 그 두 요소가 더 이상 없고, 남겨 두면
+   새 배치를 몰래 미는 옛 규칙이 된다(047 §2② 의 요구).
+
+   지운 것과 이유:
+   ① `#focus{flex:1;overflow-y:auto}` — 중앙 칸이 자체 스크롤을 갖던 자리. 이제
+      스크롤 자체를 없애는 것이 완료 조건이라(L1) 스크롤 통을 두지 않는다.
+   ② `#focus>#forge{min-height:100%;justify-content:center}` — 031 §4 가 가로에서
+      「텅 빈 띠」로 고생한 그 규칙. 장면이 `flex:1` 로 직접 자라므로 필요 없다.
+   ③ `#manage{max-height:30vh;overflow-y:auto}` — 단 자체가 없어졌다.
+   ④ `#arena{height:clamp(60px,12vh,96px)}` — 무대가 작아서 HUD 에 눌려 있었다.
+      047 은 무대를 `clamp(120px,26vh,240px)` 로 키우고 몹·체력 줄을 그 **위에
+      겹친다**(HUD 한 줄 40px). */
+#hud{flex:none;padding:8px 10px 0}
+#hudbar{margin-bottom:0;padding:7px 9px;min-height:40px;display:flex;align-items:center}
+#hudbar>.row{width:100%}
+/* 전투 무대 (013). 캔버스가 그리는 자리라 **배경이 없어야 한다**(017 「칠했다 ≠
+   보인다」). 047: 몹 줄·체력 막대·적 글자가 이 안에 겹쳐 앉는다. */
+#arena{position:relative;height:clamp(120px,26vh,240px);margin:6px 0 0;background:none;
+  border-radius:4px;overflow:hidden}
+#arena>#mob{position:absolute;left:0;right:0;top:4px;margin:0}
+/* 체력 막대와 적 글자는 무대 바닥에 붙는다 — 무대 픽셀을 가리지 않게 아래 끝이다. */
+#arenafoot{position:absolute;left:6px;right:6px;bottom:4px}
+#arenafoot>#bar,#arenafoot>#hpbar{margin:0 0 2px}
+/* `#foes` 는 CORE 의 newWave() 가 글자를 쓰는 자리라 **지우지 않는다.** 무대 위
+   글자는 첫 화면의 글자 수를 늘리므로 작고 흐리게 둔다(§2① 「글자」). */
+#arenafoot>#foes{font-size:11px;color:var(--dim);text-align:center;line-height:1.3}
+
+/* ── 모루 장면 (047 §2③) ──
+   남는 세로를 **전부** 먹는 유일한 줄이다. 탭 판 밖에 있다(HTML 주석 참고). */
+#scene{flex:1 1 auto;min-height:150px;display:flex;flex-direction:column;
+  padding:6px 10px 0;min-width:0}
+/* 세로에서 다른 탭을 고르면 장면이 함께 사라진다(§2② — 「장면 포함」).
+   가로에서는 아래 질의가 이 규칙을 되돌린다(왼쪽 칸은 그대로). */
+body[data-tab="tower"] #scene,body[data-tab="tech"] #scene{display:none}
+
+/* ── 열기 줄 · 손잡이 줄 · 장비 띠 · 대기열 띠 ── 전부 고정 높이다. */
+/* 049 §2④ — HUD 스피커. 아이콘 하나뿐이라 버튼 기본 여백을 걷어낸다(40px 줄 안에 든다). */
+#snd{padding:0 4px;min-width:0;line-height:1;font-size:13px;background:none;border:0;
+  color:var(--dim);cursor:pointer;vertical-align:middle}
+#snd[aria-pressed="false"]{opacity:.45}
+#sndMusic.hot,#sndSfx.hot{color:var(--ember)}
+#openrow{flex:none;display:flex;align-items:center;gap:8px;height:32px;padding:0 10px}
+#bInfo{flex:none;font-size:11px;padding:5px 10px;min-height:26px;letter-spacing:.06em}
+/* 049 F3 — 자동 제련 버튼은 **켜고 꺼도 폭이 안 변해야 한다.** `.hot` 이 `font-weight:700`
+   을 주는데, 열기 줄에서는 그 한 끗이 글자를 넓혀 `#therm`·`#bInfo` 를 5.4px 밀었다
+   (en 「Auto Forge」에서 L3 가 울었다). 굵기를 **늘 700** 으로 못박아 상태가 자리를
+   안 건드리게 한다 — `.hot` 의 색·그림자는 그대로 든다. */
+#openrow>#auto{flex:none;font-size:11px;padding:5px 10px;min-height:26px;
+  letter-spacing:.06em;font-weight:700}
+#dock{display:flex;flex-direction:column;gap:6px;padding:6px 10px 0;min-width:0}
+#handles{flex:none;display:flex;gap:6px;height:44px}
+#handles>button{flex:1;min-width:0;font-size:12px;padding:6px 4px;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+#gearband{flex:none;position:relative;padding-top:13px}
+/* 전투력은 띠 **위에 작게** 얹는다 — 줄 하나를 더 쓰지 않으려는 자리다. */
+#pwrap{position:absolute;left:0;top:0;font-size:11px;line-height:1.1}
+#pwrap>b{color:var(--text)}
+/* 대기열 띠 — 비어도 같은 자리·같은 높이(041 제안 9 · 검사 L3). */
+#qband{position:relative;flex:none;display:flex;align-items:center;gap:8px;min-height:28px}
+#qband>#open{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:5px;
+  font-size:11px;padding:4px 8px;min-height:28px;text-align:left;
+  background:linear-gradient(180deg,#1b2229,#12171d)}
+/* 대기 장비 하나당 등급색 점 하나. 빈 칸도 점으로 자리를 지킨다. */
+/* ⚠ 점 줄이 `flex:1` 로 폭을 다 먹으면 오른쪽 안내 글자가 접힌다 — 가로의 좁은
+   오른쪽 칸(800×450 에서 332px)에서 실측했다(「At 1st Ascend」가 두 줄). 점은
+   **장식**이고 「대기 N/M」이 기록이다: 점이 먼저 줄어들고, 넘치면 잘린다. */
+#qdots{display:flex;align-items:center;gap:3px;margin-left:6px;flex:1 1 0;min-width:0;
+  overflow:hidden}
+#qband>#autores{flex:none;white-space:nowrap}   /* 안내 글자 쪽은 아래 #autoresLock 규칙이 든다 */
+#qdots i{flex:none;width:7px;height:7px;border-radius:50%;background:var(--line);
+  border:1px solid var(--edge)}
+/* 047 3차 ⑤ — 들어가지 않은 나머지는 마지막 자리에서 「+N」으로 말한다.
+   점이 아니므로 동그라미·테두리를 벗고 숫자만 남는다. */
+/* 048 §2⑧ — 「+N」이 `<i>` 기본 기울임으로 비스듬히 보였다(047 검증이 넘긴 것).
+   글자 모양만 바로 세운다 — 폭을 재는 숨은 자도 **같은 규칙**을 받아야 하므로
+   둘을 묶은 이 선택자에 넣는다(안 그러면 재는 폭과 그리는 폭이 갈린다). */
+#qdots i.more,#qband>i.qmore{font-style:normal;width:auto;height:auto;border:0;background:none;border-radius:0;
+  font-size:11px;line-height:1;color:var(--dim);white-space:nowrap;
+  font-family:ui-monospace,Menlo,monospace}
+/* 047 4차 — 글자는 **줄지 않는다.** 폭을 미리 떼 놓았으므로 `flex` 가 다시 눌러
+   말줄임·잘림을 만들면 안 된다(3차의 결함이 바로 그 잘림이었다). */
+#qdots i.more{flex:none}
+/* 재는 탐침 — `.more` 와 같은 서체·크기를 받되 흐름 밖에 있어 자리를 안 쓴다. */
+#qband>i.qmore{position:absolute;left:-9999px;top:0;visibility:hidden;pointer-events:none}
+#qdots i.on{border-color:currentColor;background:currentColor;
+  box-shadow:0 0 5px -1px currentColor}
+@keyframes qdotPop{0%,100%{transform:scale(1)}45%{transform:scale(1.9)}}
+#qdots i.fresh{animation:qdotPop .42s ease-out 2}
+/* ── 탭 (016) ──
+   **라우터가 아니다.** 판 넷이 전부 DOM 에 살아 있고 보이는 것 하나만 바뀐다.
+   해시·history·주소를 건드리지 않으므로 뒤로가기가 게임을 떠나는 동작 그대로다.
+   선택자도 전부 살아 있다 — 숨겨진 탭 안의 id 도 checklist 가 그대로 읽는다. */
+.tabpane{flex:1 1 auto;min-height:0;display:none}
+.tabpane.on{display:flex;flex-direction:column}
+/* 제련 탭은 안에서 다시 2단(#focus·#manage)으로 나뉘어 각자 스크롤한다.
+   나머지 둘은 판 하나짜리라 탭 자체가 스크롤 통이다. */
+#tabTower,#tabTech{overflow-y:auto;overscroll-behavior:contain;padding:0 10px 14px}
+#tabTower>*,#tabTech>*{flex:none}
+/* 하단 탭바. **배경을 밝히지 않는다** — 016 ⚠ 절: 패널 배경이 밝아지면
+   어두운 등급 6종의 아이콘 외곽선(대비 1.00)이 먼저 사라진다. 숯보다 어둡게. */
+#tabs{flex:none;display:flex;gap:5px;padding:6px 10px;
+  border-top:1px solid var(--line);background:var(--coal)}
+#tabs button{flex:1;padding:8px 4px;font-size:12px;letter-spacing:.06em;color:var(--dim);
+  background:linear-gradient(180deg,#242c35,#151a20)}
+#tabs button.on{color:var(--text);border-color:var(--brass);
+  background:linear-gradient(180deg,#333d49,#1d242b)}
+/* ── 캔버스 층 (007 뼈대 · 017 에서 2D 캔버스로) ──
+   본문 뒤에 고정으로 깔린다. 007 의 캔버스는 투명해서 화면에 아무 영향이 없고,
+   008 부터 여기에 모루·불티가 그려진다. 클릭은 전부 위의 DOM 이 받는다.
+   body 에 z-index 를 주지 않는 이유: body 에 쌓임 맥락이 생기면
+   background-attachment:fixed 로 깔린 화로 잔광의 래스터화가 달라져
+   화면 전체가 미세하게 바뀐다 (007에서 픽셀 비교로 실측). 대신 캔버스를
+   z-index:-1 로 내린다 — 페이지 배경보다는 위, 본문보다는 아래다. */
+#stage{position:fixed;inset:0;z-index:-1;pointer-events:none}
+/* 앞 겹: 불티·바운스. 뒤 겹(#stage)에 그리면 불투명한 패널에 가려 안 보인다
+   (008 에서 스크린샷으로 확인). 클릭은 pointer-events:none 으로 통과시킨다. */
+#fx{position:fixed;inset:0;z-index:2;pointer-events:none}
+#stage canvas,#fx canvas{display:block}
+.num{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-variant-numeric:tabular-nums}
+
+/* ── 강판 패널 (리벳 4개는 ::before 의 방사 그라디언트) ── */
+.panel{
+  position:relative;
+  background:linear-gradient(180deg,#2a333d 0%,#212a33 20%,#1a2128 100%);
+  border:1px solid var(--edge); border-radius:5px; padding:10px; margin-bottom:8px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07),inset 0 -1px 0 rgba(0,0,0,.55),
+             0 2px 4px rgba(0,0,0,.45);
+}
+.panel::before{
+  content:"";position:absolute;inset:5px;pointer-events:none;background-repeat:no-repeat;
+  background-image:
+    radial-gradient(circle 2px at 2px 2px,#78838f 38%,#20272e 72%,transparent 74%),
+    radial-gradient(circle 2px at calc(100% - 2px) 2px,#78838f 38%,#20272e 72%,transparent 74%),
+    radial-gradient(circle 2px at 2px calc(100% - 2px),#78838f 38%,#20272e 72%,transparent 74%),
+    radial-gradient(circle 2px at calc(100% - 2px) calc(100% - 2px),#78838f 38%,#20272e 72%,transparent 74%);
+}
+.panel>*{position:relative}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.dim{color:var(--dim);font-size:11px;letter-spacing:.08em}
+
+/* ── 금속 명판 타이틀 ── */
+#plate{text-align:center;margin:0 0 10px;position:relative}
+/* 027 B-3: 톱니(#cog)를 걷었다. 016 이 설정 팝업을 열려고 뒀는데, 그 팝업의
+   내용물(자동 판매·승천)이 제련 탭으로 옮겨가면서 **누르면 빈 창이 뜨는 버튼**만
+   남았다 — 016 「탭이 하나뿐인 탭바는 거짓말이다」와 같은 이유로 없앤다.
+   사운드(1.0 이후)가 들어오면 그때 배경음·밝기 자리로 돌아온다.
+   `#plate` 의 `position:relative` 는 남긴다 — `#plate span::before/after` 가 쓴다. */
+#plate span{
+  position:relative;display:inline-block;padding:5px 30px;
+  font-size:15px;font-weight:700;letter-spacing:.34em;color:#2b1e0a;
+  background:linear-gradient(180deg,#e6c47c,#bb964c 46%,#8b6b2e);
+  border:1px solid #6f5220;border-radius:3px;
+  text-shadow:0 1px 0 rgba(255,255,255,.32);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.55),inset 0 -1px 0 rgba(0,0,0,.3),0 2px 4px rgba(0,0,0,.5);
+}
+#plate span::before,#plate span::after{
+  content:"";position:absolute;top:50%;width:4px;height:4px;border-radius:50%;
+  transform:translateY(-50%);background:radial-gradient(circle at 34% 32%,#fff3d4,#7a5a24);
+}
+#plate span::before{left:9px} #plate span::after{right:9px}
+
+/* ── 버튼: 브러시드 스틸 ── */
+button{
+  font-family:inherit;font-size:14px;color:var(--text);
+  background:linear-gradient(180deg,#3a4450,#262e37);
+  border:1px solid var(--edge);border-radius:3px;padding:9px 12px;cursor:pointer;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 1px 2px rgba(0,0,0,.5);
+}
+button:active{transform:translateY(1px);box-shadow:inset 0 1px 3px rgba(0,0,0,.6)}
+button:disabled{opacity:.35;cursor:default;box-shadow:none}
+.primary{
+  background:linear-gradient(180deg,#dcb367,#a8842f);color:#22190a;border-color:#7d5f22;
+  font-weight:700;text-shadow:0 1px 0 rgba(255,255,255,.3);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 1px 2px rgba(0,0,0,.5);
+}
+.hot{
+  background:linear-gradient(180deg,#ff9354,#e04f16);color:#2a1206;border-color:#a83c10;
+  font-weight:700;text-shadow:0 1px 0 rgba(255,255,255,.25);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 0 12px rgba(255,107,44,.4);
+}
+#spin,#ad,#dad{display:flex;align-items:center;justify-content:center;gap:7px}
+#spin>span:empty{display:none}
+/* 033 ①-b: 대기열 줄 = 글자 왼쪽 · 「정리」 버튼 오른쪽. 줄이 넘치지 않게 글자 쪽만
+   줄바꿈을 허용하고(min-width:0), 버튼은 안 줄인다(flex:none). 글자는 `.dim` 의
+   11px 을 그대로 쓴다(031 의 문턱 — 더 작게 만들지 말 것). 높이 28px 은 손가락으로
+   누를 수 있는 최소선이고, 켜짐 표시는 #auto 와 **같은** `.hot` 이다. */
+.qrow{display:flex;align-items:center;gap:8px;margin-top:8px}
+.qrow>span{flex:1 1 auto;min-width:0}
+#autores{flex:none;font-size:11px;padding:5px 10px;min-height:28px;letter-spacing:.06em}
+/* 041 ③ — 잠긴 동안의 안내. **버튼이 아니다**(누를 수 없다). 글자 크기는 `.dim` 의
+   11px 그대로(LG1·LG2 문턱). 줄이 좁아지면 이 글자가 먼저 줄어들게 둔다. */
+/* 047 §2① — 대기열 띠에서 이 글자는 **줄지 않는다**(`flex:none`). 041 의
+   `flex:0 1 auto;min-width:0` 은 이 규칙이 `#qband` 쪽 선언보다 **뒤에 있어서**
+   그것을 이기고 79px 글자를 75px 로 눌러 4px 을 삐져나가게 했다(800×450 실측).
+   줄어들 몫은 점 줄(`#qdots`)이 진다 — 점은 장식이고 「대기 N/M」이 기록이다. */
+#autoresLock{flex:none;white-space:nowrap;text-align:right;line-height:1.3}
+/* 041 2차 (제안 ① 판정) — 해금 순간 「정리」가 **세 번 반짝인다**. `#msg` 한 줄은
+   자동 제련이 켜져 있으면 다음 제련 결과가 14~83ms 만에 덮어 버려 사실상 안 보인다
+   (검증 세션 실측). 붙잡으려면 CORE 의 `spin()` 을 건드려야 하므로 알림을 **버튼 쪽에**
+   둔다 — 자리·크기·색은 그대로, 깜빡이는 것은 배경과 테두리뿐이다.
+   움직임을 줄이라고 한 사람에게는 **깜빡이지 않고 테두리 강조 한 번**만 남긴다. */
+@keyframes autoresPop{
+  0%,100%{box-shadow:none}
+  50%{box-shadow:0 0 0 2px var(--ember),0 0 10px var(--ember)}
+}
+/* 048 §2② — 견습생 해금도 **같은** 반짝임을 쓴다. 041 이 쓰던 선택자에 `#auto`
+   를 더하기만 한다(새 애니메이션 0개 · `#autores` 의 동작은 한 글자도 안 바뀐다). */
+#autores.pop,#auto.pop{animation:autoresPop .4s steps(1,end) 3}
+#autores.popStill,#auto.popStill{box-shadow:0 0 0 2px var(--ember)}
+@media (prefers-reduced-motion:reduce){
+  #autores.pop,#auto.pop{animation:none;box-shadow:0 0 0 2px var(--ember)}
+}
+/* ══ 048 §2② — 견습생이 잠긴 동안 (첫 회차 최고 웨이브 25 전) ════════════
+   충전은 **견습생만** 쓴다. 그러니 견습생이 없는 동안 온도계·충전 숫자·지피기는
+   뜻이 없는 장치다 — 원칙 7 「첫 3분은 순수 스핀만」과 같은 결의 정리다.
+   충전은 CORE 대로 계속 찬다(수식 미변경) — 해금 순간 이미 쌓여 있다.
+   ⚠ `#ad` 는 `platUI()` 가 **인라인** `display` 를 쓴다. 광고가 있는 곳에서는
+     `''`(인라인 없음)을 넣으므로 아래 규칙이 그대로 이긴다 — platUI 는 안 고친다. */
+body[data-appr="0"] #therm,
+body[data-appr="0"] #auto,
+body[data-appr="0"] #ad{display:none}
+body[data-appr="0"] #spincap .ci,
+body[data-appr="0"] #spincap #chg{display:none}
+
+/* ── 아이콘 공통 (부위 심볼 = 강철 채움 + 등급색 스트로크) ── */
+#sprite{display:none}
+.ico{display:inline-flex;align-items:center;justify-content:center;line-height:0}
+/* 픽셀 스프라이트 (009). 16px 원본을 **정수 배율(2배)** 로만 키운다 —
+   1.5배·2.3배는 픽셀을 뭉갠다. 크기를 px 로 못박아 반픽셀 위치를 막는다. */
+.ico img.px{display:block;image-rendering:pixelated;image-rendering:crisp-edges}
+/* 숫자 글리프 (010 §2). 자간이 이미지 안에 들어 있으므로 여백을 주지 않는다.
+   크기는 굽는 단계에서 정해져 CSS 로 늘리지 않는다 — 늘리면 정수 배율이 깨진다. */
+.gn{display:inline-flex;align-items:flex-end;vertical-align:-.18em;line-height:0}
+.gn img{display:block;image-rendering:pixelated;image-rendering:crisp-edges}
+.gn .gt{font-family:ui-monospace,Menlo,monospace;font-size:11px;font-style:normal;
+  line-height:1;align-self:flex-end;letter-spacing:0}
+.gn .gt::after{content:attr(data-c)}
+/* 같은 값을 글자로도 남겨 둔다 — textContent 로 읽는 검사와 보조기술이 살아 있어야 한다. */
+.gv{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);
+  white-space:nowrap;font-style:normal}
+.pl.gl .ico img.px{filter:drop-shadow(0 0 2px currentColor)}
+.ci{width:1em;height:1em;display:inline-block;vertical-align:-.16em}
+/* 등급 명판: 색은 인라인 --gc 하나로만 들어온다 (부위×등급 개별 드로잉 없음) */
+.pl{
+  position:relative;display:inline-flex;align-items:center;justify-content:center;
+  padding:4px;border:1.5px solid currentColor;border-radius:7px;
+  background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(0,0,0,.4));
+}
+.pl::before{content:"";position:absolute;inset:0;border-radius:5.5px;background:currentColor;opacity:.15}
+.pl .ico{position:relative}
+/* 11등급+ 은은한 발광 */
+.pl.gl{box-shadow:0 0 7px -1px currentColor,inset 0 0 9px -3px currentColor}
+/* 14~15등급 화염 오라 */
+.pl.au::after{
+  content:"";position:absolute;inset:-4px -3px -5px;border-radius:10px;pointer-events:none;
+  background:radial-gradient(62% 72% at 50% 106%,rgba(255,170,60,.9),rgba(255,70,0,.3) 44%,transparent 72%);
+  filter:blur(1.6px);animation:aura 1.4s ease-in-out infinite alternate;
+}
+@keyframes aura{from{opacity:.4;transform:scaleY(.88)}to{opacity:1;transform:scaleY(1.1)}}
+
+/* ── 화로 압력계 (구 천장 게이지) ── */
+#pity{display:flex;align-items:center;gap:9px;margin-bottom:10px}
+#pgauge{
+  width:48px;flex:none;padding:2px 3px 1px;border-radius:5px;
+  background:linear-gradient(180deg,#2e3742,#191f26);border:1px solid var(--edge);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 1px 2px rgba(0,0,0,.5);
+}
+#pgauge svg{display:block;width:100%;height:auto}
+#pneedle{transform-box:view-box;transform-origin:22px 24px;
+  transition:transform .4s cubic-bezier(.34,1.3,.5,1)}
+.pcol{flex:1;min-width:0;text-align:left}
+#pity .bar{height:6px;background:var(--coal);border:1px solid var(--edge);border-radius:3px;
+  overflow:hidden;margin-top:3px;box-shadow:inset 0 0 4px rgba(0,0,0,.85)}
+/* background-color 를 따로 두는 이유: 가득 상태 색 변화를 계산된
+   backgroundColor 로 재는 검사가 있다. 그라디언트만 쓰면 둘 다 투명이 된다. */
+#pityfill{height:100%;width:0%;background-color:var(--brass);
+  background-image:linear-gradient(180deg,rgba(255,255,255,.28),rgba(0,0,0,.22));
+  transition:width .25s}
+#pityfill.full{background-color:var(--ember);box-shadow:0 0 9px rgba(255,107,44,.75)}
+#pitytxt{font-size:11px;white-space:nowrap;letter-spacing:.03em}
+
+/* ── 화로 ── */
+/* 008: 가운데 패널과 화로 창의 **바탕만** 캔버스로 넘겼다. 테두리·리벳·릴 타일은
+   DOM 그대로라 checklist 선택자는 하나도 안 잃는다. 배경을 여기 되살리면
+   캔버스가 그린 모루·불빛을 덮어 버린다. */
+/* ══ 047 §2③ — 모루 장면 ═════════════════════════════════════════
+   `#forge` 가 장면 전체이고 `#spin` 이 그 위를 덮는 **투명한 버튼**이다.
+   장면 어디를 눌러도 친다. 쌓임 순서가 전부다:
+     `#spin`(z 0, DOM 맨 앞) < `#hearth`/`#msg`/캡션(z 1) < `#pity`·`#asc`(z 2)
+   `#pity`·`#asc`·`.reel` 은 각자의 일을 하고, 그 밖의 빈 자리는 전부 치기다. */
+/* 위 여백 30px 은 **압력계가 앉을 자리**다. 안 두면 `#pity` 가 첫 문양 칸을 덮는다
+   (화면 실측 — 047-380x820-star1 에서 「Pressure 0/80」이 첫 칸 위에 올라탔다). */
+#forge{position:relative;text-align:center;padding:30px 11px 8px;background:none;
+  flex:1 1 auto;min-height:0;display:flex;flex-direction:column;justify-content:center}
+#spin{position:absolute;inset:0;width:100%;height:100%;padding:0;margin:0;
+  background:none;border:0;border-radius:9px;z-index:0;cursor:pointer}
+/* 키보드(데스크톱 포털): Space/Enter 로 친다 — 포커스가 보여야 한다(§2③). */
+#spin:focus-visible{outline:2px solid var(--brass);outline-offset:-3px}
+#spin:disabled{cursor:default}
+#forge>#hearth,#forge>#msg,#forge>#spincap{position:relative;z-index:1}
+/* ⚠ 「장면 어디를 눌러도 친다」(§2③)를 실제로 만드는 줄이다. 얹힌 것들이 위에
+   있기만 하면 **그 자리를 누를 때 아무 일도 안 난다** — 검사 L2 가 `#spin` 의
+   가운데 점이 `#msg`·`#hearth` 에 막히는 것으로 그 구멍을 잡았다. 보기만 하는
+   것은 클릭을 흘려보내고, 누르는 것(`.reel`·`#pity`·`#asc`)만 받는다. */
+#forge>#msg,#forge>#spincap,#hearth{pointer-events:none}
+#hearth .reel{pointer-events:auto}
+#forge>#pity,#forge>#asc{z-index:2}
+/* 압력계는 장면 **왼쪽 위에 얹힌다**. 흐름에서 빼야 041 검증이 잡은
+   「#pity 줄이 #asc 를 30px 덮어 승천 배너를 못 누른다」가 구조적으로 못 생긴다
+   (§2⑥(b) · 검사 L2) — 둘이 같은 흐름을 다투지 않고 서로 다른 모서리에 선다. */
+#pity{position:absolute;left:10px;top:8px;margin:0;z-index:2;
+  display:flex;align-items:center;gap:6px;transform:scale(.82);transform-origin:left top}
+/* 승천 배너는 장면 **맨 위 가운데**. 눌리는 것이 목적이라 압력계와 겹치지 않게
+   왼쪽을 비워 둔다. */
+#asc{position:absolute;left:auto;right:10px;top:8px;width:auto;min-width:96px;
+  z-index:2;font-size:12px;padding:7px 12px}
+/* 모루 아래 한 줄 캡션. 033 ② 의 「대기열 정리」 글자 바꿈이 여기서 일어난다 —
+   바꾸는 쪽(renderFast)은 그대로 `#spinlbl`·`#chg`·`#spinq` 를 쓴다. */
+/* ══ 049 §2⑥ — 메트로놈 띠 ════════════════════════════════════════════════
+   높이는 **16px 고정**이다(지시서: 장면이 좁으면 최소 14px). 장면 안에서 자리를
+   뺏는 유일한 새 요소라 L1(첫 화면 스크롤 0)이 여기서 갈린다 — 그래서 `flex:none`
+   으로 못박고 안쪽은 전부 `position:absolute` 다(줄 수가 늘 수 없다). */
+#beat{position:relative;flex:none;height:16px;margin-top:auto;border-radius:8px;
+  background:linear-gradient(180deg,#11161c,#0a0d11);
+  box-shadow:inset 0 0 6px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.04);overflow:hidden}
+#spincap{font-size:11px;margin-top:0;padding-top:6px;letter-spacing:.04em}
+/* 표적 칸 — 가운데에서 좋음·정확·완벽이 겹쳐 보인다(폭이 곧 너그러움이다). */
+#beat .zone{position:absolute;top:2px;bottom:2px;left:50%;transform:translateX(-50%);
+  border-radius:6px;pointer-events:none}
+#beat .z3{width:56%;background:rgba(255,255,255,.055)}
+#beat .z2{width:36%;background:rgba(255,107,44,.16)}
+#beat .z1{width:18%;background:rgba(223,185,111,.3)}
+/* 바늘 — 한 박에 한 번 좌↔우를 건넌다. 끝에 닿는 순간이 박이다. */
+#beatneedle{position:absolute;top:1px;bottom:1px;width:2px;margin-left:-1px;border-radius:1px;
+  background:var(--ember);box-shadow:0 0 6px -1px var(--ember);left:0}
+#beat.edge{box-shadow:inset 0 0 6px rgba(0,0,0,.85),0 0 9px -2px var(--ember)}
+/* 탭이 떨어진 자리 — 앞의 것들은 흐리게 남아 「이른지 늦은지」가 보인다. */
+#beatticks{position:absolute;inset:0;pointer-events:none}
+#beatticks>i{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;border-radius:1px;background:#fff}
+/* reducedMotion — 바늘이 안 움직이고 박마다 점 하나가 깜빡인다. */
+#beatdot{display:none;position:absolute;left:50%;top:50%;width:5px;height:5px;margin:-2.5px 0 0 -2.5px;
+  border-radius:50%;background:var(--dim)}
+#beatdot.on{background:var(--ember);box-shadow:0 0 7px -1px var(--ember)}
+@media (prefers-reduced-motion:reduce){
+  #beatneedle{display:none} #beatdot{display:block}
+}
+/* 판정 글자 — 모루 위로 잠깐 떠오른다. */
+#beatjudge{position:absolute;left:50%;bottom:17px;transform:translateX(-50%);
+  font-size:12px;font-weight:700;letter-spacing:.04em;white-space:nowrap;
+  opacity:0;pointer-events:none;text-shadow:0 1px 3px rgba(0,0,0,.9)}
+@keyframes judgePop{0%{opacity:0;transform:translate(-50%,4px)}
+  18%{opacity:1;transform:translate(-50%,-2px)}100%{opacity:0;transform:translate(-50%,-10px)}}
+#beatjudge.on{animation:judgePop .9s ease-out 1}
+@media (prefers-reduced-motion:reduce){ #beatjudge.on{animation:none;opacity:1} }
+#spincap>span:empty{display:none}
+
+/* ══ 047 §2⑤-3 — 가림막은 **부모 속성**이다 ════════════════════════════
+   `#forge[data-veiled]` + `[data-shown="k"]` 로 k 번째 뒤의 문양 칸을 덮고
+   `#msg` 를 감춘다.
+   ⚠ **자식 클래스로 걸면 안 된다.** CORE 가 `#msg.className=` 로 통째로 덮고
+     `.reel` 의 클래스를 붙였다 뗀다(047 §1 ②④) — 거기에 얹은 클래스는 다음
+     스핀에서 조용히 사라진다. 부모 속성은 CORE 가 한 번도 안 만진다.
+   ⚠ `visibility` 로 감춘다(`display` 가 아니라) — 자리가 변하면 L3(틱이 자리를
+     안 바꾼다)가 운다. */
+#forge[data-veiled] #msg{visibility:hidden}
+/* 048 §2③ — 아직 도는 릴이 하나라도 있으면 글은 기다린다(「마지막 릴이 선 뒤에」). */
+#forge[data-rolling] #msg{visibility:hidden}
+/* ══ 048 §2③ — `?` 덮개는 **돌아가는 릴**로 바뀌었다 ═══════════════════════
+   047 은 아직 안 드러난 칸을 `::after` 로 덮어 `?` 를 썼다. 048 에서는 그 칸이
+   **실제로 돌고 있다** — 가리는 것이 아니라 아직 안 선 것이다. 그래서 덮개 두
+   규칙(`?` 와 `data-shown` 별 해제)을 지운다. 부모 속성 자체는 그대로 둔다:
+   `fgPaint()` 가 계속 쓰고, 047 검사·탐침이 그것을 상태 창구로 읽는다.
+   ⚠ `::after` 를 비워 두는 것이 중요하다 — `.reel.lock::after` 의 「고정」 딱지가
+     그 자리를 쓴다. 덮개를 남겨 두면 고정 딱지가 덮개 뒤로 사라진다. */
+/* 목업의 「이은 고리」 — 두 번째 문양부터 앞 문양과 같으면 그 칸을 강조한다(CSS 만). */
+/* 이은 고리 — 두 번째 문양부터 앞 문양과 같으면 그 칸을 강조한다(CSS 만). */
+.reel.echo{border-color:var(--brass);box-shadow:inset 0 0 11px rgba(0,0,0,.9),0 0 8px -1px var(--brass)}
+/* 047 3차 ③ — 길게 눌러 고정이 걸린(또는 풀린) 그 순간만 한 번. 길게 누르기는
+   눈에 안 보이는 조작이라 「먹혔다」는 신호가 없으면 사람이 또 누른다. */
+@keyframes reelHeld{0%,100%{box-shadow:inset 0 0 11px rgba(0,0,0,.9)}
+  45%{box-shadow:0 0 0 2px var(--ember),inset 0 0 11px rgba(0,0,0,.9)}}
+.reel.held{animation:reelHeld .34s ease-out 1}
+@media (prefers-reduced-motion:reduce){ .reel.held{animation:none} }
+#hearth{
+  position:relative;display:flex;align-items:stretch;gap:7px;
+  /* 047: 장면이 남는 세로를 먹고, 화로는 **문양 칸을 담는 띠**로 남는다.
+     상한을 두는 이유는 013 주석과 같다 — 끝없이 늘어나면 문양 세 칸이 떠 있는
+     빈 상자가 된다. 아래 여백은 모루(캔버스)가 앉는 자리다. */
+  flex:0 1 auto;min-height:78px;max-height:200px;
+  margin:0 0 8px;padding:8px;border-radius:9px 9px 4px 4px;
+  background:none;                     /* → 캔버스 gHearth */
+  border:1px solid var(--edge);
+  box-shadow:inset 0 0 24px rgba(0,0,0,.6),0 1px 0 rgba(255,255,255,.05);
+}
+/* 증기 한 겹 */
+#hearth::after{
+  content:"";position:absolute;left:1px;right:1px;top:1px;height:44%;pointer-events:none;
+  border-radius:8px 8px 0 0;
+  background:linear-gradient(180deg,rgba(196,212,228,.07),transparent);
+  animation:steam 6.5s ease-in-out infinite alternate;
+}
+@keyframes steam{from{opacity:.3;transform:translateY(-3%)}to{opacity:1;transform:translateY(3%)}}
+
+/* 047 §2① — 온도계가 **가로 막대**로 눕는다(열기 줄). 채우는 쪽은
+   renderFast 가 그대로 `#thermf` 의 길이를 쓴다 — 높이에서 폭으로만 바뀐다. */
+#therm{
+  flex:1 1 auto;height:11px;min-width:0;position:relative;overflow:hidden;border-radius:6px;
+  border:1px solid var(--edge);background:linear-gradient(180deg,#0a0d11,#161c23);
+  box-shadow:inset 0 0 5px rgba(0,0,0,.9);
+}
+#thermf{position:absolute;left:0;top:0;height:100%;width:0%;
+  background:linear-gradient(90deg,#ff4a15,#ff9c3c 58%,#ffd98a);
+  box-shadow:0 0 9px rgba(255,107,44,.75);transition:width .3s ease-out}
+#therm::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(90deg,transparent 0 7px,rgba(255,255,255,.15) 7px 8px)}
+/* 치려 했는데 못 쳤을 때 한 번 깜빡인다(§2⑤-1 — 새 팝업·새 글자 없음). */
+@keyframes barDeny{0%,100%{box-shadow:inset 0 0 5px rgba(0,0,0,.9)}
+  50%{box-shadow:0 0 0 2px var(--ember),inset 0 0 5px rgba(0,0,0,.9)}}
+#therm.deny,#qband.deny>#open{animation:barDeny .3s ease-out 2}
+
+/* ══ 049 F5 — 미끄러진 탭을 삼키지 않는다 ════════════════════════════════
+   `touch-action:manipulation` 은 더블탭 확대·패닝을 끄고 **탭을 탭으로 남긴다**(300ms
+   지연도 같이 사라진다). `user-select:none` 은 길게 누를 때 글자가 잡히는 것을,
+   `-webkit-user-drag:none` 은 이미지 드래그를 막는다. 누르는 자리 전부에 건다 —
+   장면 버튼(`#spin`)과 문양 칸(`.reel`)과 그 속의 그림이다. */
+#spin,#reels,.reel,.reel *{touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.reel img,.reel .ico{-webkit-user-drag:none;user-drag:none;pointer-events:none}
+#reels{display:flex;justify-content:center;align-items:center;gap:6px;flex:1;min-width:0}
+/* 릴 = 화로 창. 세로 릴 스트립이 아니라 재료가 달궈지는 창 하나. */
+.reel{
+  flex:1;min-width:0;max-width:74px;aspect-ratio:1;position:relative;
+  border:1px solid #46515e;border-radius:4px;
+  background:
+    radial-gradient(125% 88% at 50% 122%,rgba(255,107,44,.45),rgba(255,60,0,.1) 46%,transparent 72%),
+    linear-gradient(180deg,#161c23,#0a0d11);
+  box-shadow:inset 0 0 11px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.05);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  transition:border-color .15s,box-shadow .15s;
+}
+/* 숯불 바닥 */
+.reel::before{
+  content:"";position:absolute;left:0;right:0;bottom:0;height:28%;pointer-events:none;
+  border-radius:0 0 3px 3px;
+  background:linear-gradient(0deg,rgba(255,92,20,.6),transparent);
+  filter:blur(2px);animation:coal 2.6s ease-in-out infinite alternate;
+}
+@keyframes coal{from{opacity:.5}to{opacity:1}}
+.reel .ico{color:#cf9550}   /* font-size 는 svg 를 1em 으로 키우던 값 — 011 에서 제거 */
+.reel .nm{font-size:11px;color:#93a1b2;margin-top:4px;letter-spacing:.06em}
+/* ══ 048 §2③ — 세로 띠 창 ════════════════════════════════════════════════
+   창 높이의 300%짜리 띠에 칸 셋(위·가운데·아래). 칸 하나가 정확히 ⅓ 이라
+   위치를 `translateY(u×33.333%)` 로만 준다 — **픽셀을 한 번도 안 잰다.** */
+.reel .win{position:relative;flex:1 1 auto;width:100%;min-height:0;overflow:hidden;border-radius:3px}
+.reel .strip{position:absolute;left:0;right:0;top:-100%;height:300%;will-change:transform}
+.reel .sy{position:absolute;left:0;right:0;height:33.3333%;
+  display:flex;align-items:center;justify-content:center}
+.reel .sy:nth-child(1){top:0}
+.reel .sy:nth-child(2){top:33.3333%}
+.reel .sy:nth-child(3){top:66.6667%}
+/* 기준선(payline) — 창 가운데 한 줄. 맞으면 등급색으로 켜진다. */
+.reel .pay{position:absolute;left:3px;right:3px;top:50%;height:1px;margin-top:-1px;z-index:2;
+  pointer-events:none;background:linear-gradient(90deg,transparent,rgba(214,166,94,.38),transparent)}
+#forge[data-match] .reel.done.hit .pay{background:linear-gradient(90deg,transparent,var(--payc,var(--ember)),transparent);
+  box-shadow:0 0 7px -1px var(--payc,var(--ember))}
+/* 도는 동안: 잔상(세로 blur) + 위아래 가장자리 어둡게. 라벨은 **자리를 지킨 채**
+   숨는다(`visibility` — `display` 면 L3「틱이 자리를 안 바꾼다」가 운다). */
+.reel.rolling .strip{filter:blur(1.3px) brightness(.92)}
+.reel.rolling .win::after{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:linear-gradient(180deg,rgba(6,9,12,.92),transparent 26%,transparent 74%,rgba(6,9,12,.92))}
+.reel.rolling .nm{visibility:hidden}
+.reel.rolling .ico{animation:none}          /* 돌 때는 담금질 등장을 끈다 */
+/* 048 2차 ① — 천천히 도는 중. **잔상 없음**(`.rolling` 이 아니다) · 띠만 흐른다.
+   라벨은 자리를 지킨 채 숨는다 — 창의 문양이 계속 바뀌는데 이름이 고정이면 거짓말이다. */
+.reel.drifting .nm{visibility:hidden}
+.reel.drifting .ico{animation:none}
+@media (prefers-reduced-motion:reduce){ .reel.drifting .strip{transform:none !important} }
+/* 리치(긴장) — 마지막 한 칸이 느리게 돌며 빛난다. */
+.reel.tense{border-color:var(--brass);box-shadow:0 0 12px rgba(184,147,74,.5),inset 0 0 11px rgba(0,0,0,.9)}
+.reel.tense .strip{filter:blur(.6px) brightness(1.12)}
+/* 049 F2 — 자동 제련의 두 연출. **들썩**은 박마다 한 번(굴리지 않는다는 표시),
+   **쾅**은 정착 순간 모든 칸이 새 결과로 바뀌는 자리. 둘 다 transform·box-shadow 뿐이다. */
+@keyframes reelNudge{0%{transform:none}35%{transform:translateY(2px) scale(.985)}100%{transform:none}}
+.reel.nudge{animation:reelNudge .18s ease-out 1}
+@keyframes reelSlam{
+  0%{transform:translateY(-3px) scale(1.04);box-shadow:0 0 0 2px var(--ember),inset 0 0 11px rgba(0,0,0,.9)}
+  45%{transform:translateY(2px) scale(.99)}
+  100%{transform:none;box-shadow:inset 0 0 11px rgba(0,0,0,.9)}}
+.reel.slam{animation:reelSlam .38s ease-out 1}
+@media (prefers-reduced-motion:reduce){ .reel.nudge,.reel.slam{animation:none} }
+/* 선 그 순간 — 칸 테두리 번쩍 + 짧은 셰이크 (서지 않은 칸은 조용하다). */
+@keyframes reelLand{
+  0%{box-shadow:0 0 0 2px var(--ember),inset 0 0 11px rgba(0,0,0,.9);transform:translateY(-2px)}
+  55%{transform:translateY(1px)}
+  100%{box-shadow:inset 0 0 11px rgba(0,0,0,.9);transform:none}}
+.reel.land{animation:reelLand .42s ease-out 1}
+@media (prefers-reduced-motion:reduce){
+  .reel.land{animation:none}
+  .reel.rolling .strip{filter:none}
+  .reel.rolling .win::after{display:none}
+}
+/* 정렬 순간 화염 (1회성, transform·opacity·filter 만) */
+.reel .fl,.reel .sk{position:absolute;pointer-events:none;opacity:0}
+.reel .fl{left:0;right:0;bottom:-5%;height:82%;border-radius:0 0 3px 3px;
+  background:radial-gradient(62% 100% at 50% 100%,#ffe08a,rgba(255,146,44,.9) 30%,
+             rgba(255,62,0,.4) 58%,transparent 76%);
+  filter:blur(1px)}
+.reel .sk{inset:0;background:
+  radial-gradient(circle 1.5px at 28% 62%,#ffd98a,transparent),
+  radial-gradient(circle 1.2px at 64% 52%,#ffb347,transparent),
+  radial-gradient(circle 1.6px at 46% 38%,#fff2cc,transparent),
+  radial-gradient(circle 1.1px at 75% 68%,#ff9a3c,transparent),
+  radial-gradient(circle 1.3px at 18% 46%,#ffc46b,transparent)}
+/* 048 §2③ — 맞음의 생김새는 **선 릴**(`.done`)에만 든다. CORE 는 420ms 에 맞은
+   칸마다 `.hit` 를 다는데, 아직 도는 칸이 그때 빛나면 결과가 첫 타에 새어 나간다
+   (047 K5 가 가림막으로 막던 바로 그것). `.hit` 자체는 CORE 가 달던 그대로다.
+   049 F4 — 그 위에 **`#forge[data-match]`** 가 하나 더 붙는다: 같은 문양으로 선 칸이
+   **둘 이상**일 때만 켠다(첫 칸 하나가 선 순간에는 안 켜진다). */
+#forge[data-match] .reel.done.hit .fl{animation:burst .62s ease-out}
+#forge[data-match] .reel.done.hit .sk{animation:sparks .82s ease-out}
+@keyframes burst{
+  0%{opacity:0;transform:translateY(18%) scale(.72,.3)}
+  22%{opacity:1;transform:translateY(0) scale(1,1.1)}
+  62%{opacity:.72;transform:translateY(-5%) scale(.94,.96)}
+  100%{opacity:0;transform:translateY(-14%) scale(.82,.7)}}
+@keyframes sparks{
+  0%{opacity:0;transform:translateY(28%) scale(.7)}
+  25%{opacity:1}
+  100%{opacity:0;transform:translateY(-66%) scale(1.25)}}
+/* 담금질되어 나타나는 등장 (릴 스트립 스크롤 금지) */
+.reel .ico{animation:quench .5s ease-out}
+@keyframes quench{
+  0%{opacity:0;transform:scale(1.16);filter:brightness(3.4) blur(2.2px) saturate(.15)}
+  40%{opacity:1;filter:brightness(2) blur(0) saturate(.6)}
+  100%{opacity:1;transform:none;filter:none}}
+.reel.spin{border-color:#8d5c2c}
+.reel.spin .ico{animation:heat .3s ease-in-out infinite alternate}
+@keyframes heat{
+  from{opacity:.28;filter:blur(1.7px) brightness(.6)}
+  to{opacity:.95;filter:blur(0) brightness(1.75) drop-shadow(0 0 5px rgba(255,146,44,.9))}}
+.reel.lock{border-color:var(--brass);
+  box-shadow:0 0 9px rgba(184,147,74,.35),inset 0 0 11px rgba(0,0,0,.9)}
+.reel.lock .ico{animation:none;color:#e0be7a}
+.reel.lock::after{
+  content:"고정";position:absolute;top:0;right:0;font-size:11px;line-height:1.35;
+  color:#22190a;background:linear-gradient(180deg,#dfb96f,#a8842f);
+  padding:2px 4px;border-radius:0 3px 0 5px;letter-spacing:.04em}
+#forge[data-match] .reel.done.hit{border-color:var(--ember);
+  box-shadow:0 0 15px rgba(255,107,44,.55),inset 0 0 18px rgba(255,107,44,.35)}
+#msg{height:18px;font-size:12px;color:var(--dim);margin-bottom:8px}
+#msg.big{color:var(--ember);font-weight:700;text-shadow:0 0 10px rgba(255,107,44,.55)}
+
+/* ── 장비 ── */
+/* 031 §3: 11px 로 올리자 #gear 의 «가로» 넘침이 380×820 11px · 821×462 14px ·
+   800×450 23px 로 생겼다. 칸(1fr)·글자 크기·아이콘은 그대로 두고 여백만 줄인다.
+   간격 5→2, 칸 좌우 여백 4→2 = 폭 한 줄에 14px 을 되돌린다. */
+/* 047 §2① — 장비 띠는 **6칸 한 줄**(정사각 · 등급색 테두리 · 글자 없음).
+   원칙 8 그대로 착용 6칸뿐이고 인벤토리가 아니다. 글자를 뺀 자리는 `title` 이
+   든다(§2① 「좁은 칸에서 줄인 말」 규약 — 041 제안 7). */
+/* 칸이 끝없이 커지지 않게 상한을 둔다 — 띠는 **보는 줄**이라 56~64px 이 목표다
+   (§2① 표). 남는 폭은 양옆으로 흘린다. */
+#gear{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;
+  max-width:384px;margin:0 auto}
+.slot{background:linear-gradient(180deg,#1b2229,#12171d);border:1px solid #3f4a56;
+  /* ⚠ 여백 0 이다. 명판(`.pl`)이 48px 스프라이트 + 자기 여백으로 **54px 고정**이라
+     (012 의 정수 배율 — 늘이거나 줄이면 픽셀이 뭉개진다), 칸에 여백을 주면 내용이
+     칸보다 커져 `aspect-ratio:1` 이 져서 **칸이 세로로 길어진다**(380×820 에서
+     58.5×62 — 2차 신설 GR2 가 잡았다). 명판이 곧 칸의 내용이 되게 둔다. */
+  border-radius:4px;padding:0;text-align:center;aspect-ratio:1;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+.slot .pl{margin-bottom:0;padding:2px}
+/* 등급색은 **테두리**로만 말한다 — 글자 줄 둘(`.gd`·`.op`)은 띠에서 뺐다. */
+.slot .gd,.slot .op{display:none}
+.slot .gd{font-size:11px;font-weight:700;margin-top:2px}
+/* 031 §3: 여백만으로는 800×450 에서 5px 이 남는다(실측). 말줄임으로 글자를 지우는
+   대신 두 줄로 흘린다 — keep-all 로 「공격」 같은 낱말은 쪼개지지 않고, 줄바꿈 자리는
+   render() 가 「·」 뒤에 넣는 U+200B 하나뿐이다. 800×450 에서만 #gear 220→246px. */
+.slot .op{font-size:11px;color:var(--dim);line-height:1.35;margin-top:2px;
+  white-space:normal;word-break:keep-all;overflow:hidden;text-overflow:clip}
+.slot.empty{opacity:.32}
+.rm{font-size:11px;opacity:.75;letter-spacing:.06em}
+
+/* ── 자동 판매 ── */
+/* 027 B-2: 승천 배너. 조건이 찼을 때만 render() 가 켠다(평소 display:none).
+   한 주기의 끝이라 **굴리지 않고 보여야 한다** — #focus 의 맨 위에 앉는다. */
+#ascbar{margin:8px 0 0}
+/* 027 B-2: 관문 진행 줄. 조건 미달일 때만 글자가 들어간다. 비면 높이가 0 이라
+   첫 화면에 아무것도 안 늘어난다(원칙 7 — 새 세이브에서는 빈 문자열이다). */
+#ascgate{font-size:11px;line-height:1.45;margin-top:7px}
+#ascgate:empty{display:none}
+#asell{margin-top:9px;padding-top:9px;border-top:1px solid var(--line)}
+#asell .hd{font-size:11px;color:var(--dim);margin-bottom:5px;text-align:left}
+#asell .ck{display:flex;flex-wrap:wrap;gap:3px}
+#asell label{flex:1;min-width:38px;font-size:11px;padding:5px 0;text-align:center;
+  border:1px solid var(--line);border-radius:2px;cursor:pointer;
+  background:linear-gradient(180deg,#232b34,#191f26);
+  font-family:ui-monospace,Menlo,monospace;opacity:.4}
+#asell label.on{opacity:1;border-color:currentColor;
+  background:linear-gradient(180deg,rgba(255,255,255,.1),rgba(255,255,255,.02));
+  box-shadow:0 0 6px -1px currentColor}
+#asell input{display:none}
+
+/* ── 각인 ── */
+.sp{margin-top:6px;padding:5px 7px;border-left:2px solid var(--ember);
+  background:rgba(255,107,44,.08);font-size:11px;border-radius:0 3px 3px 0}
+.sp b{color:var(--ember)}
+.sp span{color:var(--dim);font-size:11px}
+
+/* ── 능력치 ── */
+#stats{display:grid;grid-template-columns:1fr 1fr;gap:1px 10px;margin-top:9px;
+  padding-top:9px;border-top:1px solid var(--line);font-size:11px}
+#stats div{display:flex;justify-content:space-between}
+#stats .k{color:var(--dim)}
+#stats .v{font-family:ui-monospace,Menlo,monospace}
+#stats .off .k,#stats .off .v{opacity:.3;text-decoration:line-through}
+
+/* ── 확률 ── */
+.odds{display:flex;align-items:center;gap:7px;margin-bottom:4px}
+.ol{font-size:11px;color:var(--dim);width:26px;flex:none;text-align:right}
+.obar{flex:1;height:11px;display:flex;border:1px solid var(--edge);border-radius:2px;
+  overflow:hidden;background:var(--coal);box-shadow:inset 0 0 4px rgba(0,0,0,.8)}
+.obar i{height:100%}
+#olegend{display:flex;flex-wrap:wrap;gap:2px 8px;margin-top:6px;font-size:11px;color:var(--dim)}
+#olegend b{font-family:ui-monospace,Menlo,monospace;font-weight:400}
+
+/* ── 전투 ── */
+#bar{height:10px;background:var(--coal);border:1px solid var(--edge);border-radius:2px;
+  overflow:hidden;margin:5px 0;box-shadow:inset 0 0 5px rgba(0,0,0,.85)}
+#fill{height:100%;background-color:var(--ember);
+  background-image:linear-gradient(180deg,rgba(255,255,255,.3),rgba(0,0,0,.25));
+  width:100%;transition:width .18s linear}
+#hpbar{height:6px;background:var(--coal);border:1px solid var(--edge);border-radius:2px;
+  overflow:hidden;position:relative;box-shadow:inset 0 0 4px rgba(0,0,0,.85)}
+/* 뒤에 깔린 붉은 띠가 늦게 따라오며 방금 깎인 만큼을 보여준다 (틱당 style 폭만 갱신) */
+#hpghost{position:absolute;left:0;top:0;height:100%;width:100%;background:#e05a4a;opacity:.55;
+  transition:width .5s ease-out .18s}
+#hpfill{position:relative;height:100%;background:#5f93bd;width:100%;
+  transition:width .18s linear,background-color .3s}
+#hpfill.heal{background:#7ec98a}
+#foes{font-size:11px;color:var(--dim);margin-top:4px}
+
+/* ── 적 무리 ── */
+#mob{display:flex;justify-content:center;flex-wrap:wrap;gap:4px;min-height:18px;margin:2px 0 1px}
+.foe{width:13px;height:16px;border:1px solid;border-radius:2px;flex:none}
+.foe.m{background:#e05a4a;border-color:#e05a4a}                    /* 근접 ▪ 채움 */
+.foe.r{background:transparent;border-color:#5f93bd;
+  box-shadow:inset 0 0 0 2px rgba(95,147,189,.28)}                 /* 원거리 ▫ 비움 */
+.foe.dead{animation:foedie .34s ease-out forwards}
+@keyframes foedie{
+  0%{transform:scale(1) translateY(0);opacity:1}
+  35%{transform:scale(1.3) translateY(-3px);opacity:.85}
+  100%{transform:scale(.35) translateY(9px);opacity:0}}
+
+/* ── 점진 노출 ── */
+.reveal{animation:reveal .55s ease-out}
+@keyframes reveal{
+  0%{opacity:0;transform:translateY(-8px) scaleY(.94)}
+  55%{opacity:1}
+  100%{opacity:1;transform:none}}
+
+/* ── 테크트리 ── */
+#tech div.t{display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid var(--line)}
+#tech div.t:first-child{border-top:none}
+#tech .nm{flex:1;font-size:12px}
+#tech .nm i{color:var(--dim);font-style:normal;font-size:11px;margin-left:5px}
+#tech .lvn{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--dim);width:44px;text-align:right}
+#tech button{padding:5px 9px;font-size:11px;min-width:62px}
+
+/* ── 주사위 (모루 위 평면 사각 트랙 — 원형 휠 금지) ── */
+#dice{position:fixed;inset:0;background:rgba(8,11,14,.96);display:none;
+  flex-direction:column;justify-content:flex-start;align-items:center;
+  padding:18px;z-index:10;overflow-y:auto;overscroll-behavior:contain}
+#dice.on{display:flex}
+/* 세로가 모자라면 반드시 닿을 수 있어야 한다 (008 §6 · ART-DIRECTION 품질 하한).
+   auto 여백은 남는 공간이 없으면 0으로 접혀서, 넘칠 때 위가 잘리지 않는다. */
+#dice>*{width:100%;max-width:420px;flex:none}
+#dice>:first-child{margin-top:auto}
+#dice>:last-child{margin-bottom:auto}
+#dval{display:flex;align-items:center;justify-content:center;gap:12px;
+  font-size:36px;line-height:1.2;font-family:ui-monospace,Menlo,monospace}
+.die{width:46px;height:46px;flex:none}
+.die .p{opacity:0}
+.die[data-v="1"] .c,.die[data-v="3"] .c,.die[data-v="5"] .c,
+.die[data-v="2"] .tl,.die[data-v="2"] .br,
+.die[data-v="3"] .tl,.die[data-v="3"] .br,
+.die[data-v="4"] .tl,.die[data-v="4"] .tr,.die[data-v="4"] .bl,.die[data-v="4"] .br,
+.die[data-v="5"] .tl,.die[data-v="5"] .tr,.die[data-v="5"] .bl,.die[data-v="5"] .br,
+.die[data-v="6"] .tl,.die[data-v="6"] .tr,.die[data-v="6"] .bl,.die[data-v="6"] .br,
+.die[data-v="6"] .ml,.die[data-v="6"] .mr{opacity:1}
+/* ── 던전 띠 (019) ── 013 의 근경 타일 4장 + 015 의 몹 6장을 **팔레트만 갈아**
+   다시 쓴다. 새 그림 0장. 색은 층수 → segOf() → stagePalette(근경) 로 파생하므로
+   무대와 같은 구간에서 같은 색이 된다 (두 화면이 한 몸). 명도는 무대와 동일한
+   DEPTH[2] 그대로다 — 019 §3: 바이옴은 색상만 바꾼다. */
+.dband{position:relative;height:72px;border-radius:5px;overflow:hidden;
+  border:1px solid var(--edge);background-color:var(--coal);
+  background-repeat:repeat-x;background-position:0 bottom;image-rendering:pixelated}
+/* 몹은 근경 지면선(띠 바닥에서 16px)에 발을 붙인다 — 무대와 같은 자리다.
+   스프라이트 24행 중 아래 2행이 비어 있어 그만큼 내려 앉힌다. */
+.dband i{position:absolute;right:11px;bottom:12px;width:48px;height:48px;
+  background-repeat:no-repeat;background-size:100% 100%;image-rendering:pixelated}
+.dband b{position:absolute;left:9px;bottom:5px;font-size:13px;color:var(--text);
+  font-family:ui-monospace,Menlo,monospace;text-shadow:0 1px 3px #000,0 0 7px #000}
+/* 등반 — 띠가 한 주기(타일 4장 × 32px × 배율 2 = 256px)만큼 흘러 이음매가 안 보인다 */
+.dband.climb{animation:dclimb .62s linear}
+@keyframes dclimb{from{background-position-x:0}to{background-position-x:-256px}}
+#tband{margin-bottom:8px}
+#dband{margin-bottom:8px}
+
+/* 모루 위에 얹힌 강판 트랙 (원형 휠·포인터 금지) */
+#board{position:relative;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;
+  padding:11px;border-radius:6px;
+  background:linear-gradient(180deg,#2a323b,#161b21);border:1px solid var(--edge);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 3px 9px rgba(0,0,0,.65)}
+#board::before{content:"";position:absolute;inset:4px;pointer-events:none;background-repeat:no-repeat;
+  background-image:
+    radial-gradient(circle 2px at 2px 2px,#78838f 38%,#1d242b 72%,transparent 74%),
+    radial-gradient(circle 2px at calc(100% - 2px) 2px,#78838f 38%,#1d242b 72%,transparent 74%),
+    radial-gradient(circle 2px at 2px calc(100% - 2px),#78838f 38%,#1d242b 72%,transparent 74%),
+    radial-gradient(circle 2px at calc(100% - 2px) calc(100% - 2px),#78838f 38%,#1d242b 72%,transparent 74%)}
+.tile{position:relative;aspect-ratio:1;border:1px solid #414c58;border-radius:3px;
+  background:linear-gradient(180deg,#1b212800,#11161b);background-color:#161c22;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05),inset 0 0 9px rgba(0,0,0,.65);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  font-size:11px;text-align:center;padding:3px;color:var(--dim)}
+.tile .ci{width:15px;height:15px}
+.tile b{font-size:13px;color:var(--text);font-family:ui-monospace,Menlo,monospace}
+.tile.here{border-color:var(--brass);background-color:#241f14}
+/* 말 = 모루 위의 놋쇠 못 */
+.tile.here::after{content:"";position:absolute;top:3px;left:3px;width:7px;height:7px;border-radius:50%;
+  background:radial-gradient(circle at 34% 30%,#f4dda6,#8a6a2e);box-shadow:0 0 6px rgba(184,147,74,.9)}
+.tile.land{border-color:var(--ember);background-color:#2e1b0d;color:var(--text)}
+.tile.land b{color:var(--ember)}
+/* 착지 번쩍임 (019). reduced-motion 에서는 `pop` 을 아예 안 붙인다 — 이 파일은
+   연출 억제를 CSS 미디어쿼리가 아니라 JS 한 곳(VIEW.reducedMotion)에서 한다. */
+.tile.land.pop{animation:tland .34s ease-out}
+@keyframes tland{
+  from{box-shadow:inset 0 0 0 1px var(--ember),0 0 17px 4px rgba(226,98,42,.8)}
+  to{box-shadow:inset 0 1px 0 rgba(255,255,255,.05),inset 0 0 9px rgba(0,0,0,.65)}}
+
+/* ── 정리 ── */
+#cmp{position:fixed;inset:0;background:rgba(8,11,14,.94);display:none;
+  flex-direction:column;justify-content:flex-start;align-items:center;
+  padding:16px;z-index:9;overflow-y:auto;overscroll-behavior:contain}
+#cmp.on{display:flex}
+#cmp>*{width:100%;max-width:460px;flex:none}
+#cmp>:first-child{margin-top:auto}
+#cmp>:last-child{margin-bottom:auto}
+
+/* ── 상세 팝업 (016) ── 확률표·옵션 상세·자동판매·승천을 메인에서 덜어낸 자리.
+   #dice·#cmp 와 **같은 규약**을 쓴다: 자체 스크롤 + auto 여백(넘치면 0으로 접혀
+   위가 안 잘린다, 008 §6). 통은 하나고 안의 네 절만 갈아 끼운다 — 통을 넷 만들면
+   하단 도달 규약을 네 번 다시 증명해야 한다.
+   배경 탭(#pop 자신이 클릭 대상일 때)과 닫기 버튼 둘 다로 닫힌다. */
+#pop{position:fixed;inset:0;background:rgba(8,11,14,.94);display:none;
+  flex-direction:column;justify-content:flex-start;align-items:center;
+  padding:16px;z-index:11;overflow-y:auto;overscroll-behavior:contain}
+#pop.on{display:flex}
+#pop>*{width:100%;max-width:440px;flex:none}
+#pop>:first-child{margin-top:auto}
+#pop>:last-child{margin-bottom:auto}
+.pophead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
+.pophead b{font-size:14px;font-weight:600;letter-spacing:.04em}
+.pophead button{padding:6px 12px;font-size:12px}
+/* 팝업이 열려 있어도 전투력·웨이브·골드는 계속 보인다 (#cmp 의 #cstat 과 같은 규약) */
+#pstat{margin-bottom:9px;text-align:center;font-size:12px;color:var(--text)}
+/* 배경 밝기는 .card 와 동일하게 둔다 — 016 ⚠ 절 (외곽선 대비를 밀지 않는다) */
+.popsec{display:none;background:linear-gradient(180deg,#28313b,#1a2128);
+  border:1px solid var(--edge);border-radius:4px;padding:12px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 5px rgba(0,0,0,.5)}
+.popsec.on{display:block}
+#popend{height:1px}
+.card{background:linear-gradient(180deg,#28313b,#1a2128);border:1px solid var(--edge);
+  border-radius:4px;padding:12px;margin-bottom:8px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 5px rgba(0,0,0,.5)}
+.card.new{border-color:var(--brass);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 0 12px rgba(184,147,74,.2)}
+.card h3{font-size:13px;font-weight:600;margin-bottom:6px}
+.card .hd{display:flex;align-items:center;gap:9px}
+.card .hd .pl{flex:none}
+.oplist{font-size:12px;line-height:1.7;margin-top:6px}
+.oplist .v{float:right;color:var(--text)}
+.oplist .k{color:var(--dim)}
+.oplist .dead{opacity:.35;text-decoration:line-through}
+.pw{font-size:11px;color:var(--dim);margin-top:6px}
+.delta{font-weight:700}
+.up{color:#7ec98a}.down{color:#e07070}
+
+/* ══ 047 §2② — 가로 · 큰 화면: 두 칸 ════════════════════════════════════
+   030 이 세운 가로 두 칸을 R1 골격으로 **다시 쓴다**. 030 의 규칙을 남겨 두면
+   없어진 `#focus`·`#manage` 를 겨누는 죽은 선택자가 새 배치를 몰래 민다
+   (047 §2② 의 요구). 지운 030 규칙과 이유:
+
+   | 지운 규칙 | 왜 |
+   |---|---|
+   | `#tabForge.on{flex-direction:row}` + `#focus{flex:1 1 56%}` + `#manage{flex:1 1 44%}` | 두 칸을 **탭 판 안에서** 나누던 방식. R1 은 장면이 탭 판 밖이라(§2② 「오른쪽 칸만 바뀐다」) 칸 나누기가 `body` 격자로 올라간다. |
+   | `#focus>#forge{min-height:0;max-height:100%}` · `#hearth{min-height:118px}` · `#hearth{max-height:168px}` | 031 §4·033 이 「텅 빈 띠」와 TB8 을 맞바꿔 가며 조율한 값들. 그 균형의 전제(`#focus` 가 스크롤 통이고 패널이 칸 높이에 묶인다)가 R1 에 없다 — 장면이 `flex:1` 로 직접 자란다. |
+   | `#hud{display:flex}` + `#hud>.panel{flex:0 1 340px}` | HUD 를 계기판 옆 무대로 펴던 자리. R1 은 HUD 가 이미 **한 줄 40px** 이고 무대는 그 아래 제 칸을 갖는다. |
+   | `body{max-width:min(100%,1120px)}` | 상한을 **1400px** 로 올린다(§2② 「전체 폭 상한 1400px」). |
+
+   남긴 것: `#plate{display:none}`(포털 틀이 제목을 든다) · 던전·테크 글줄 묶기. */
+@media (orientation:landscape){
+  /* 세로형의 480px 묶음을 풀고 가로용 상한으로 다시 묶는다. 남는 양옆은
+     `#stage` 캔버스가 채운다(빈 회색 금지 — 036 흡수). body 에 배경을 주지 않는
+     이유는 007 그대로다: 쌓임 맥락이 생기면 캔버스 층이 어긋난다. */
+  body{max-width:min(100%,1400px);
+    display:grid;grid-template-columns:58fr 42fr;
+    grid-template-rows:auto minmax(0,1fr) auto;
+    column-gap:10px;align-items:stretch}
+
+  /* 명판을 접는다. 포털 틀이 이미 게임 제목을 들고 있고, 세로 462 에서 41px 은
+     손잡이 한 줄 값이다. **DOM 에는 그대로 있다** — 선택자가 죽지 않는다. */
+  #plate{display:none}
+
+  /* 왼쪽 칸 = HUD · 무대 · 모루 장면 · 열기 줄 */
+  #hud{grid-column:1;grid-row:1;padding:8px 0 0 12px}
+  #scene{grid-column:1;grid-row:2;padding:6px 0 0 12px}
+  #openrow{grid-column:1;grid-row:3;padding:0 0 8px 12px}
+  /* 가로에서는 **다른 탭을 골라도 왼쪽은 그대로다**(§2②). 세로 전용 숨김을 끈다. */
+  body[data-tab="tower"] #scene,body[data-tab="tech"] #scene{display:flex}
+
+  /* 오른쪽 칸 = 손잡이 · 장비 · 대기열 / 또는 선택한 탭 판 · 그리고 탭바 */
+  .tabpane.on{grid-column:2;grid-row:1/3;min-width:0;min-height:0}
+  #dock{height:100%;padding:8px 12px 0 0;justify-content:flex-start}
+  #tabTower,#tabTech{padding:8px 12px 0 0;overflow-y:auto}
+  #tabs{grid-column:2;grid-row:3;padding:5px 12px 6px 0;border-top:0;background:none}
+
+  /* 가로는 폭이 넉넉하다 — 장비를 3×2 로 키운다(§2②). 다만 칸이 160px 까지
+     부풀면 띠가 341px 이 돼 대기열 띠를 밀어낸다(실측) — 상한을 둔다. */
+  #gear{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;max-width:264px;margin:0}
+  /* 무대는 왼쪽 칸 폭을 전부 먹는다. 짧은 창(462)에서 장면을 밀지 않게 상한을 낮춘다. */
+  #arena{height:clamp(96px,22vh,200px)}
+
+  /* 던전·테크는 판 하나짜리라 펴지 않는다 — 글줄 길이를 지킨다. */
+  #tabTower>*,#tabTech>*{max-width:560px;margin-left:auto;margin-right:auto}
+  /* ⚠ 가로에서 테크 판이 **오른쪽 칸 안으로** 들어오면서 폭이 800→332px 이 됐다
+     (041 에서는 전체 폭 판이었다). 99단계의 가장 긴 줄(「판매가 +148.5% → +150%」)이
+     177px 를 요구하는데 `.nm` 에 176px 만 가서 **1px 때문에 두 줄이 된다**(실측).
+     글자·수치는 그대로 두고 **고정 폭 넷에서 돌려준다**(간격 8→5 · 레벨칸 44→38 ·
+     버튼 62→52 · 판 여백 9→7) — 가장 긴 줄(`align` 203px)에 218px 이 간다. */
+  #tech div.t{gap:5px}
+  #tech .lvn{width:38px}
+  #tech button{min-width:52px;padding:5px 6px}
+  #tabTech .panel,#tabTower .panel{padding:7px}
+}
+
+/* 좁은 화면(~380px) — 문양 다섯 칸까지 들어가도록 여백만 줄인다 */
+@media (max-width:400px){
+  body{padding:0}
+  .panel{padding:9px}
+  #forge{padding:30px 7px 6px}   /* ⚠ 위 30px 은 압력계 자리다 — 줄이면 첫 문양 칸을 덮는다 */
+  #hearth{gap:5px;padding:6px}
+  #reels{gap:4px}
+  #plate span{padding:5px 22px;letter-spacing:.26em}
+  #hud,#scene{padding-left:7px;padding-right:7px}
+  #openrow,#dock{padding-left:7px;padding-right:7px}
+  #gear{gap:3px}
+}
+/* 아주 낮은 창(360×640·800×450) — 장면이 150px 하한을 못 지키면 무대가 먼저 양보한다.
+   무대는 «보는 것»이고 장면은 «누르는 것»이다(027 B-4 의 우선순위 그대로). */
+@media (max-height:660px){
+  #arena{height:clamp(84px,18vh,150px)}
+  #handles{height:40px}
+}

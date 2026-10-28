@@ -42,6 +42,9 @@
 const path = require('path');
 const os = require('os');
 
+// 050: 어긋난 판으로 검사가 도는 일을 막는다 — 조각과 forge.html 이 같은지 먼저 본다.
+try { require('child_process').execFileSync(process.execPath, [path.join(__dirname, '..', 'tools', 'build.js'), '--check'], { stdio: 'inherit' }); } catch (e) { process.exit(1); }
+
 // playwright 를 저장소 밖에서 찾는다: 지역 → PW_HOME → 전역 npm root.
 function loadPlaywright() {
   const tries = ['playwright'];
