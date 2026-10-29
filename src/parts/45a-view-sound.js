@@ -14,8 +14,9 @@
 const SND={
   ctx:null, master:null, mGain:null, sGain:null,
   buf:{},                    // 키 → AudioBuffer
-  packs:{sfx:'none', forge:'none'},
+  packs:{sfx:'none', forge:'none', fever:'none'},  // 051 ③ — 피버 곡 묶음이 더해졌다
   bgm:'none', bgmSrc:null, loopLen:0, loopAt:0,   // loopAt = 반복이 시작된 ctx 시각
+  track:'forge', mGain2:null, bgmSrc2:null,       // 051 ③ — 지금 도는 곡 · 겹쳐 넘기는 쪽
   music:true, sfx:true, cgMute:false,
   played:{}, skipped:0, dropped:0, lat:0,
   live:0, lastAt:{}, ascAt:[],
@@ -55,10 +56,18 @@ function sndState(){
 function sndView(){
   const V=globalThis.__view; if(!V) return;
   V.sfx={ctx:sndState(), music:SND.music, sfx:SND.sfx, cgMute:SND.cgMute,
-    packs:{sfx:SND.packs.sfx, forge:SND.packs.forge},
-    bgm:SND.bgm, loopLen:+SND.loopLen.toFixed(4),
+    packs:{sfx:SND.packs.sfx, forge:SND.packs.forge, fever:SND.packs.fever},
+    bgm:SND.bgm, track:SND.track, loopLen:+SND.loopLen.toFixed(4),
     played:SND.played, skipped:SND.skipped, dropped:SND.dropped,
     lat:+SND.lat.toFixed(2), live:SND.live, ascAt:SND.ascAt};
+  /* 051 ② — 피버의 창구. **깃발이 아니라 효과**다: 게이지는 `S.pity`(손 판정이 채운
+     양) · 남은 시간은 `S.feverUntil` 에서 나온 ms · `last` 는 마지막 제련의 정렬 수다. */
+  try{ V.fever={gauge:S.pity|0, max:FEVER_MAX(), on:feverOn(), left:feverLeft(),
+    ms:FEVER_MS, fill:FEVER_FILL, track:SND.track,
+    last:{best:(typeof fgLastBest!=='undefined')?fgLastBest:0,
+          special:(typeof fgLastSpecial!=='undefined')?!!fgLastSpecial:false,
+          grade:(typeof fgLastGrade!=='undefined')?fgLastGrade:0},
+    pillars:V.counters?V.counters.pillar||0:0}; }catch(e){}
 }
 
 /* ── 묶음 싣기 — `<script src>` 는 `file://` 에서도 된다(§2①) ─────────────── */
@@ -94,6 +103,12 @@ async function sndDecodePack(name){
   }
   SND.packs[name]='ready'; sndView();
   if(name==='forge') sndBgmStart();
+  /* 051 ③ — 피버 곡이 **피버가 이미 돌고 있는 중에** 도착했으면 그 자리에서 갈아탄다.
+     게이지가 70% 를 지나는 것을 틱이 못 본 판(게이지가 한 번에 찬 판)에서도
+     곡이 바뀌게 하는 안전망이다. 늦게라도 바뀌는 것이 영영 안 바뀌는 것보다 낫다. */
+  if(name==='fever' && typeof feverOn==='function' && feverOn()){
+    try{ bgmSwitch('fever'); if(typeof rhyGrid==='function') rhyGrid(RHY_BPM_FEVER); }catch(e){}
+  }
 }
 
 /* ── 켜기 — **첫 사람 입력**에서 한 번 ──────────────────────────────────── */
@@ -232,8 +247,71 @@ function bgmGain(v,sec){
     SND.mGain.gain.exponentialRampToValueAtTime(Math.max(0.0001,v),t+(sec||0.4));
   }catch(e){}
 }
-// 피버 곡·화로 곡 전환 — **자리만**. 부르는 곳이 없다(R2b·R3 몫).
-function bgmSwitch(name){ return name; }
+/* ══ 051 ③ — 곡 갈아타기(대장간 ↔ 피버) ═══════════════════════════════════
+   046 §7-b′ 대로 **2초 겹쳐** 넘긴다. 쓰는 수는 가장 싼 것이다:
+   같은 `master` 밑에 **두 번째 음악 게인**(`mGain2`)을 만들어, 새 곡을 거기서 올리고
+   옛 곡을 같은 2초에 내린다. 끝나면 옛 노드를 세워 버리고 둘을 맞바꾼다.
+   ⚠ 박자 격자는 **새 곡의 반복 시작 시각**에 붙는다(`SND.loopAt` 을 새로 쓴다) —
+     그러면 `rhyRef()` 가 그대로 새 박을 따라간다(049 2차 ④ 의 느린 추적).
+   ⚠ 묶음이 아직 안 실렸으면 **아무것도 안 한다**(소리가 없을 뿐 게임은 그대로다).
+   ⚠ `name` 은 'forge' | 'fever'. 돌려주는 값은 **실제로 갈아탄 곡**이다. */
+function bgmSwitch(name){
+  try{
+    if(!SND.ctx||!SND.master) return SND.track;
+    const key = name==='fever' ? 'bgm-fever-loop' : 'bgm-loop';
+    const buf = SND.buf[key];
+    if(!buf || SND.track===name) return SND.track;
+    const t0=SND.ctx.currentTime+0.02, XF=2.0;
+    // 새 곡 — 두 번째 게인에서 0 → 목표로 2초 동안 오른다
+    const g=SND.ctx.createGain(); g.gain.setValueAtTime(0.0001,t0); g.connect(SND.master);
+    const a=sndTrim(buf);                       // 이음매를 잘라 반복 구간을 잡는다
+    const l=SND.ctx.createBufferSource(); l.buffer=buf;
+    l.loop=true; l.loopStart=SND.trimA; l.loopEnd=SND.trimB;
+    l.connect(g); l.start(t0,SND.trimA);
+    g.gain.exponentialRampToValueAtTime(sndOnMusic()?SND_BGM_VOL:0.0001,t0+XF);
+    // 옛 곡 — 같은 2초에 내리고 끝나면 세운다
+    const oldG=SND.mGain, oldSrc=SND.bgmSrc;
+    if(oldG){ oldG.gain.cancelScheduledValues(t0);
+      oldG.gain.setValueAtTime(Math.max(0.0001,oldG.gain.value),t0);
+      oldG.gain.exponentialRampToValueAtTime(0.0001,t0+XF); }
+    if(oldSrc&&typeof setTimeout==='function')
+      setTimeout(()=>{ try{ oldSrc.stop(); }catch(e){} try{ if(oldG) oldG.disconnect(); }catch(e){} },(XF+0.3)*1000);
+    SND.mGain=g; SND.bgmSrc=l; SND.loopLen=a; SND.loopAt=t0;
+    SND.track=name; SND.bgm='loop';
+    sndView();
+    return name;
+  }catch(e){ return SND.track; }
+}
+/* 피버가 열렸다 — 효과음 한 방 뒤 **다음 마디**에서 곡과 박자를 갈아탄다.
+   마디 = 네 박(046 §7-b′ 의 「마디 경계」). 박자 격자는 소리와 **같이** 바뀐다. */
+function sndFeverStart(){
+  try{
+    sndFeverLater();        // 051 ③ — 아직 안 실렸으면 지금이라도(게이지가 한 번에 찬 판)
+    sfx('sfx-fever-start');
+    const wait=sndBarWait();
+    const go=()=>{ bgmSwitch('fever'); if(typeof rhyGrid==='function') rhyGrid(RHY_BPM_FEVER); };
+    if(typeof setTimeout==='function') setTimeout(go,wait); else go();
+  }catch(e){}
+}
+function sndFeverEnd(){
+  try{
+    const go=()=>{ bgmSwitch('forge'); if(typeof rhyGrid==='function') rhyGrid(RHY_BPM); };
+    if(typeof setTimeout==='function') setTimeout(go,sndBarWait()); else go();
+  }catch(e){}
+}
+/* 다음 마디까지 남은 ms. 박자 격자를 읽는다(없으면 0 — 바로 넘긴다). */
+function sndBarWait(){
+  try{
+    if(typeof RHY!=='object'||!RHY||typeof RHY_BEAT!=='number') return 0;
+    const beatsIn=((RHY.beat%4)+4)%4 + (RHY.phase||0);
+    return Math.max(0,(4-beatsIn)*RHY_BEAT*1000);
+  }catch(e){ return 0; }
+}
+/* 피버 곡은 **게이지 70% 에서 미리** 싣는다(046 §7-b′ 의 불러오는 순서).
+   2MB 를 피버가 열리는 순간에 집으면 그 몇 백 ms 가 첫 마디를 먹는다(049 ③ 교훈). */
+function sndFeverLater(){
+  try{ if(SND.packs.fever==='none') sndPack('fever'); }catch(e){}
+}
 
 /* ── 끄고 켜기 ───────────────────────────────────────────────────────────── */
 function sndApply(){
@@ -291,6 +369,44 @@ function sfxMade(){
     const it=S.queue[S.queue.length-1];
     if(it&&(it.g||0)>=10) sfx('sfx-legend',{at:0.12});
   }catch(e){}
+  feverMade();                        // 051 ⑤ — 빛기둥은 **드러난 그 순간**에 선다
+}
+/* ══ 051 ⑤ — 등급 빛기둥 · 특별 주문의 큰 셰이크 ══════════════════════════
+   「드러난 그 순간」은 `sfxMade()` 가 서는 자리와 같다(마지막 릴이 선 순간 · 주기당
+   한 번). CORE 가 남긴 `fgLastSpecial`·`fgLastGrade` 를 읽어 **효과만** 더한다.
+   ⚠ 캔버스 연출은 `__pillar`·`__shake` 로만 부른다(44b 가 내보낸다) — 없으면 아무 일도
+     없다(하네스·캔버스 없는 판). 글자는 CORE 가 이미 썼다(`msg.special`). */
+function feverMade(){
+  try{
+    const sp=(typeof fgLastSpecial!=='undefined')&&fgLastSpecial;
+    const g=(typeof fgLastGrade!=='undefined')?(fgLastGrade|0):0;
+    if(sp){
+      if(typeof __shake==='function') __shake(9);          // 큰 셰이크
+      if(!(SND.buf['sfx-legend'])) sfx('sfx-ascend-riser',{at:0.02});
+    }
+    if(sp||g>=10){
+      if(typeof __pillar==='function') __pillar(sp?15:g);  // 등급색 빛기둥
+      if(sp) sfx('sfx-legend',{at:0.02});
+    }
+  }catch(e){}
+}
+/* 피버의 관찰자. 250ms 틱이 부른다(42c). CORE 는 소리·연출을 한 줄도 안 부른다. */
+let fvOnSeen=false, fvPre=false;
+function feverWatch(){
+  try{
+    const on=feverOn(), g=S.pity|0, mx=FEVER_MAX();
+    // 046 §7-b′ 불러오는 순서 — 피버 곡은 **게이지 70%** 에서 미리 싣는다
+    if(!fvPre && g>=mx*0.7){ fvPre=true; sndFeverLater(); }
+    if(on&&!fvOnSeen){ fvOnSeen=true; sndFeverStart(); }
+    else if(!on&&fvOnSeen){ fvOnSeen=false; sndFeverEnd(); }
+    try{ if(typeof document!=='undefined'&&document.body)
+      document.body.setAttribute('data-fever',on?'1':'0'); }catch(e){}
+  }catch(e){}
+}
+/* 손 판정 하나가 게이지를 채운다 — `rhyJudge()` 가 부르는 **유일한 입구**(051 §2②).
+   CORE 의 `feverAdd()` 를 그대로 부르고, 화면은 다음 틱의 `renderFast()` 가 그린다. */
+function feverTap(grade){
+  try{ if(typeof feverAdd==='function') feverAdd(grade); }catch(e){}
 }
 /* 전투·웨이브 — 카운터와 `S` 의 **변화**만 본다. 250ms 틱이 부른다. */
 let sfxSeen={dissolve:0, attack:0, wave:0, star:0, lv:0, tech:0};

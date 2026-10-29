@@ -81,9 +81,14 @@
      글자를 쓰는 자리라 **남아 있어야 한다**(보이지 않아도 된다 — §3). -->
 <div id="arena">
   <div id="mob"></div>
+  <!-- 051 ④ (046 §7-e) — 체력 막대가 **머리 위**로 올라왔다. 자리(left·top·width)는
+       `renderFast()` 가 `__view.stage.hp` 에서 받아 놓는다 — 캔버스가 재는 스프라이트
+       머리 꼭지의 바로 위다. 폭은 **CORE 가 쓰던 그대로**다(`#fill`·`#hpfill`·`#hpghost`).
+       뒤 겹(`#fillghost`·`#hpghost`)은 **CSS 전환의 지연**으로 늦게 따라온다 —
+       캔버스를 깨우지 않으므로 절전(011)이 그대로 산다. -->
+  <div id="bar"><div id="fillghost"></div><div id="fill"></div></div>
+  <div id="hpbar"><div id="hpghost"></div><div id="hpfill"></div></div>
   <div id="arenafoot">
-    <div id="bar"><div id="fill"></div></div>
-    <div id="hpbar"><div id="hpghost"></div><div id="hpfill"></div></div>
     <div id="foes">—</div>
   </div>
 </div>
@@ -272,6 +277,17 @@
     <div class="qrow" id="sndrow">
       <button id="sndMusic" style="flex:1" data-s="ui.sndMusic">음악</button>
       <button id="sndSfx" style="flex:1" data-s="ui.sndSfx">효과음</button>
+    </div>
+    <!-- 051 ① — 박자 보정. 블루투스 이어폰은 수백 ms 늦게 들린다(기기가 정하는 값이라
+         `ctx.outputLatency` 로는 다 못 잡는다). 사람이 직접 맞추는 자리다. -->
+    <div id="offrow" data-stitle="ui.offsetTip" title="소리가 늦게 들리면 +, 빨리 들리면 −">
+      <span id="offtxt" class="dim num">박자 보정 0ms</span>
+      <!-- 051 2차 ④ — 「맞춰 보기」 결과는 이 줄 옆에 남는다(#msg 는 다음 제련 글자가 덮는다) -->
+      <span id="offdone" class="dim"></span>
+      <div class="qrow">
+        <input id="offrange" type="range" min="-200" max="200" step="10" value="0" style="flex:1">
+        <button id="offcal" data-s="ui.offsetCal">맞춰 보기</button>
+      </div>
     </div>
     <button id="bOdds" style="width:100%;margin-top:8px" data-s="pop.odds">등급 확률표</button>
     <button id="bStats" style="width:100%;margin-top:6px" data-s="pop.stats">옵션 수치 상세</button>

@@ -13,7 +13,24 @@ const cap=()=>Math.min(GMAX,5+Math.floor(S.lv/2));
 const capLvMax=()=>(GMAX-5)*2;                        // 상한이 다 열리는 제련 등급 = 20
 const nextCapAt=()=>(Math.floor(S.lv/2)+1)*2;
 const REELS=()=>Math.min(5,3+S.star);
-const PITY=()=>20*REELS();   // 천장: 이만큼 돌리면 다음 스핀은 전 릴 강제 정렬
+/* 051 §2② — 천장을 **피버로 대체**한다. 문턱은 옛 천장과 같은 값에서 출발하지만
+   채우는 쪽이 바뀌었다: 돌린 횟수가 아니라 **손 판정**이다(`feverAdd`).
+   ⚠ 값이 아니라 **뜻**이 바뀐 것이다 — `S.pity` 는 이제 피버 게이지다(새 필드 0개). */
+const FEVER_MAX=()=>20*REELS();   // 게이지 상한 (051 §5 로 정한 시작점)
+const FEVER_MS=15000;             // 피버 길이
+const FEVER_FILL={perfect:3, great:2, good:1, miss:0};
+const feverOn=()=>Date.now()<(S.feverUntil||0);
+const feverLeft=()=>Math.max(0,(S.feverUntil||0)-Date.now());
+/* VIEW 의 박자 판정이 손 탭마다 부르는 **유일한 입구**(051 §2②).
+   견습생 타격은 이 길을 지나지 않는다 — 그래서 자동은 게이지를 못 채운다(검사 F1).
+   피버 중에는 안 채운다(겹치지 않게). 돌려주는 값은 채운 뒤의 게이지다. */
+function feverAdd(grade){
+  if(feverOn()) return S.pity|0;
+  const add=FEVER_FILL[grade]||0;
+  if(!add) return S.pity|0;
+  S.pity=Math.min(FEVER_MAX(), (S.pity|0)+add);
+  return S.pity;
+}
 const starMul=()=>Math.pow(4,S.star);
 const optMul=()=>1+S.star*0.6;      // 별마다 옵션 수치 상한이 오른다
 // 대기창은 제련 7단계마다, 승천마다 1칸씩 늘어난다.
@@ -65,6 +82,16 @@ function newState(){ return {
   dust:0,tech:{},tk:2,tkDay:'',pos:0,best:0}; }
 const S=JSON.parse(localStorage.getItem('forge')||'null')||newState();
 S.star=S.star||0; S.pity=S.pity||0; S.peak=S.peak||0; S.top=S.top||0; S.dust=S.dust||0; S.tech=S.tech||{}; S.pos=S.pos||0; S.best=S.best||0;
+/* 051 §2② — 피버는 **오프라인 동안 흐르지 않는다.** 돌아오면 남은 시간이 아니라
+   «끝난 것»으로 본다(방치로 2연 보장을 쌓아 두는 길을 막는다 — 게이지는 손만의 것이다).
+   옛 세이브에는 이 필드가 없다. `S.pity` 는 그대로 쓰되 **뜻만** 피버 게이지로 바뀐다. */
+S.feverUntil=0;
+/* 051 2차 ③ — 옛 세이브의 **천장 횟수**가 피버 게이지로 넘어오면 안 된다.
+   단위가 다르다(옛 천장은 «스핀 수», 새 게이지는 «판정 점수») — 그대로 두면 손을
+   한 번도 안 댄 사람에게 특별 주문이 한 번 열린다(검증 제안 3). 불러올 때 **한 번**
+   0 으로 하고 바꿨다는 표시(`S.fv`)를 남긴다 — 이미 바꾼 세이브는 다시 안 건드린다
+   (사람이 모은 게이지를 뺏지 않는다). 새 세이브는 `S.pity` 가 이미 0 이라 표시만 붙는다. */
+if(!S.fv){ S.pity=0; S.fv=1; }
 // 033: 옛 세이브에는 이 필드가 없다 → 켜짐으로 본다. `||` 가 아니라 `??` 인 이유는
 // **끈 사람의 `false` 를 덮지 않기 위해서**다(`false||true` 는 true 가 된다).
 S.autoRes = S.autoRes ?? true;
@@ -173,14 +200,29 @@ function spin(free){
   spinning=true; if(!free) S.charge--;
   const els=[...document.querySelectorAll('.reel')];
   els.forEach((e,i)=>{ if(i!==S.lockIdx){e.classList.add('spin');e.classList.remove('hit');} });
-  const pityHit = S.pity>=PITY();
-  const res = pityHit
-    ? Array(REELS()).fill(S.lockIdx>=0?lockPart:Math.floor(Math.random()*6))  // 천장: 고정 릴이 있으면 그 부위로
+  /* 051 §2② — 천장 분기가 **피버 분기**가 되었다.
+     ⑴ 게이지가 가득이면 이 제련이 **특별 주문 제작**(전 릴 정렬 · 고정 토큰이 있으면
+        그 부위 — 옛 천장과 같은 규칙이라 원칙 4 의 결정 ④ 가 그대로 산다).
+     ⑵ 그 순간부터 `FEVER_MS` 동안은 **모든** 제련이 2연 이상 보장(손·견습생 둘 다).
+     ⑶ 자연 전 릴 정렬이 게이지를 비우던 규칙은 **없앴다** — 게이지는 손만의 것이다. */
+  const special = (S.pity|0)>=FEVER_MAX() && !feverOn();
+  const inFever = feverOn();
+  if(special){ S.pity=0; S.feverUntil=Date.now()+FEVER_MS; }
+  const res = special
+    ? Array(REELS()).fill(S.lockIdx>=0?lockPart:Math.floor(Math.random()*6))  // 특별 주문: 고정 릴이 있으면 그 부위로
     : Array.from({length:REELS()},(_,i)=> i===S.lockIdx?lockPart:Math.floor(Math.random()*6));
   // 정렬 보정: 굴린 뒤 확률적으로 릴 하나를 다른 릴에 맞춘다.
   if(Math.random()<T('align')*0.0025 && res.length>1){
     let a=0,b=1; while(a===b||a===S.lockIdx){a=(Math.random()*res.length)|0;b=(Math.random()*res.length)|0;}
     res[a]=res[b];
+  }
+  // 피버 중 2연 보장 — 이미 2연 이상이면 그대로 둔다(겹쳐 올리지 않는다).
+  if(inFever && !special && res.length>1){
+    const k={}; let mx=1; res.forEach(v=>{k[v]=(k[v]||0)+1; if(k[v]>mx) mx=k[v];});
+    if(mx<2){
+      let a=0,b=1; while(a===b||a===S.lockIdx){a=(Math.random()*res.length)|0;b=(Math.random()*res.length)|0;}
+      res[a]=res[b];
+    }
   }
   setTimeout(()=>{
     els.forEach((e,i)=>{e.classList.remove('spin');drawReel(e,res[i],i===S.lockIdx);});
@@ -188,9 +230,9 @@ function spin(free){
     let best=1,part=res[Math.floor(Math.random()*res.length)];
     for(const v in cnt){ if(cnt[v]>best){best=cnt[v];part=+v;} }
     const b=best-1;                       // 2연=1, 3연=2, 4연=3, 5연=4
-    S.pity = best===REELS() ? 0 : S.pity+1;   // 자연 전릴 정렬도 천장을 비운다
     if(b>0) els.forEach((e,i)=>{ if(res[i]===part) e.classList.add('hit'); });
     const it=makeItem(PARTS[part].id,rollGrade(b));
+    fgLastBest=best; fgLastSpecial=special; fgLastGrade=it.g;
     const m=document.getElementById('msg');
     // 034 판정 ⓐ: 문자열 → t() 교체. 뽑힌 부위·등급·세부등급은 그대로다.
     const tag=t('msg.item',t('part.'+PARTS[part].id),t('ui.grade',it.g),ROMAN[it.lv]);
@@ -199,13 +241,19 @@ function spin(free){
       m.innerHTML=t('msg.autosell',tag)+ciGold()+fmt(sellPrice(it)); m.className='';
     }else{
       S.queue.push(it);
-      m.textContent = pityHit?t('msg.pity',tag) : b>=2?t('msg.match',best,tag) : b===1?t('msg.match2',tag) : tag;
-      m.className = (pityHit||b>=2)?'big':'';
+      // 051 §2③ — 특별 주문과 «자연» 전 릴 정렬을 글자로 가른다(옛 `msg.pity` 는 안 쓴다).
+      m.textContent = special?t('msg.special',tag)
+                    : best===REELS()?t('msg.perfect',tag)
+                    : b>=2?t('msg.match',best,tag) : b===1?t('msg.match2',tag) : tag;
+      m.className = (special||b>=2)?'big':'';
     }
     S.lockIdx=-1; spinning=false; render();
   },420);
 }
 let lockPart=0;
+/* 051 — 마지막 제련의 **결과**다. 검사(F4)와 연출(⑤ 빛기둥)이 읽는다 — 깃발이 아니라
+   효과를 재게 하려고 둔다. 세이브 필드가 아니라 모듈 변수다(저장 형식 불변). */
+let fgLastBest=0, fgLastSpecial=false, fgLastGrade=0;
 
 /* ══ 전투 ══ */
 let foeHP=0,foeMax=0,pHP=0,foeKind='melee';

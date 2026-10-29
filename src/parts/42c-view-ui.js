@@ -95,6 +95,8 @@ setInterval(()=>{
   reelPump();
   // 049 §2③④ — 소리는 **관찰자**다. 틱이 변화를 훑고, 광고·숨김이면 문맥을 재운다.
   sfxWatch(); sndGate();
+  // 051 ③⑤ — 피버도 **관찰자**다. CORE 는 소리·연출을 한 줄도 부르지 않는다.
+  feverWatch();
   if(autoResOn() && !FG.veiled) autoResolve();
   /* 047 §2⑤-9 — 자동은 `spin()` 을 부르지 않는다. **견습생이 박자로 친다**:
      500ms 마다 한 박(120 BPM — R2 에서 배경음악 박자와 맞춘다). 사람이 같이

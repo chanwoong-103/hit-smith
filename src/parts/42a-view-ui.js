@@ -158,18 +158,24 @@ function renderFast(){
   // 상세 팝업도 같은 줄을 든다 — 열려 있는 동안 판단 근거가 화면에서 사라지지 않는다 (016).
   const ps=document.getElementById('pstat');
   if(ps) ps.innerHTML=t('ui.stat',fmt(power(S.equip)),S.wave)+ciGold()+fmt(S.gold);
-  // 화로 압력계 — 폭(막대)과 바늘 각도만 갱신한다. innerHTML 재구성 없음.
-  const pv=Math.min(100,S.pity/PITY()*100);
+  /* 051 §2③ — 압력계가 **피버 게이지**가 된다. 요소·자리·바늘은 그대로 쓰고
+     ⑴ 차오르는 값이 `S.pity`(= 손 판정이 채운 양) ⑵ 피버 중엔 **남은 시간**이 줄어드는
+     막대로 바뀐다 ⑶ 막대 색이 판정색(금 → 등급색)을 따른다(`.full`·`.fever` 클래스).
+     옛 말(`ui.pity`·`ui.pityFull`)은 **값을 안 바꾸고 안 쓴다** — 새 키로 간다. */
+  const fvMax=FEVER_MAX(), fvOn=feverOn();
+  const pv = fvOn ? (feverLeft()/FEVER_MS*100) : Math.min(100,(S.pity|0)/fvMax*100);
   const pf=document.getElementById('pityfill');
   pf.style.width=pv+'%';
-  pf.className=S.pity>=PITY()?'full':'';
+  pf.className = fvOn?'fever' : (S.pity|0)>=fvMax?'full':'';
   document.getElementById('pneedle').style.transform='rotate('+(-80+pv*1.6)+'deg)';
-  /* 047 2차 — 같은 라벨이 **글자가 아니라 `title`** 로 간다. 쓰는 말(`ui.pity`·
-     `ui.pityFull`)은 한 글자도 안 바뀐다. `#pitytxt` 는 비워 둔다(요소는 남긴다). */
-  const plb=S.pity>=PITY()?t('ui.pityFull'):t('ui.pity',S.pity,PITY());
+  /* 047 2차 — 같은 라벨이 **글자가 아니라 `title`** 로 간다. `#pitytxt` 는 비워 둔다. */
+  const plb = fvOn ? t('fever.on',Math.ceil(feverLeft()/1000))
+            : (S.pity|0)>=fvMax ? t('fever.ready')
+            : t('fever.gauge',S.pity|0,fvMax);
   document.getElementById('pitytxt').textContent='';
   { const pe=document.getElementById('pity');
-    if(pe) pe.title=t('ui.pityTip')+' · '+plb; }
+    if(pe) pe.title=t('ui.feverTip')+' · '+plb; }
+  hpPlace();                      // 051 ④ — 머리 위 막대를 자리에 놓는다
   // 세로 온도계 = 남은 충전 (표시 전용, 수치는 그대로)
   // 047 §2① — 온도계가 가로로 누웠다. 채우는 값은 그대로, 쓰는 축만 바뀐다.
   document.getElementById('thermf').style.width=
@@ -534,3 +540,112 @@ function renderTech(){
       if(S.dust>=c&&T(k)<TECH[k].max){ S.dust-=c; S.tech[k]=T(k)+1; render(); } });
 }
 
+/* ══ 051 ④ (2차 ①②) — 머리 위 체력 막대 (046 §7-e) ═══════════════════════
+   자리는 캔버스가 재어 내놓은 `__view.stage.hp`(스프라이트 머리 꼭지 바로 위)다.
+   **앞 겹의 폭은 손대지 않는다** — `#fill`·`#hpfill` 은 CORE 가 쓰는 그대로다.
+
+   2차에서 바뀐 것 둘(1차의 결함 둘):
+   ⑴ **뒤 겹을 VIEW 가 끌고 온다**(①). 1차는 CSS `transition … .25s` 에 맡겼는데,
+      지연이 250ms 틱과 같아 전이가 매 틱 처음부터 다시 걸려 **전투 중에는 한 번도
+      안 움직였다**(검증 실측: 8초 81/81 표본이 100%). 이제 `hpTick()` 이 캔버스 프레임과 250ms 틱에서
+      간격에 비례해 당긴다(시정수 `HP_TAU`=0.35초) — 간격이 좁아질수록 느려지는
+      지수 추적이라 「늦게 따라오는 주황」이 실제로 보인다. 한 번에 최대치의 15% 넘게
+      깎인 **그 한 방만** 0.3초 머문다(사용자가 원한 «딜레이»).
+   ⑵ **자리를 기하가 바뀐 그 프레임에 옮긴다**(②). 1차는 250ms 틱에서만 옮겨서,
+      몹 수 6↔8 로 **배율이 뛰는 순간**부터 다음 틱까지(≤250ms) 막대가 옛 자리에 남아
+      **머리를 덮었다**(검증 실측: 768×1024 에서 20초 중 14.6% 프레임). 이제 44b 의
+      `hpGeom()` 이 값이 바뀐 프레임에서 바로 `hpPlace()` 를 부른다 — **DOM 쓰기는
+      바뀔 때만**이라 절전(011)은 그대로다.
+
+   ⚠ 뒤 겹의 rAF 루프는 **따라올 것이 남았을 때만** 돈다(붙으면 스스로 멈춘다) —
+     유휴에서는 한 프레임도 안 돈다(soak 의 duty 가 그대로인 까닭).
+   ⚠ CORE 는 틱마다 `#hpghost` 에 앞 겹과 같은 값을 쓴다. 그 **같은 작업 안**에서
+     `renderFast()`→`hpPlace()` 가 따라오는 값으로 다시 쓰므로 화면에는 안 나간다. */
+const HP_DROP=0.15;           // 「큰 한 방」 문턱 (최대치 대비)
+const HP_TAU=0.35;            // 뒤 겹 지수 추적 시정수(초)
+const HP_HOLD=300;            // 큰 한 방 뒤 머무는 시간(ms)
+const HP_SNAP=0.0005;         // 이만큼 붙으면 같은 값으로 본다(0.05%p)
+/* ⚠ 처음엔 0.4%p 로 뒀다가 줄였다 — 적 막대가 **틱당 0.5%p 밖에 안 깎이는** 판에서는
+   한 걸음이 문턱보다 작아 **곧바로 붙어** 버려 따라오는 것이 안 보였다(2차 실측 0.1%p). */
+let hpWas={foe:1, hero:1};                    // 흔들림 판정용(틱 기준)
+let hpG={foe:1, hero:1};                      // 뒤 겹이 지금 있는 자리
+let hpF={foe:1, hero:1};                      // 앞 겹의 지난 값(큰 한 방 찾기)
+let hpHold={foe:0, hero:0};                   // 머무는 끝 시각(ms)
+
+const hpNow=()=>(typeof performance==='object'&&performance.now)?performance.now():Date.now();
+/* 앞 겹의 폭(0~1). CORE 가 `style.width` 에 쓴 **목표값**이라 틱에서 바로 뛴다
+   (그려지는 폭은 `.18s linear` 로 따라간다 — 앞 겹의 전이는 1차 그대로다). */
+const hpFrac=id=>{ try{ const e=document.getElementById(id);
+  const n=e&&e.style?parseFloat(e.style.width):NaN; return isFinite(n)?Math.max(0,Math.min(1,n/100)):1;
+}catch(e){ return 1; } };
+
+function hpGhostWrite(){
+  try{
+    const fg=document.getElementById('fillghost');
+    if(fg) fg.style.width=(hpG.foe*100).toFixed(2)+'%';
+    const hg=document.getElementById('hpghost');
+    if(hg) hg.style.width=(hpG.hero*100).toFixed(2)+'%';
+    const V=globalThis.__view;
+    if(V&&V.stage&&V.stage.hp) V.stage.hp.v={
+      foe:+hpFrac('fill').toFixed(3), hero:+hpFrac('hpfill').toFixed(3),
+      gfoe:+hpG.foe.toFixed(3), ghero:+hpG.hero.toFixed(3),
+      hold:{foe:Math.max(0,Math.round(hpHold.foe-hpNow())), hero:Math.max(0,Math.round(hpHold.hero-hpNow()))}};
+  }catch(e){}
+}
+/* 한 걸음. `dt` 는 초. 돌려주는 값은 「아직 따라올 것이 남았나」. */
+function hpStep(dt){
+  const now=hpNow();
+  const k=(dt>0)?(1-Math.exp(-dt/HP_TAU)):0;
+  let busy=false;
+  for(const key of ['foe','hero']){
+    const f=hpFrac(key==='foe'?'fill':'hpfill');
+    const drop=hpF[key]-f;
+    if(drop>=HP_DROP) hpHold[key]=now+HP_HOLD;   // 큰 한 방 — 그 한 방만 머문다
+    hpF[key]=f;
+    let g=hpG[key];
+    if(f>=g) g=f;                                 // 회복·새 웨이브는 곧바로 올라간다
+    else if(now<hpHold[key]) busy=true;           // 머무는 동안은 그대로
+    else { g+=(f-g)*k; if(Math.abs(f-g)<HP_SNAP) g=f; }
+    hpG[key]=g;
+    if(Math.abs(f-g)>=HP_SNAP) busy=true;
+  }
+  return busy;
+}
+/* ⚠ **따로 도는 rAF 루프를 두지 않는다.** 처음엔 전용 루프를 돌렸는데, 전투 중에는
+   체력이 250ms마다 깎여 따라올 것이 **늘 남아** 있어 루프가 영영 안 멈췄다 —
+   soak 가 「몰아치기 뒤 6초 동안 «불티 0 · 잠듦 · rAF 0» 이 한 번도 아니다」로
+   **누수 의심**을 냈다(011 절전의 계약은 화면이 **완전히 설 수 있다**는 것이다).
+   그래서 걸음은 이미 도는 두 자리에서만 딛는다:
+     ⑴ 무대 캔버스가 깨어 있는 프레임(44b 가 `hpTick()` 을 부른다 — 타격·모션 중이라
+        사람이 보고 있는 그 순간이다 · 캔버스가 자면 한 프레임도 안 돈다)
+     ⑵ 250ms 틱(`renderFast()`→`hpPlace()`) — 캔버스가 자는 동안에도 네 걸음/초로 따라온다
+   `dt` 를 실제로 흐른 시간으로 재므로 두 자리의 간격이 달라도 같은 시정수로 움직인다. */
+let hpStepAt=0;
+function hpTick(){
+  const t=hpNow();
+  const dt=hpStepAt?Math.min(0.5,Math.max(0,(t-hpStepAt)/1000)):0;
+  hpStepAt=t;
+  hpStep(dt); hpGhostWrite();
+}
+function hpPlace(){
+  try{
+    const V=globalThis.__view; if(!V||!V.stage) return;
+    const hp=V.stage.hp, rect=V.stage.rect; if(!hp||!rect) return;
+    const put=(id,b)=>{ const e=document.getElementById(id); if(!e||!b) return;
+      e.style.left=Math.round(b.x-rect.x)+'px';
+      e.style.top =Math.round(b.y-rect.y)+'px';
+      e.style.width=b.w+'px'; };
+    put('bar',hp.foe); put('hpbar',hp.hero);
+    const fv=hpFrac('fill'), hv=hpFrac('hpfill');
+    if(!V.reducedMotion){
+      const hit=(id,now,was)=>{ if(was-now<HP_DROP) return;
+        const e=document.getElementById(id); if(!e||!e.classList) return;
+        e.classList.remove('hphit'); void e.offsetWidth; e.classList.add('hphit');
+        if(typeof setTimeout==='function') setTimeout(()=>{ try{ e.classList.remove('hphit'); }catch(x){} },220); };
+      hit('bar',fv,hpWas.foe); hit('hpbar',hv,hpWas.hero);
+    }
+    hpWas={foe:fv, hero:hv};
+    /* CORE 가 방금 쓴 `#hpghost` 를 **같은 작업 안에서** 따라오는 값으로 덮는다. */
+    hpTick();
+  }catch(e){}
+}

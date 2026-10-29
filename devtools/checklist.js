@@ -296,10 +296,17 @@ const chk = (name, cond, note) => {
   chk('2e 단독은 강조 없음', !msgs.one.cls && msgs.one.hits === 0,
     msgs.one.t + ' hit=' + msgs.one.hits);
 
-  // ── 3. 천장 게이지 ──
+  /* ── 3. 피버 게이지 (051 §2②③ — 옛 「천장 게이지」 자리) ──
+     재는 것·판정의 **모양은 그대로**다: 가득이면 색이 바뀌고 · 라벨이 `t()` 로 맞고 ·
+     `#pitytxt` 는 비어 있고 · 가득 뒤 한 번에 전 릴 정렬이 나오고 · 게이지가 비고 ·
+     고정 토큰이 부위를 조준한다. 바뀐 것은 **이름뿐**이다:
+       `PITY()` → `FEVER_MAX()` · `ui.pity`→`fever.gauge` · `ui.pityFull`→`fever.ready`
+       · 발동 글자 「▣ 임계압 정렬」(`msg.pity`) → 「★ 특별 주문 제작」(`msg.special`).
+     CLAUDE.md 「구현이 배치를 바꿔 검사가 엉뚱한 자리를 재게 되면 구현 세션이 고쳐도
+     된다 — 무엇을 왜 고쳤는지 지시서에 적고 검증 세션이 독립 재확인」에 따른다. */
   const pity = await page.evaluate(async () => {
     S.queue = []; S.asell = Array(15).fill(false); S.charge = 50; S.lockIdx = -1;
-    S.pity = PITY(); render();
+    S.pity = FEVER_MAX(); S.feverUntil = 0; render();
     const colFull = getComputedStyle(document.getElementById('pityfill')).backgroundColor;
     /* 047 2차 (제안 ①) 대체 — 라벨이 **글자에서 `title` 로** 내려갔다(바늘·막대가
        같은 말을 하고, 첫 화면의 글자 수를 줄이는 것이 §2① 의 목표). `#pitytxt` 는
@@ -309,18 +316,18 @@ const chk = (name, cond, note) => {
     const ttl = () => (document.getElementById('pity') || {}).title || '';
     const txt = ttl();
     const empty = document.getElementById('pitytxt').textContent;
-    S.pity = Math.floor(PITY() / 2); render();       // 진행 중 라벨
+    S.pity = Math.floor(FEVER_MAX() / 2); render();       // 진행 중 라벨
     const mid = ttl();
     S.pity = 0; render();
     const colNorm = getComputedStyle(document.getElementById('pityfill')).backgroundColor;
     // 강제 전릴 정렬
-    S.pity = PITY(); S.queue = []; S.lockIdx = -1; spinning = false;
+    S.pity = FEVER_MAX(); S.feverUntil = 0; S.queue = []; S.lockIdx = -1; spinning = false;
     spin(); await new Promise(r => setTimeout(r, 500));
     const forced = document.getElementById('msg').textContent, after = S.pity;
     // 조준: 고정 릴이 있으면 천장이 그 부위로 터진다
-    S.pity = PITY(); S.queue = []; S.lockIdx = 1; lockPart = 4; spinning = false;   // 4 = 장갑
+    S.pity = FEVER_MAX(); S.feverUntil = 0; S.queue = []; S.lockIdx = 1; lockPart = 4; spinning = false;   // 4 = 장갑
     spin(); await new Promise(r => setTimeout(r, 500));
-    return { colFull, colNorm, txt, mid, empty, forced, after, half: Math.floor(PITY() / 2), max: PITY(),
+    return { colFull, colNorm, txt, mid, empty, forced, after, half: Math.floor(FEVER_MAX() / 2), max: FEVER_MAX(),
              aimed: S.queue.length ? S.queue[S.queue.length - 1].part : null };
   });
   chk('3a 게이지 가득 시 색 변화', pity.colFull !== pity.colNorm, pity.colFull + ' vs ' + pity.colNorm);
@@ -330,18 +337,18 @@ const chk = (name, cond, note) => {
   /* 034: 라벨을 한국어로 박아 두면 en 판에서 조용히 뒤집힌다. 페이지가 가진
      `t()` 로 **같은 키를 풀어** 견준다 — 두 언어에서 같은 뜻을 지킨다. */
   const pityWant = await page.evaluate(({ h, m }) =>
-    ({ mid: t('ui.pity', h, m), full: t('ui.pityFull') }), { h: pity.half, m: pity.max });
+    ({ mid: t('fever.gauge', h, m), full: t('fever.ready') }), { h: pity.half, m: pity.max });
   const endsWith = (s, w) => s.trim().slice(-w.trim().length) === w.trim();
-  chk('3b 진행 중 라벨 `t(ui.pity)` = 「' + pityWant.mid + '」 (047 2차 — 글자가 아니라 #pity 의 title)',
+  chk('3b 진행 중 라벨 `t(fever.gauge)` = 「' + pityWant.mid + '」 (047 2차 — 글자가 아니라 #pity 의 title)',
     endsWith(pity.mid, pityWant.mid), `title 「${pity.mid}」`);
-  chk('3b2 가득 라벨 `t(ui.pityFull)` = 「' + pityWant.full + '」 (title)',
+  chk('3b2 가득 라벨 `t(fever.ready)` = 「' + pityWant.full + '」 (title)',
     endsWith(pity.txt, pityWant.full), `title 「${pity.txt}」`);
   chk('3b4 #pitytxt 는 비어 있다 (요소는 남고 글자만 내려갔다 — 047 2차)',
     pity.empty.trim() === '', `「${pity.empty}」`);
   chk('3b3 화면에 내부 용어 노출 0', !/천장|pity|슬롯|잭팟|룰렛|베팅/i.test(pity.txt + ' ' + pity.mid),
     pity.txt + ' / ' + pity.mid);
-  chk('3c 강제 전릴 정렬 발동', pity.forced.startsWith('▣'), pity.forced);
-  chk('3d 천장 후 게이지 리셋', pity.after === 0, 'pity=' + pity.after);
+  chk('3c 특별 주문 제작 발동 (전 릴 정렬)', pity.forced.startsWith('★'), pity.forced);
+  chk('3d 특별 주문 후 게이지 리셋', pity.after === 0, 'gauge=' + pity.after);
   chk('3e 고정 릴로 조준', pity.aimed === 'hands', String(pity.aimed));
 
   /* ── 4. 고정 → 해제 시 토큰 환불 ──

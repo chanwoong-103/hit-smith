@@ -317,6 +317,43 @@ if(typeof requestAnimationFrame!=='undefined' && typeof document!=='undefined'
     if(left<=0){ scrollX=travTo; travUntil=0; return; }
     scrollX = travFrom + (travTo-travFrom)*ezOut(1-left/TRAVEL_MS);
   }
+  /* ══ 051 ④ — 체력 막대를 **머리 위로** (046 §7-e) ════════════════════════
+     **캔버스는 자리만 낸다. 막대 자체는 DOM 이다.**
+     ⚠ 처음엔 캔버스에 그렸다가 되물렀다 — 캔버스는 사건이 없으면 320ms 뒤에 **잠든다**
+       (011 절전). 그러면 CORE 가 `#fill` 에 계속 쓰는 동안 막대가 **얼어붙는다**
+       (실측: 틱 뒤 CORE 31.7% 인데 그려진 앞 겹은 66.8%). 막대를 위해 캔버스를
+       250ms마다 깨우면 유휴 가동률이 통째로 무너진다(원칙 1 · soak 의 duty).
+       DOM 막대는 CSS 전환이 두 겹의 지연을 공짜로 주고, 캔버스는 계속 잘 수 있다.
+     그래서 여기서 하는 일은 **머리 꼭지의 좌표를 재서 내놓는 것**뿐이다
+     (`__view.stage.hp`). 자리에 놓는 것은 `renderFast()` → `hpPlace()` 다. */
+  const HP_H=4, HP_GAP=4;
+  function hpGeom(L,ground,topFoe,topHero,heroX,heroW){
+    const out={h:HP_H, gap:HP_GAP};
+    const n=L.n;
+    if(n>0 && isFinite(topFoe)){
+      const w=Math.max(24,Math.round(L.step*(n-1)+SPR_UNIT*L.ms));
+      out.foe={x:Math.round(L.x0), y:Math.round(topFoe-HP_GAP-HP_H), w, h:HP_H, top:Math.round(topFoe)};
+    }
+    if(isFinite(topHero)){
+      const hw=Math.max(18,Math.round(heroW||SPR_UNIT*L.ms));
+      out.hero={x:Math.round(heroX), y:Math.round(topHero-HP_GAP-HP_H), w:hw, h:HP_H, top:Math.round(topHero)};
+    }
+    /* 051 2차 ② — **기하가 바뀐 그 프레임에** 막대를 옮긴다.
+       1차는 자리를 250ms 틱에서만 옮겨서, 몹 수 6↔8 로 배율이 뛰는 순간부터 다음
+       틱까지 막대가 옛 자리에 남아 **머리를 덮었다**(검증 실측 768×1024 14.6% 프레임).
+       ⚠ 바뀌지 않은 프레임에서는 **아무것도 안 한다** — DOM 쓰기가 바뀔 때만이라
+         절전(011)과 soak 의 duty 가 그대로다. */
+    const prev=VIEW.stage.hp;
+    const same=(a,b)=>(!a&&!b)||(!!a&&!!b&&a.x===b.x&&a.y===b.y&&a.w===b.w);
+    /* 051 2차 ① — 뒤 겹의 걸음은 **깨어 있는 이 프레임**에서 딛는다(전용 rAF 루프를
+       두면 전투 중 영영 안 멈춰 soak 의 「완전히 섰다」가 깨진다 — 42a 의 긴 주석). */
+    if(typeof hpTick==='function') hpTick();
+    if(prev && same(prev.foe,out.foe) && same(prev.hero,out.hero)) return;
+    if(prev&&prev.v) out.v=prev.v;
+    VIEW.stage.hp=out;
+    if(typeof hpPlace==='function') hpPlace();
+  }
+
   function drawArena(g){
     if(!rA || !stLay.length) return;
     g.save();
@@ -333,7 +370,10 @@ if(typeof requestAnimationFrame!=='undefined' && typeof document!=='undefined'
     const swinging = atkT>=ATK_WIND*0.6 && atkT<ATK_ALL;
     const hero=foeSprite(swinging?'heroAtk':'hero',1,ms,stSeg);
     const hx=rA.x+rA.w*0.05+heroDX(ms);
-    if(hero) g.drawImage(hero, Math.round(hx), Math.round(ground-(hero.__bot+1)*ms*SPR_FIT));
+    let topHero=Infinity, heroW=0;
+    if(hero){ const hy=Math.round(ground-(hero.__bot+1)*ms*SPR_FIT);
+      g.drawImage(hero, Math.round(hx), hy);
+      topHero=hy; heroW=hero.width; }          // 051 ④ — 막대를 이 위에 둔다
     // ── 무기 궤적: 012 장비 스프라이트를 태운다. 잔상 3장, 회전 없음 ──
     // 회전시키면 픽셀이 보간돼 뭉갠다(ART-DIRECTION 안티에일리어싱 금지). 대신
     // 같은 그림을 호를 따라 몇 장 겹쳐 알파로 흘린다.
@@ -358,6 +398,7 @@ if(typeof requestAnimationFrame!=='undefined' && typeof document!=='undefined'
     const slide=Math.max(0, travTo-scrollX);          // 이동 중엔 오른쪽에서 들어온다
     const mobX=i=>L.x0+L.step*i+slide;
     const cut=deadCut(n,alive);
+    let topFoe=Infinity;
     for(let i=0;i<n;i++){
       if(i<cut) continue;                             // 처치된 개체는 사라진다 (001 규약)
                                                       // 021: 앞쪽(용사 쪽)부터 비워진다
@@ -370,7 +411,9 @@ if(typeof requestAnimationFrame!=='undefined' && typeof document!=='undefined'
       //   용사에게 가장 가까운 것」이었으므로 이 줄은 연출의 **변경이 아니라 복구**다.
       //   타이밍·지속시간·진폭(FLASH_MS·HITSTOP_MS·ATK_*)은 한 글자도 안 건드린다.
       const cv=foeSprite(kind,tier,ms,stSeg, flashing && i===cut); if(!cv) continue;
-      g.drawImage(cv, Math.round(mobX(i)), Math.round(ground-(cv.__bot+1)*ms*SPR_FIT));
+      const my=Math.round(ground-(cv.__bot+1)*ms*SPR_FIT);
+      g.drawImage(cv, Math.round(mobX(i)), my);
+      if(my<topFoe) topFoe=my;                 // 051 ④ — 무리에서 가장 높은 머리
     }
     // ── 소멸: 위로 튀었다 아래로 꺼진다 (001 foedie 와 같은 규약) ──
     for(const d of dying){
@@ -383,6 +426,9 @@ if(typeof requestAnimationFrame!=='undefined' && typeof document!=='undefined'
                       Math.round(cv.width*sc), Math.round(cv.height*sc));
       g.globalAlpha=1;
     }
+    // 051 ④ — 막대의 **자리**만 낸다(그리는 것은 DOM). 다 죽은 프레임은 지면 기준.
+    hpGeom(L, ground, isFinite(topFoe)?topFoe:(ground-SPR_UNIT*ms*SPR_FIT),
+           topHero, hx, heroW);
     g.restore();
     VIEW.stage.scale=stScale; VIEW.stage.seg=stSeg; VIEW.stage.scrollX=Math.round(scrollX);
     VIEW.stage.moving=!!travUntil; VIEW.stage.mobs=n; VIEW.stage.alive=alive;
@@ -478,6 +524,10 @@ if(typeof requestAnimationFrame!=='undefined' && typeof document!=='undefined'
   /* ── 앞 겹: 불티 · 바운스 (DOM 위) ────────────────────────────────── */
   const P=[];                      // 불티. 상한은 §4 의 FX_MAX_PARTICLES.
   let bounce=null;                 // 획득 장비 하나. 겹치지 않게 항상 하나뿐이다.
+  /* 051 ⑤ — 등급 빛기둥. 모루에서 0.8초 솟는다. 하나뿐이고 덮어쓴다(누적 금지).
+     reducedMotion 이면 기둥 대신 **테두리 번쩍 한 번**이다(아래 `pillar.red`). */
+  let pillar=null;
+  const PILLAR_MS=800;
   const ezOut=t=>1-(1-t)*(1-t);    // Quad.easeOut
   const B_UP=FX_BOUNCE_MS*.45;     // 올라가는 시간 (yoyo 라 내려오는 데 같은 시간)
 
@@ -497,6 +547,7 @@ if(typeof requestAnimationFrame!=='undefined' && typeof document!=='undefined'
       p.t+=dt; if(p.t>=p.life){ P.splice(i,1); continue; }
       p.vy+=520*s; p.x+=p.vx*s; p.y+=p.vy*s;   // gravityY 520
     }
+    if(pillar){ pillar.t+=dt; if(pillar.t>=PILLAR_MS) pillar=null; }
     if(bounce){ const b=bounce; b.t+=dt;
       if(b.red){ b.a=Math.max(0,1-b.t/180); b.off=0; if(b.t>=180) bounce=null; }
       else if(b.t<B_UP){        b.off=-b.dy*ezOut(b.t/B_UP); }
@@ -515,6 +566,21 @@ if(typeof requestAnimationFrame!=='undefined' && typeof document!=='undefined'
       else g.rect(b.x-7, b.y+b.off-7, 14, 14);
       g.fill();
       g.globalAlpha=1;
+    }
+    /* 051 ⑤ — 빛기둥. 등급색 세로 띠가 모루에서 솟아 흐려진다.
+       ⚠ 등급색은 CSS 토큰이 원본이다(`gradeRGB`) — 캔버스 상수에 새 색을 안 만든다. */
+    if(pillar && !pillar.red){
+      const u=Math.min(1,pillar.t/PILLAR_MS);
+      const h=(CH*0.55)*ezOut(Math.min(1,u*1.6));          // 위로 솟는다
+      const a=(1-u)*(1-u)*0.85;                            // 끝까지 흐려진다
+      const w=Math.max(6,Math.round(22*(1-u*0.45)));
+      const c=pillar.col;
+      g.globalCompositeOperation='lighter';
+      const gr=g.createLinearGradient(0,pillar.y-h,0,pillar.y);
+      gr.addColorStop(0,'rgba('+c[0]+','+c[1]+','+c[2]+',0)');
+      gr.addColorStop(1,'rgba('+c[0]+','+c[1]+','+c[2]+','+a.toFixed(3)+')');
+      g.fillStyle=gr; g.fillRect(pillar.x-w/2, pillar.y-h, w, h);
+      g.globalCompositeOperation='source-over';
     }
     g.globalCompositeOperation='lighter';         // blendMode:'ADD'
     for(const p of P){ const k=1-p.t/p.life;      // alpha 1→0 · scale .9→0
@@ -579,7 +645,7 @@ if(typeof requestAnimationFrame!=='undefined' && typeof document!=='undefined'
     stepFx(t<stopUntil?0:dt); drawFx();
     VIEW.perf.framesFx++;                     // 013 §0
     VIEW.alive.particles=P.length;
-    VIEW.alive.tweens=bounce?1:0;
+    VIEW.alive.tweens=(bounce?1:0)+(pillar?1:0);
     if(fxIdle()){ __gameFx.loop.sleep(); markSlept(); lastFxT=0; }
   }
   globalThis.__game  ={loop:mkLoop(bgFrame), engine:'canvas2d'};
@@ -597,7 +663,7 @@ if(typeof requestAnimationFrame!=='undefined' && typeof document!=='undefined'
   // 도는 것이 있으면 안 재운다 — 자면 그 자리에서 얼어붙는다.
   const bgIdle=()=>nowMs()>=wakeBgUntil && nowMs()>=shakeUntil && !travUntil
     && atkT<0 && !dying.length && nowMs()>=stopUntil;   // 018 모션도 붙잡는다
-  const fxIdle=()=>nowMs()>=wakeFxUntil && P.length===0 && !bounce;
+  const fxIdle=()=>nowMs()>=wakeFxUntil && P.length===0 && !bounce && !pillar;
   // `sleeping` 은 **둘 다 잠들었을 때**만 참이다 (검증이 "화면이 완전히 멈췄다"를
   // 이 한 값으로 읽을 수 있게).
   function markSlept(){
@@ -710,6 +776,23 @@ if(typeof requestAnimationFrame!=='undefined' && typeof document!=='undefined'
     VIEW.counters.bounce++;
   }
   globalThis.__hitFx=hitFx;            // 검증용 (checklist·임시 스크립트가 직접 부른다)
+
+  /* 051 ⑤ — 등급 빛기둥. 등급 ≥10 이나 특별 주문에서 선다(부르는 곳은 45a `feverMade`).
+     reducedMotion 이면 기둥을 띄우지 않고 **모루 테두리를 한 번 번쩍**인다(CSS `.pulse`).
+     ⚠ 카운터만으로 완료를 주장하지 않는다 — 검사는 캔버스 **픽셀**로 본다(CLAUDE.md 009). */
+  globalThis.__pillar=(grade)=>{
+    if(hidden()){ VIEW.perf.hiddenSkips++; return 0; }
+    const g=Math.max(1,Math.min(GMAX,grade|0));
+    const an=VIEW.anvil; if(!an) return 0;
+    const red=!!VIEW.reducedMotion;
+    pillar={x:an.x, y:an.y+6, t:0, red, col:(typeof gradeRGB==='function')?gradeRGB(g):[255,217,160], g};
+    VIEW.counters.pillar=(VIEW.counters.pillar||0)+1;
+    if(red){ try{ const e=document.getElementById('forge');
+      if(e&&e.classList){ e.classList.remove('pulse'); void e.offsetWidth; e.classList.add('pulse');
+        if(typeof setTimeout==='function') setTimeout(()=>{ try{ e.classList.remove('pulse'); }catch(x){} },420); } }catch(x){} }
+    canvasWake(PILLAR_MS+120, PILLAR_MS+160);
+    return g;
+  };
 
   /* ── 부팅 ── */
   VIEW.scene='forge'; VIEW.sceneFx='fx'; VIEW.background='canvas';

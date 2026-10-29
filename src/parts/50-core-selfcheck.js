@@ -78,7 +78,69 @@
   S.peak=pk; S.lv=lvB;
   // 릴은 3 + 별, 단 5에서 멈춘다 (DESIGN.md "릴 수 = 3 + 별 (최대 5)")
   console.assert(REELS()===Math.min(3+S.star,5),'릴 수 오류');
-  console.assert(PITY()===20*REELS(),'천장 문턱 오류');
+  console.assert(FEVER_MAX()===20*REELS(),'피버 게이지 문턱 오류');
+  /* 051 §2② — 피버. 재는 것은 **효과**다(깃발이 아니라 `S` 와 뽑힌 결과로).
+     ⚠ `spin()` 의 420ms 콜백 안에서 결과가 정해지므로 `setTimeout` 을 즉시 돌게 바꿔
+       끼우고 결과를 본다(하네스는 이미 그렇다).
+     ⚠ 그런데 그 콜백은 릴 DOM 에 `.hit` 을 붙인다 — **브라우저에서는** 44b 의
+       감시자가 그것을 「정렬」로 읽어 첫 화면에서 셰이크·불티·빛기둥이 터진다
+       (조각 순서상 44b 가 이 점검보다 **먼저** 돈다). 그래서 점검 동안에는
+       `querySelectorAll` 을 빈 배열로 바꿔 끼운다 — 릴을 **안 만지고** 결과만 본다.
+       재는 값(`fgLastBest`·`S`·대기열)은 DOM 과 무관하므로 검사는 그대로 성립한다.
+       `#msg` 의 글자도 점검이 바꾸므로 들어올 때의 값으로 되돌린다. */
+  { const sv={p:S.pity, f:S.feverUntil, c:S.charge, sp:spinning, lk:S.lockIdx, q:S.queue.length,
+              as:S.asell.slice()}, st0=globalThis.setTimeout, rd0=render;
+    const qsa0=(typeof document!=='undefined')?document.querySelectorAll:null;
+    const msgEl=(typeof document!=='undefined')?document.getElementById('msg'):null;
+    const msg0=msgEl?{t:msgEl.textContent, c:msgEl.className}:null;
+    try{
+      globalThis.setTimeout=function(fn){ try{ fn(); }catch(e){} return 0; };
+      if(qsa0) document.querySelectorAll=function(){ return []; };
+      /* ⚠ **점검은 화면을 그리지 않는다.** `spin()` 은 끝에 `render()` 를 부르는데,
+         이 점검이 도는 동안 `S` 는 시험값이다 — 그 중 하나가 위 ⑴의 `S.peak=0`(이
+         파일 앞쪽에서 0 으로 두고 끝에 통째로 복원한다)이고, 그 상태로 그리면
+         «승천 가능»이 거짓이라 `#asc` 가 `display:none` 으로 **얼어붙는다**(부팅의
+         마지막 그림이 이것이 된다 — 051 첫 판에서 checklist TB7·TB8·AP1 이 그렇게
+         울었다). 050 까지는 점검이 DOM 을 안 건드려서 드러나지 않던 성질이다.
+         그래서 점검 동안 `render` 를 빈 함수로 바꿔 끼운다. */
+      render=function(){};
+      S.asell=S.asell.map(()=>false);              // 대기열로 들어오게 (결과를 읽는다)
+      const peek=()=>S.queue[S.queue.length-1];
+      // ⑴ 자동(견습생) 타격은 게이지를 못 채운다 — `feverAdd` 를 안 지나므로 0 이다.
+      S.pity=0; S.feverUntil=0; S.charge=50; S.lockIdx=-1;
+      for(let i=0;i<5;i++){ spinning=false; spin(); }
+      console.assert((S.pity|0)===0,'자동 제련이 피버 게이지를 채웠다 (051 F1)');
+      // ⑵ 손 판정만 채운다 — 완벽 +3 · 아쉬움 0.
+      S.pity=0; feverAdd('perfect'); feverAdd('miss');
+      console.assert((S.pity|0)===3,'손 판정이 게이지를 안 채운다 (051 §2②)');
+      // ⑶ 가득 → 다음 제련은 전 릴 정렬(고정 토큰이 있으면 그 부위) · 게이지 0 · 피버 시작
+      S.pity=FEVER_MAX(); S.feverUntil=0; S.lockIdx=1; lockPart=4; spinning=false;
+      spin(true);
+      const sp=peek();   // 051 F3 — 고정 토큰을 건 부위로 나온다
+      console.assert(!!sp && sp.part===PARTS[4].id,'특별 주문이 고정 부위로 안 나왔다 (051 F3)');
+      console.assert((S.pity|0)===0,'특별 주문 뒤 게이지가 안 비었다 (051 F5)');
+      console.assert(feverOn(),'특별 주문이 피버를 안 열었다 (051 F3)');
+      /* ⑷ 피버 중에는 **모든** 제련이 2연 이상이다(손·자동 둘 다).
+         ⚠ 릴 DOM 으로 재면 하네스에서 공허하다(`querySelectorAll` 이 빈 배열이다).
+           그래서 CORE 가 남기는 `fgLastBest`(마지막 제련의 정렬 수)로 본다 —
+           브라우저·하네스 양쪽에서 같은 값을 낸다. */
+      console.assert(fgLastBest===REELS(),'특별 주문이 전 릴 정렬이 아니다 (051 F3) — '+fgLastBest);
+      let worst=9;
+      for(let i=0;i<24;i++){ spinning=false; S.lockIdx=-1; S.charge=50;
+        spin(i%2?true:undefined);
+        if(fgLastBest<worst) worst=fgLastBest; }
+      console.assert(worst>=2,'피버 중 2연 보장이 깨졌다 (051 F4) — 최소 '+worst);
+      // ⑸ 피버 중 손 판정은 게이지를 안 채운다
+      S.pity=0; feverAdd('perfect');
+      console.assert((S.pity|0)===0,'피버 중에 게이지가 찼다 (051 §2②)');
+    } finally {
+      globalThis.setTimeout=st0; render=rd0;
+      if(qsa0) document.querySelectorAll=qsa0;
+      S.pity=sv.p; S.feverUntil=sv.f; S.charge=sv.c; spinning=sv.sp; S.lockIdx=sv.lk;
+      S.asell=sv.as; S.queue.length=sv.q;
+      if(msgEl&&msg0){ try{ msgEl.textContent=msg0.t; msgEl.className=msg0.c; }catch(e){} }
+      try{ [...document.querySelectorAll('.reel')].forEach(e=>e.classList.remove('spin','hit')); }catch(e){}
+    } }
   console.assert(Object.keys(makeItem('head',15).ops).length===4,'15등급 4줄 아님');
   console.assert(!makeItem('head',8).sp,'8등급에 각인');
   console.assert(!!makeItem('head',10).sp,'10등급에 각인 없음');

@@ -82,7 +82,8 @@ body{
 #arena>#mob{position:absolute;left:0;right:0;top:4px;margin:0}
 /* 체력 막대와 적 글자는 무대 바닥에 붙는다 — 무대 픽셀을 가리지 않게 아래 끝이다. */
 #arenafoot{position:absolute;left:6px;right:6px;bottom:4px}
-#arenafoot>#bar,#arenafoot>#hpbar{margin:0 0 2px}
+/* 051 ④ — 막대는 무대 안에서 **절대 좌표**로 머리 위에 앉는다(자리는 JS 가 준다). */
+#arena>#bar,#arena>#hpbar{position:absolute;margin:0;left:0;top:0;width:40px;z-index:2}
 /* `#foes` 는 CORE 의 newWave() 가 글자를 쓰는 자리라 **지우지 않는다.** 무대 위
    글자는 첫 화면의 글자 수를 늘리므로 작고 흐리게 둔다(§2① 「글자」). */
 #arenafoot>#foes{font-size:11px;color:var(--dim);text-align:center;line-height:1.3}
@@ -686,20 +687,55 @@ body[data-appr="0"] #spincap #chg{display:none}
 #olegend b{font-family:ui-monospace,Menlo,monospace;font-weight:400}
 
 /* ── 전투 ── */
-#bar{height:10px;background:var(--coal);border:1px solid var(--edge);border-radius:2px;
-  overflow:hidden;margin:5px 0;box-shadow:inset 0 0 5px rgba(0,0,0,.85)}
-#fill{height:100%;background-color:var(--ember);
+/* 051 ④ (046 §7-e) — 막대가 **머리 위**로 갔다. 두 겹의 뜻을 색으로 가른다:
+     적   앞 **빨강**(즉시) · 뒤 **주황**(0.25초 머물렀다 0.5초에 걸쳐 따라옴)
+     용사 앞 **파랑**(즉시) · 뒤 **회색**(같은 지연) · 회복이면 앞이 초록으로 번쩍
+   늦게 따라오는 것은 **CSS 전환의 지연**이다 — JS 가 매 프레임 재지 않으므로
+   캔버스를 깨울 일이 없다(절전 그대로). 폭을 쓰는 것은 여전히 CORE 다. */
+#bar{height:5px;background:rgba(8,9,11,.78);border:1px solid var(--edge);border-radius:2px;
+  overflow:hidden;box-shadow:inset 0 0 4px rgba(0,0,0,.85)}
+/* 051 2차 ① — 뒤 겹의 **CSS 전이를 뺀다.** 지연 0.25초가 250ms 틱과 같아서, 지연이
+   끝나기 직전에 다음 값이 와 전이가 처음부터 다시 걸렸다 — 전투 중에는 **영영 움직이지
+   못했다**(검증 실측: 8초 81/81 표본이 100%). 이제 뒤 겹의 폭은 VIEW 가 프레임마다
+   **지수로 당긴다**(`hpFollow` · 시정수 0.35초 · 큰 한 방만 0.3초 머묾). */
+#fillghost{position:absolute;left:0;top:0;height:100%;width:100%;background:#e8903a}
+#fill{position:relative;height:100%;background-color:#e0362b;
   background-image:linear-gradient(180deg,rgba(255,255,255,.3),rgba(0,0,0,.25));
   width:100%;transition:width .18s linear}
-#hpbar{height:6px;background:var(--coal);border:1px solid var(--edge);border-radius:2px;
+#hpbar{height:5px;background:rgba(8,9,11,.78);border:1px solid var(--edge);border-radius:2px;
   overflow:hidden;position:relative;box-shadow:inset 0 0 4px rgba(0,0,0,.85)}
-/* 뒤에 깔린 붉은 띠가 늦게 따라오며 방금 깎인 만큼을 보여준다 (틱당 style 폭만 갱신) */
-#hpghost{position:absolute;left:0;top:0;height:100%;width:100%;background:#e05a4a;opacity:.55;
-  transition:width .5s ease-out .18s}
+/* ⚠ CORE 는 틱마다 `#hpghost` 에 **앞 겹과 같은 값**을 쓴다(010 부터 · CORE 0줄 변경).
+   그 바로 뒤 같은 작업 안에서 `renderFast()`→`hpPlace()` 가 따라오는 값으로 다시 쓰므로
+   화면에는 CORE 의 값이 한 프레임도 안 나간다(그려지는 것은 작업이 끝난 뒤다). */
+#hpghost{position:absolute;left:0;top:0;height:100%;width:100%;background:#8e99a8}
 #hpfill{position:relative;height:100%;background:#5f93bd;width:100%;
   transition:width .18s linear,background-color .3s}
 #hpfill.heal{background:#7ec98a}
+/* 크게 깎이면(최대치의 15% 이상) 막대가 짧게 흔들린다. reducedMotion 이면 없다. */
+#bar.hphit,#hpbar.hphit{animation:hpHit .18s ease-out 1}
+@keyframes hpHit{
+  0%{transform:translateX(0)} 25%{transform:translateX(-2px)}
+  60%{transform:translateX(2px)} 100%{transform:translateX(0)}}
+@media (prefers-reduced-motion:reduce){ #bar.hphit,#hpbar.hphit{animation:none} }
 #foes{font-size:11px;color:var(--dim);margin-top:4px}
+
+/* 051 ⑤ — reducedMotion 판의 빛기둥 대체: 모루 테두리가 한 번 번쩍인다. */
+#forge.pulse{animation:forgePulse .4s ease-out 1}
+@keyframes forgePulse{
+  0%{box-shadow:0 0 0 0 rgba(255,217,160,.0)}
+  30%{box-shadow:0 0 0 3px rgba(255,217,160,.75)}
+  100%{box-shadow:0 0 0 0 rgba(255,217,160,0)}}
+@media (prefers-reduced-motion:reduce){ #forge.pulse{animation:none;
+  box-shadow:0 0 0 3px rgba(255,217,160,.75)} }
+
+/* 051 ③ — 피버 중 게이지는 **남은 시간**이 줄어드는 막대다(판정색). */
+#pityfill.fever{background-color:#dfb96f;box-shadow:0 0 10px rgba(223,185,111,.8)}
+body[data-fever="1"] #beat{box-shadow:0 0 0 1px rgba(223,185,111,.55)}
+
+/* 051 ① — 박자 보정 줄 */
+#offrow{margin-top:8px}
+#offrow #offtxt{display:block;margin-bottom:4px}
+#offrow input[type=range]{min-width:0}
 
 /* ── 적 무리 ── */
 #mob{display:flex;justify-content:center;flex-wrap:wrap;gap:4px;min-height:18px;margin:2px 0 1px}
@@ -1005,9 +1041,14 @@ body[data-appr="0"] #spincap #chg{display:none}
      글자를 쓰는 자리라 **남아 있어야 한다**(보이지 않아도 된다 — §3). -->
 <div id="arena">
   <div id="mob"></div>
+  <!-- 051 ④ (046 §7-e) — 체력 막대가 **머리 위**로 올라왔다. 자리(left·top·width)는
+       `renderFast()` 가 `__view.stage.hp` 에서 받아 놓는다 — 캔버스가 재는 스프라이트
+       머리 꼭지의 바로 위다. 폭은 **CORE 가 쓰던 그대로**다(`#fill`·`#hpfill`·`#hpghost`).
+       뒤 겹(`#fillghost`·`#hpghost`)은 **CSS 전환의 지연**으로 늦게 따라온다 —
+       캔버스를 깨우지 않으므로 절전(011)이 그대로 산다. -->
+  <div id="bar"><div id="fillghost"></div><div id="fill"></div></div>
+  <div id="hpbar"><div id="hpghost"></div><div id="hpfill"></div></div>
   <div id="arenafoot">
-    <div id="bar"><div id="fill"></div></div>
-    <div id="hpbar"><div id="hpghost"></div><div id="hpfill"></div></div>
     <div id="foes">—</div>
   </div>
 </div>
@@ -1197,6 +1238,17 @@ body[data-appr="0"] #spincap #chg{display:none}
       <button id="sndMusic" style="flex:1" data-s="ui.sndMusic">음악</button>
       <button id="sndSfx" style="flex:1" data-s="ui.sndSfx">효과음</button>
     </div>
+    <!-- 051 ① — 박자 보정. 블루투스 이어폰은 수백 ms 늦게 들린다(기기가 정하는 값이라
+         `ctx.outputLatency` 로는 다 못 잡는다). 사람이 직접 맞추는 자리다. -->
+    <div id="offrow" data-stitle="ui.offsetTip" title="소리가 늦게 들리면 +, 빨리 들리면 −">
+      <span id="offtxt" class="dim num">박자 보정 0ms</span>
+      <!-- 051 2차 ④ — 「맞춰 보기」 결과는 이 줄 옆에 남는다(#msg 는 다음 제련 글자가 덮는다) -->
+      <span id="offdone" class="dim"></span>
+      <div class="qrow">
+        <input id="offrange" type="range" min="-200" max="200" step="10" value="0" style="flex:1">
+        <button id="offcal" data-s="ui.offsetCal">맞춰 보기</button>
+      </div>
+    </div>
     <button id="bOdds" style="width:100%;margin-top:8px" data-s="pop.odds">등급 확률표</button>
     <button id="bStats" style="width:100%;margin-top:6px" data-s="pop.stats">옵션 수치 상세</button>
   </div>
@@ -1318,11 +1370,23 @@ const STR={ko:{
   'ui.stat':'전투력 {0} · 웨이브 {1} · ',
   'ui.pityFull':'▣ 임계압 — 다음 제련은 전 릴 정렬',
   'ui.pity':'화로압 {0}/{1}',
+  /* 051 — 피버·박자 보정. 옛 `ui.pity*`·`msg.pity` 는 **값을 안 바꾸고 안 쓴다**(§2③). */
+  'fever.ready':'▣ 특별 주문 준비 — 다음 제련은 전 릴 정렬',
+  'fever.on':'화로 피버 {0}초 — 2연 이상 보장',
+  'fever.gauge':'피버 게이지 {0}/{1}',
+  'ui.feverTip':'박에 맞춰 손으로 치면 피버 게이지가 찬다 · 견습생 타격은 안 찬다',
+  'ui.offset':'박자 보정 {0}ms',
+  'ui.offsetCal':'맞춰 보기',
+  'ui.offsetCalN':'박에 맞춰 {0}번 더',
+  'ui.offsetTip':'소리가 늦게 들리면 +, 빨리 들리면 − (블루투스 이어폰은 +100ms 쯤)',
   'ui.autosellHd':'이 등급은 대기열을 거치지 않고 바로 판매',
   /* ── 제련 판정문 ── */
   'msg.item':'{0} {1} {2}',
   'msg.autosell':'{0} — 자동 판매 ',
   'msg.pity':'▣ 임계압 정렬 — {0}',
+  'msg.special':'★ 특별 주문 제작 — {0}',
+  'msg.perfect':'◆ 완벽한 제작 — {0}',
+  'msg.offsetSet':'박자 보정 {0}ms 로 맞췄다',
   'msg.match':'◆ {0}연 정렬 — {1}',
   'msg.match2':'◇ 2연 — {0}',
   'msg.sorted.equip':'자동 정리 — {0} 장착',
@@ -1440,10 +1504,21 @@ const STR={ko:{
   'ui.stat':'Power {0} · Wave {1} · ',
   'ui.pityFull':'▣ Critical — next forge matches every item',
   'ui.pity':'Pressure {0}/{1}',
+  'fever.ready':'▣ Special order ready — next forge matches every item',
+  'fever.on':'Forge fever {0}s — 2+ match guaranteed',
+  'fever.gauge':'Fever gauge {0}/{1}',
+  'ui.feverTip':'Hand strikes on the beat fill the fever gauge · apprentice strikes do not',
+  'ui.offset':'Beat offset {0}ms',
+  'ui.offsetCal':'Calibrate',
+  'ui.offsetCalN':'{0} more on the beat',
+  'ui.offsetTip':'+ if the sound arrives late, − if early (about +100ms on Bluetooth)',
   'ui.autosellHd':'These grades sell at once, skipping the queue',
   'msg.item':'{0} {1} {2}',
   'msg.autosell':'{0} — auto-sold ',
   'msg.pity':'▣ Critical match — {0}',
+  'msg.special':'★ Special order — {0}',
+  'msg.perfect':'◆ Perfect forge — {0}',
+  'msg.offsetSet':'Beat offset set to {0}ms',
   'msg.match':'◆ {0} matched — {1}',
   'msg.match2':'◇ 2 matched — {0}',
   'msg.sorted.equip':'Sorted: kept {0}',
@@ -1526,7 +1601,24 @@ const cap=()=>Math.min(GMAX,5+Math.floor(S.lv/2));
 const capLvMax=()=>(GMAX-5)*2;                        // 상한이 다 열리는 제련 등급 = 20
 const nextCapAt=()=>(Math.floor(S.lv/2)+1)*2;
 const REELS=()=>Math.min(5,3+S.star);
-const PITY=()=>20*REELS();   // 천장: 이만큼 돌리면 다음 스핀은 전 릴 강제 정렬
+/* 051 §2② — 천장을 **피버로 대체**한다. 문턱은 옛 천장과 같은 값에서 출발하지만
+   채우는 쪽이 바뀌었다: 돌린 횟수가 아니라 **손 판정**이다(`feverAdd`).
+   ⚠ 값이 아니라 **뜻**이 바뀐 것이다 — `S.pity` 는 이제 피버 게이지다(새 필드 0개). */
+const FEVER_MAX=()=>20*REELS();   // 게이지 상한 (051 §5 로 정한 시작점)
+const FEVER_MS=15000;             // 피버 길이
+const FEVER_FILL={perfect:3, great:2, good:1, miss:0};
+const feverOn=()=>Date.now()<(S.feverUntil||0);
+const feverLeft=()=>Math.max(0,(S.feverUntil||0)-Date.now());
+/* VIEW 의 박자 판정이 손 탭마다 부르는 **유일한 입구**(051 §2②).
+   견습생 타격은 이 길을 지나지 않는다 — 그래서 자동은 게이지를 못 채운다(검사 F1).
+   피버 중에는 안 채운다(겹치지 않게). 돌려주는 값은 채운 뒤의 게이지다. */
+function feverAdd(grade){
+  if(feverOn()) return S.pity|0;
+  const add=FEVER_FILL[grade]||0;
+  if(!add) return S.pity|0;
+  S.pity=Math.min(FEVER_MAX(), (S.pity|0)+add);
+  return S.pity;
+}
 const starMul=()=>Math.pow(4,S.star);
 const optMul=()=>1+S.star*0.6;      // 별마다 옵션 수치 상한이 오른다
 // 대기창은 제련 7단계마다, 승천마다 1칸씩 늘어난다.
@@ -1578,6 +1670,16 @@ function newState(){ return {
   dust:0,tech:{},tk:2,tkDay:'',pos:0,best:0}; }
 const S=JSON.parse(localStorage.getItem('forge')||'null')||newState();
 S.star=S.star||0; S.pity=S.pity||0; S.peak=S.peak||0; S.top=S.top||0; S.dust=S.dust||0; S.tech=S.tech||{}; S.pos=S.pos||0; S.best=S.best||0;
+/* 051 §2② — 피버는 **오프라인 동안 흐르지 않는다.** 돌아오면 남은 시간이 아니라
+   «끝난 것»으로 본다(방치로 2연 보장을 쌓아 두는 길을 막는다 — 게이지는 손만의 것이다).
+   옛 세이브에는 이 필드가 없다. `S.pity` 는 그대로 쓰되 **뜻만** 피버 게이지로 바뀐다. */
+S.feverUntil=0;
+/* 051 2차 ③ — 옛 세이브의 **천장 횟수**가 피버 게이지로 넘어오면 안 된다.
+   단위가 다르다(옛 천장은 «스핀 수», 새 게이지는 «판정 점수») — 그대로 두면 손을
+   한 번도 안 댄 사람에게 특별 주문이 한 번 열린다(검증 제안 3). 불러올 때 **한 번**
+   0 으로 하고 바꿨다는 표시(`S.fv`)를 남긴다 — 이미 바꾼 세이브는 다시 안 건드린다
+   (사람이 모은 게이지를 뺏지 않는다). 새 세이브는 `S.pity` 가 이미 0 이라 표시만 붙는다. */
+if(!S.fv){ S.pity=0; S.fv=1; }
 // 033: 옛 세이브에는 이 필드가 없다 → 켜짐으로 본다. `||` 가 아니라 `??` 인 이유는
 // **끈 사람의 `false` 를 덮지 않기 위해서**다(`false||true` 는 true 가 된다).
 S.autoRes = S.autoRes ?? true;
@@ -1686,14 +1788,29 @@ function spin(free){
   spinning=true; if(!free) S.charge--;
   const els=[...document.querySelectorAll('.reel')];
   els.forEach((e,i)=>{ if(i!==S.lockIdx){e.classList.add('spin');e.classList.remove('hit');} });
-  const pityHit = S.pity>=PITY();
-  const res = pityHit
-    ? Array(REELS()).fill(S.lockIdx>=0?lockPart:Math.floor(Math.random()*6))  // 천장: 고정 릴이 있으면 그 부위로
+  /* 051 §2② — 천장 분기가 **피버 분기**가 되었다.
+     ⑴ 게이지가 가득이면 이 제련이 **특별 주문 제작**(전 릴 정렬 · 고정 토큰이 있으면
+        그 부위 — 옛 천장과 같은 규칙이라 원칙 4 의 결정 ④ 가 그대로 산다).
+     ⑵ 그 순간부터 `FEVER_MS` 동안은 **모든** 제련이 2연 이상 보장(손·견습생 둘 다).
+     ⑶ 자연 전 릴 정렬이 게이지를 비우던 규칙은 **없앴다** — 게이지는 손만의 것이다. */
+  const special = (S.pity|0)>=FEVER_MAX() && !feverOn();
+  const inFever = feverOn();
+  if(special){ S.pity=0; S.feverUntil=Date.now()+FEVER_MS; }
+  const res = special
+    ? Array(REELS()).fill(S.lockIdx>=0?lockPart:Math.floor(Math.random()*6))  // 특별 주문: 고정 릴이 있으면 그 부위로
     : Array.from({length:REELS()},(_,i)=> i===S.lockIdx?lockPart:Math.floor(Math.random()*6));
   // 정렬 보정: 굴린 뒤 확률적으로 릴 하나를 다른 릴에 맞춘다.
   if(Math.random()<T('align')*0.0025 && res.length>1){
     let a=0,b=1; while(a===b||a===S.lockIdx){a=(Math.random()*res.length)|0;b=(Math.random()*res.length)|0;}
     res[a]=res[b];
+  }
+  // 피버 중 2연 보장 — 이미 2연 이상이면 그대로 둔다(겹쳐 올리지 않는다).
+  if(inFever && !special && res.length>1){
+    const k={}; let mx=1; res.forEach(v=>{k[v]=(k[v]||0)+1; if(k[v]>mx) mx=k[v];});
+    if(mx<2){
+      let a=0,b=1; while(a===b||a===S.lockIdx){a=(Math.random()*res.length)|0;b=(Math.random()*res.length)|0;}
+      res[a]=res[b];
+    }
   }
   setTimeout(()=>{
     els.forEach((e,i)=>{e.classList.remove('spin');drawReel(e,res[i],i===S.lockIdx);});
@@ -1701,9 +1818,9 @@ function spin(free){
     let best=1,part=res[Math.floor(Math.random()*res.length)];
     for(const v in cnt){ if(cnt[v]>best){best=cnt[v];part=+v;} }
     const b=best-1;                       // 2연=1, 3연=2, 4연=3, 5연=4
-    S.pity = best===REELS() ? 0 : S.pity+1;   // 자연 전릴 정렬도 천장을 비운다
     if(b>0) els.forEach((e,i)=>{ if(res[i]===part) e.classList.add('hit'); });
     const it=makeItem(PARTS[part].id,rollGrade(b));
+    fgLastBest=best; fgLastSpecial=special; fgLastGrade=it.g;
     const m=document.getElementById('msg');
     // 034 판정 ⓐ: 문자열 → t() 교체. 뽑힌 부위·등급·세부등급은 그대로다.
     const tag=t('msg.item',t('part.'+PARTS[part].id),t('ui.grade',it.g),ROMAN[it.lv]);
@@ -1712,13 +1829,19 @@ function spin(free){
       m.innerHTML=t('msg.autosell',tag)+ciGold()+fmt(sellPrice(it)); m.className='';
     }else{
       S.queue.push(it);
-      m.textContent = pityHit?t('msg.pity',tag) : b>=2?t('msg.match',best,tag) : b===1?t('msg.match2',tag) : tag;
-      m.className = (pityHit||b>=2)?'big':'';
+      // 051 §2③ — 특별 주문과 «자연» 전 릴 정렬을 글자로 가른다(옛 `msg.pity` 는 안 쓴다).
+      m.textContent = special?t('msg.special',tag)
+                    : best===REELS()?t('msg.perfect',tag)
+                    : b>=2?t('msg.match',best,tag) : b===1?t('msg.match2',tag) : tag;
+      m.className = (special||b>=2)?'big':'';
     }
     S.lockIdx=-1; spinning=false; render();
   },420);
 }
 let lockPart=0;
+/* 051 — 마지막 제련의 **결과**다. 검사(F4)와 연출(⑤ 빛기둥)이 읽는다 — 깃발이 아니라
+   효과를 재게 하려고 둔다. 세이브 필드가 아니라 모듈 변수다(저장 형식 불변). */
+let fgLastBest=0, fgLastSpecial=false, fgLastGrade=0;
 
 /* ══ 전투 ══ */
 let foeHP=0,foeMax=0,pHP=0,foeKind='melee';
@@ -2873,18 +2996,24 @@ function renderFast(){
   // 상세 팝업도 같은 줄을 든다 — 열려 있는 동안 판단 근거가 화면에서 사라지지 않는다 (016).
   const ps=document.getElementById('pstat');
   if(ps) ps.innerHTML=t('ui.stat',fmt(power(S.equip)),S.wave)+ciGold()+fmt(S.gold);
-  // 화로 압력계 — 폭(막대)과 바늘 각도만 갱신한다. innerHTML 재구성 없음.
-  const pv=Math.min(100,S.pity/PITY()*100);
+  /* 051 §2③ — 압력계가 **피버 게이지**가 된다. 요소·자리·바늘은 그대로 쓰고
+     ⑴ 차오르는 값이 `S.pity`(= 손 판정이 채운 양) ⑵ 피버 중엔 **남은 시간**이 줄어드는
+     막대로 바뀐다 ⑶ 막대 색이 판정색(금 → 등급색)을 따른다(`.full`·`.fever` 클래스).
+     옛 말(`ui.pity`·`ui.pityFull`)은 **값을 안 바꾸고 안 쓴다** — 새 키로 간다. */
+  const fvMax=FEVER_MAX(), fvOn=feverOn();
+  const pv = fvOn ? (feverLeft()/FEVER_MS*100) : Math.min(100,(S.pity|0)/fvMax*100);
   const pf=document.getElementById('pityfill');
   pf.style.width=pv+'%';
-  pf.className=S.pity>=PITY()?'full':'';
+  pf.className = fvOn?'fever' : (S.pity|0)>=fvMax?'full':'';
   document.getElementById('pneedle').style.transform='rotate('+(-80+pv*1.6)+'deg)';
-  /* 047 2차 — 같은 라벨이 **글자가 아니라 `title`** 로 간다. 쓰는 말(`ui.pity`·
-     `ui.pityFull`)은 한 글자도 안 바뀐다. `#pitytxt` 는 비워 둔다(요소는 남긴다). */
-  const plb=S.pity>=PITY()?t('ui.pityFull'):t('ui.pity',S.pity,PITY());
+  /* 047 2차 — 같은 라벨이 **글자가 아니라 `title`** 로 간다. `#pitytxt` 는 비워 둔다. */
+  const plb = fvOn ? t('fever.on',Math.ceil(feverLeft()/1000))
+            : (S.pity|0)>=fvMax ? t('fever.ready')
+            : t('fever.gauge',S.pity|0,fvMax);
   document.getElementById('pitytxt').textContent='';
   { const pe=document.getElementById('pity');
-    if(pe) pe.title=t('ui.pityTip')+' · '+plb; }
+    if(pe) pe.title=t('ui.feverTip')+' · '+plb; }
+  hpPlace();                      // 051 ④ — 머리 위 막대를 자리에 놓는다
   // 세로 온도계 = 남은 충전 (표시 전용, 수치는 그대로)
   // 047 §2① — 온도계가 가로로 누웠다. 채우는 값은 그대로, 쓰는 축만 바뀐다.
   document.getElementById('thermf').style.width=
@@ -3249,6 +3378,115 @@ function renderTech(){
       if(S.dust>=c&&T(k)<TECH[k].max){ S.dust-=c; S.tech[k]=T(k)+1; render(); } });
 }
 
+/* ══ 051 ④ (2차 ①②) — 머리 위 체력 막대 (046 §7-e) ═══════════════════════
+   자리는 캔버스가 재어 내놓은 `__view.stage.hp`(스프라이트 머리 꼭지 바로 위)다.
+   **앞 겹의 폭은 손대지 않는다** — `#fill`·`#hpfill` 은 CORE 가 쓰는 그대로다.
+
+   2차에서 바뀐 것 둘(1차의 결함 둘):
+   ⑴ **뒤 겹을 VIEW 가 끌고 온다**(①). 1차는 CSS `transition … .25s` 에 맡겼는데,
+      지연이 250ms 틱과 같아 전이가 매 틱 처음부터 다시 걸려 **전투 중에는 한 번도
+      안 움직였다**(검증 실측: 8초 81/81 표본이 100%). 이제 `hpTick()` 이 캔버스 프레임과 250ms 틱에서
+      간격에 비례해 당긴다(시정수 `HP_TAU`=0.35초) — 간격이 좁아질수록 느려지는
+      지수 추적이라 「늦게 따라오는 주황」이 실제로 보인다. 한 번에 최대치의 15% 넘게
+      깎인 **그 한 방만** 0.3초 머문다(사용자가 원한 «딜레이»).
+   ⑵ **자리를 기하가 바뀐 그 프레임에 옮긴다**(②). 1차는 250ms 틱에서만 옮겨서,
+      몹 수 6↔8 로 **배율이 뛰는 순간**부터 다음 틱까지(≤250ms) 막대가 옛 자리에 남아
+      **머리를 덮었다**(검증 실측: 768×1024 에서 20초 중 14.6% 프레임). 이제 44b 의
+      `hpGeom()` 이 값이 바뀐 프레임에서 바로 `hpPlace()` 를 부른다 — **DOM 쓰기는
+      바뀔 때만**이라 절전(011)은 그대로다.
+
+   ⚠ 뒤 겹의 rAF 루프는 **따라올 것이 남았을 때만** 돈다(붙으면 스스로 멈춘다) —
+     유휴에서는 한 프레임도 안 돈다(soak 의 duty 가 그대로인 까닭).
+   ⚠ CORE 는 틱마다 `#hpghost` 에 앞 겹과 같은 값을 쓴다. 그 **같은 작업 안**에서
+     `renderFast()`→`hpPlace()` 가 따라오는 값으로 다시 쓰므로 화면에는 안 나간다. */
+const HP_DROP=0.15;           // 「큰 한 방」 문턱 (최대치 대비)
+const HP_TAU=0.35;            // 뒤 겹 지수 추적 시정수(초)
+const HP_HOLD=300;            // 큰 한 방 뒤 머무는 시간(ms)
+const HP_SNAP=0.0005;         // 이만큼 붙으면 같은 값으로 본다(0.05%p)
+/* ⚠ 처음엔 0.4%p 로 뒀다가 줄였다 — 적 막대가 **틱당 0.5%p 밖에 안 깎이는** 판에서는
+   한 걸음이 문턱보다 작아 **곧바로 붙어** 버려 따라오는 것이 안 보였다(2차 실측 0.1%p). */
+let hpWas={foe:1, hero:1};                    // 흔들림 판정용(틱 기준)
+let hpG={foe:1, hero:1};                      // 뒤 겹이 지금 있는 자리
+let hpF={foe:1, hero:1};                      // 앞 겹의 지난 값(큰 한 방 찾기)
+let hpHold={foe:0, hero:0};                   // 머무는 끝 시각(ms)
+
+const hpNow=()=>(typeof performance==='object'&&performance.now)?performance.now():Date.now();
+/* 앞 겹의 폭(0~1). CORE 가 `style.width` 에 쓴 **목표값**이라 틱에서 바로 뛴다
+   (그려지는 폭은 `.18s linear` 로 따라간다 — 앞 겹의 전이는 1차 그대로다). */
+const hpFrac=id=>{ try{ const e=document.getElementById(id);
+  const n=e&&e.style?parseFloat(e.style.width):NaN; return isFinite(n)?Math.max(0,Math.min(1,n/100)):1;
+}catch(e){ return 1; } };
+
+function hpGhostWrite(){
+  try{
+    const fg=document.getElementById('fillghost');
+    if(fg) fg.style.width=(hpG.foe*100).toFixed(2)+'%';
+    const hg=document.getElementById('hpghost');
+    if(hg) hg.style.width=(hpG.hero*100).toFixed(2)+'%';
+    const V=globalThis.__view;
+    if(V&&V.stage&&V.stage.hp) V.stage.hp.v={
+      foe:+hpFrac('fill').toFixed(3), hero:+hpFrac('hpfill').toFixed(3),
+      gfoe:+hpG.foe.toFixed(3), ghero:+hpG.hero.toFixed(3),
+      hold:{foe:Math.max(0,Math.round(hpHold.foe-hpNow())), hero:Math.max(0,Math.round(hpHold.hero-hpNow()))}};
+  }catch(e){}
+}
+/* 한 걸음. `dt` 는 초. 돌려주는 값은 「아직 따라올 것이 남았나」. */
+function hpStep(dt){
+  const now=hpNow();
+  const k=(dt>0)?(1-Math.exp(-dt/HP_TAU)):0;
+  let busy=false;
+  for(const key of ['foe','hero']){
+    const f=hpFrac(key==='foe'?'fill':'hpfill');
+    const drop=hpF[key]-f;
+    if(drop>=HP_DROP) hpHold[key]=now+HP_HOLD;   // 큰 한 방 — 그 한 방만 머문다
+    hpF[key]=f;
+    let g=hpG[key];
+    if(f>=g) g=f;                                 // 회복·새 웨이브는 곧바로 올라간다
+    else if(now<hpHold[key]) busy=true;           // 머무는 동안은 그대로
+    else { g+=(f-g)*k; if(Math.abs(f-g)<HP_SNAP) g=f; }
+    hpG[key]=g;
+    if(Math.abs(f-g)>=HP_SNAP) busy=true;
+  }
+  return busy;
+}
+/* ⚠ **따로 도는 rAF 루프를 두지 않는다.** 처음엔 전용 루프를 돌렸는데, 전투 중에는
+   체력이 250ms마다 깎여 따라올 것이 **늘 남아** 있어 루프가 영영 안 멈췄다 —
+   soak 가 「몰아치기 뒤 6초 동안 «불티 0 · 잠듦 · rAF 0» 이 한 번도 아니다」로
+   **누수 의심**을 냈다(011 절전의 계약은 화면이 **완전히 설 수 있다**는 것이다).
+   그래서 걸음은 이미 도는 두 자리에서만 딛는다:
+     ⑴ 무대 캔버스가 깨어 있는 프레임(44b 가 `hpTick()` 을 부른다 — 타격·모션 중이라
+        사람이 보고 있는 그 순간이다 · 캔버스가 자면 한 프레임도 안 돈다)
+     ⑵ 250ms 틱(`renderFast()`→`hpPlace()`) — 캔버스가 자는 동안에도 네 걸음/초로 따라온다
+   `dt` 를 실제로 흐른 시간으로 재므로 두 자리의 간격이 달라도 같은 시정수로 움직인다. */
+let hpStepAt=0;
+function hpTick(){
+  const t=hpNow();
+  const dt=hpStepAt?Math.min(0.5,Math.max(0,(t-hpStepAt)/1000)):0;
+  hpStepAt=t;
+  hpStep(dt); hpGhostWrite();
+}
+function hpPlace(){
+  try{
+    const V=globalThis.__view; if(!V||!V.stage) return;
+    const hp=V.stage.hp, rect=V.stage.rect; if(!hp||!rect) return;
+    const put=(id,b)=>{ const e=document.getElementById(id); if(!e||!b) return;
+      e.style.left=Math.round(b.x-rect.x)+'px';
+      e.style.top =Math.round(b.y-rect.y)+'px';
+      e.style.width=b.w+'px'; };
+    put('bar',hp.foe); put('hpbar',hp.hero);
+    const fv=hpFrac('fill'), hv=hpFrac('hpfill');
+    if(!V.reducedMotion){
+      const hit=(id,now,was)=>{ if(was-now<HP_DROP) return;
+        const e=document.getElementById(id); if(!e||!e.classList) return;
+        e.classList.remove('hphit'); void e.offsetWidth; e.classList.add('hphit');
+        if(typeof setTimeout==='function') setTimeout(()=>{ try{ e.classList.remove('hphit'); }catch(x){} },220); };
+      hit('bar',fv,hpWas.foe); hit('hpbar',hv,hpWas.hero);
+    }
+    hpWas={foe:fv, hero:hv};
+    /* CORE 가 방금 쓴 `#hpghost` 를 **같은 작업 안에서** 따라오는 값으로 덮는다. */
+    hpTick();
+  }catch(e){}
+}
 /* ══════════════════════════════════════════════════════════════════════════
    048 §2③ — 릴을 **진짜 슬롯처럼** 돌린다 (VIEW 전용)
 
@@ -3808,6 +4046,18 @@ document.getElementById('open').onclick=()=>{ reelTouch(); openCmp(); };
   if(m) m.onclick=()=>{ reelTouch(); SND.music=!SND.music; sndSavePrefs(); sndApply(); };
   const x=document.getElementById('sndSfx');
   if(x) x.onclick=()=>{ reelTouch(); SND.sfx=!SND.sfx; sndSavePrefs(); sndApply(); sfx('sfx-tink'); };
+  /* 051 ① — 박자 보정. 슬라이더는 그 자리에서 먹고, 「맞춰 보기」는 여덟 번의 평균을
+     제안한다. 값은 `hs.offset`(localStorage) — 세이브 `S` 에 안 들어간다.
+     ⚠ `RHY` 는 파일 아래쪽(46 조각)에서 만들어진다 — 여기서 **읽지 않고**, 눌렀을 때만
+       `rhy*()` 를 부른다(049 1차의 TDZ 사고와 같은 자리다). */
+  const or=document.getElementById('offrange');
+  if(or) or.oninput=()=>{ try{ RHY.offset=Math.max(-200,Math.min(200,parseInt(or.value,10)||0));
+    RHY.cal=null; RHY.calDone=null; rhySaveOffset(); rhyOffsetUI(); rhyView(); }catch(e){} };
+  const oc=document.getElementById('offcal');
+  /* 051 2차 ④ — 「맞춰 보기」를 누르면 **팝업을 닫는다.** 팝업이 화면을 덮고 있어서
+     모루를 못 치면 맞출 방법이 없다(2차 탐침이 처음 그 자리에서 0번 쳤다).
+     결과는 `#offdone` 에 남아 있으니 다시 열어 읽으면 된다. */
+  if(oc) oc.onclick=()=>{ reelTouch(); try{ rhyCalStart(); closePop(); }catch(e){} };
   /* ⚠ `sndLoadPrefs()` 를 **여기서 부르면 안 된다** — `const SND` 는 파일 아래쪽에서
      만들어지고 그 전까지는 TDZ 라 `ReferenceError` 가 난다. try/catch 가 그것을
      조용히 삼켜서, 소리를 끄고 새로고침하면 다시 켜져 있었다(검사 A6 가 울었다).
@@ -3876,6 +4126,7 @@ function openPop(k){
   document.getElementById('ptitle').textContent=POPS[k]?t(POPS[k]):'';
   document.getElementById('pop').classList.add('on');
   renderFast();                                  // 전투력·웨이브·골드 줄을 최신으로
+  try{ rhyOffsetUI(); }catch(e){}                // 051 ① — 보정 줄의 값·글자를 맞춘다
 }
 const closePop=()=>document.getElementById('pop').classList.remove('on');
 document.getElementById('pclose').onclick=closePop;
@@ -4344,6 +4595,8 @@ setInterval(()=>{
   reelPump();
   // 049 §2③④ — 소리는 **관찰자**다. 틱이 변화를 훑고, 광고·숨김이면 문맥을 재운다.
   sfxWatch(); sndGate();
+  // 051 ③⑤ — 피버도 **관찰자**다. CORE 는 소리·연출을 한 줄도 부르지 않는다.
+  feverWatch();
   if(autoResOn() && !FG.veiled) autoResolve();
   /* 047 §2⑤-9 — 자동은 `spin()` 을 부르지 않는다. **견습생이 박자로 친다**:
      500ms 마다 한 박(120 BPM — R2 에서 배경음악 박자와 맞춘다). 사람이 같이
@@ -4419,7 +4672,7 @@ const VIEW={
   // 018 이 넷을 더한다. **노출되지 않는 연출은 완료로 인정하지 않는다**(CLAUDE.md).
   // 019 가 셋을 더한다 (던전 연출도 같은 규약을 따른다 — 노출 없으면 완료 아님).
   counters:{shake:0, burst:0, bounce:0, attack:0, hitstop:0, flash:0, dissolve:0,
-    climb:0, dice:0, reward:0},
+    climb:0, dice:0, reward:0, pillar:0},        // 051 ⑤ — 등급 빛기둥
   limits:{particles:FX_MAX_PARTICLES, burstPerHit:FX_BURST_CAP},
   alive:{particles:0, tweens:0},       // 누적 방지 확인용 (§4)
   reducedMotion:false,
@@ -4508,8 +4761,9 @@ globalThis.__view=VIEW;                // 브라우저에선 window.__view. node
 const SND={
   ctx:null, master:null, mGain:null, sGain:null,
   buf:{},                    // 키 → AudioBuffer
-  packs:{sfx:'none', forge:'none'},
+  packs:{sfx:'none', forge:'none', fever:'none'},  // 051 ③ — 피버 곡 묶음이 더해졌다
   bgm:'none', bgmSrc:null, loopLen:0, loopAt:0,   // loopAt = 반복이 시작된 ctx 시각
+  track:'forge', mGain2:null, bgmSrc2:null,       // 051 ③ — 지금 도는 곡 · 겹쳐 넘기는 쪽
   music:true, sfx:true, cgMute:false,
   played:{}, skipped:0, dropped:0, lat:0,
   live:0, lastAt:{}, ascAt:[],
@@ -4549,10 +4803,18 @@ function sndState(){
 function sndView(){
   const V=globalThis.__view; if(!V) return;
   V.sfx={ctx:sndState(), music:SND.music, sfx:SND.sfx, cgMute:SND.cgMute,
-    packs:{sfx:SND.packs.sfx, forge:SND.packs.forge},
-    bgm:SND.bgm, loopLen:+SND.loopLen.toFixed(4),
+    packs:{sfx:SND.packs.sfx, forge:SND.packs.forge, fever:SND.packs.fever},
+    bgm:SND.bgm, track:SND.track, loopLen:+SND.loopLen.toFixed(4),
     played:SND.played, skipped:SND.skipped, dropped:SND.dropped,
     lat:+SND.lat.toFixed(2), live:SND.live, ascAt:SND.ascAt};
+  /* 051 ② — 피버의 창구. **깃발이 아니라 효과**다: 게이지는 `S.pity`(손 판정이 채운
+     양) · 남은 시간은 `S.feverUntil` 에서 나온 ms · `last` 는 마지막 제련의 정렬 수다. */
+  try{ V.fever={gauge:S.pity|0, max:FEVER_MAX(), on:feverOn(), left:feverLeft(),
+    ms:FEVER_MS, fill:FEVER_FILL, track:SND.track,
+    last:{best:(typeof fgLastBest!=='undefined')?fgLastBest:0,
+          special:(typeof fgLastSpecial!=='undefined')?!!fgLastSpecial:false,
+          grade:(typeof fgLastGrade!=='undefined')?fgLastGrade:0},
+    pillars:V.counters?V.counters.pillar||0:0}; }catch(e){}
 }
 
 /* ── 묶음 싣기 — `<script src>` 는 `file://` 에서도 된다(§2①) ─────────────── */
@@ -4588,6 +4850,12 @@ async function sndDecodePack(name){
   }
   SND.packs[name]='ready'; sndView();
   if(name==='forge') sndBgmStart();
+  /* 051 ③ — 피버 곡이 **피버가 이미 돌고 있는 중에** 도착했으면 그 자리에서 갈아탄다.
+     게이지가 70% 를 지나는 것을 틱이 못 본 판(게이지가 한 번에 찬 판)에서도
+     곡이 바뀌게 하는 안전망이다. 늦게라도 바뀌는 것이 영영 안 바뀌는 것보다 낫다. */
+  if(name==='fever' && typeof feverOn==='function' && feverOn()){
+    try{ bgmSwitch('fever'); if(typeof rhyGrid==='function') rhyGrid(RHY_BPM_FEVER); }catch(e){}
+  }
 }
 
 /* ── 켜기 — **첫 사람 입력**에서 한 번 ──────────────────────────────────── */
@@ -4726,8 +4994,71 @@ function bgmGain(v,sec){
     SND.mGain.gain.exponentialRampToValueAtTime(Math.max(0.0001,v),t+(sec||0.4));
   }catch(e){}
 }
-// 피버 곡·화로 곡 전환 — **자리만**. 부르는 곳이 없다(R2b·R3 몫).
-function bgmSwitch(name){ return name; }
+/* ══ 051 ③ — 곡 갈아타기(대장간 ↔ 피버) ═══════════════════════════════════
+   046 §7-b′ 대로 **2초 겹쳐** 넘긴다. 쓰는 수는 가장 싼 것이다:
+   같은 `master` 밑에 **두 번째 음악 게인**(`mGain2`)을 만들어, 새 곡을 거기서 올리고
+   옛 곡을 같은 2초에 내린다. 끝나면 옛 노드를 세워 버리고 둘을 맞바꾼다.
+   ⚠ 박자 격자는 **새 곡의 반복 시작 시각**에 붙는다(`SND.loopAt` 을 새로 쓴다) —
+     그러면 `rhyRef()` 가 그대로 새 박을 따라간다(049 2차 ④ 의 느린 추적).
+   ⚠ 묶음이 아직 안 실렸으면 **아무것도 안 한다**(소리가 없을 뿐 게임은 그대로다).
+   ⚠ `name` 은 'forge' | 'fever'. 돌려주는 값은 **실제로 갈아탄 곡**이다. */
+function bgmSwitch(name){
+  try{
+    if(!SND.ctx||!SND.master) return SND.track;
+    const key = name==='fever' ? 'bgm-fever-loop' : 'bgm-loop';
+    const buf = SND.buf[key];
+    if(!buf || SND.track===name) return SND.track;
+    const t0=SND.ctx.currentTime+0.02, XF=2.0;
+    // 새 곡 — 두 번째 게인에서 0 → 목표로 2초 동안 오른다
+    const g=SND.ctx.createGain(); g.gain.setValueAtTime(0.0001,t0); g.connect(SND.master);
+    const a=sndTrim(buf);                       // 이음매를 잘라 반복 구간을 잡는다
+    const l=SND.ctx.createBufferSource(); l.buffer=buf;
+    l.loop=true; l.loopStart=SND.trimA; l.loopEnd=SND.trimB;
+    l.connect(g); l.start(t0,SND.trimA);
+    g.gain.exponentialRampToValueAtTime(sndOnMusic()?SND_BGM_VOL:0.0001,t0+XF);
+    // 옛 곡 — 같은 2초에 내리고 끝나면 세운다
+    const oldG=SND.mGain, oldSrc=SND.bgmSrc;
+    if(oldG){ oldG.gain.cancelScheduledValues(t0);
+      oldG.gain.setValueAtTime(Math.max(0.0001,oldG.gain.value),t0);
+      oldG.gain.exponentialRampToValueAtTime(0.0001,t0+XF); }
+    if(oldSrc&&typeof setTimeout==='function')
+      setTimeout(()=>{ try{ oldSrc.stop(); }catch(e){} try{ if(oldG) oldG.disconnect(); }catch(e){} },(XF+0.3)*1000);
+    SND.mGain=g; SND.bgmSrc=l; SND.loopLen=a; SND.loopAt=t0;
+    SND.track=name; SND.bgm='loop';
+    sndView();
+    return name;
+  }catch(e){ return SND.track; }
+}
+/* 피버가 열렸다 — 효과음 한 방 뒤 **다음 마디**에서 곡과 박자를 갈아탄다.
+   마디 = 네 박(046 §7-b′ 의 「마디 경계」). 박자 격자는 소리와 **같이** 바뀐다. */
+function sndFeverStart(){
+  try{
+    sndFeverLater();        // 051 ③ — 아직 안 실렸으면 지금이라도(게이지가 한 번에 찬 판)
+    sfx('sfx-fever-start');
+    const wait=sndBarWait();
+    const go=()=>{ bgmSwitch('fever'); if(typeof rhyGrid==='function') rhyGrid(RHY_BPM_FEVER); };
+    if(typeof setTimeout==='function') setTimeout(go,wait); else go();
+  }catch(e){}
+}
+function sndFeverEnd(){
+  try{
+    const go=()=>{ bgmSwitch('forge'); if(typeof rhyGrid==='function') rhyGrid(RHY_BPM); };
+    if(typeof setTimeout==='function') setTimeout(go,sndBarWait()); else go();
+  }catch(e){}
+}
+/* 다음 마디까지 남은 ms. 박자 격자를 읽는다(없으면 0 — 바로 넘긴다). */
+function sndBarWait(){
+  try{
+    if(typeof RHY!=='object'||!RHY||typeof RHY_BEAT!=='number') return 0;
+    const beatsIn=((RHY.beat%4)+4)%4 + (RHY.phase||0);
+    return Math.max(0,(4-beatsIn)*RHY_BEAT*1000);
+  }catch(e){ return 0; }
+}
+/* 피버 곡은 **게이지 70% 에서 미리** 싣는다(046 §7-b′ 의 불러오는 순서).
+   2MB 를 피버가 열리는 순간에 집으면 그 몇 백 ms 가 첫 마디를 먹는다(049 ③ 교훈). */
+function sndFeverLater(){
+  try{ if(SND.packs.fever==='none') sndPack('fever'); }catch(e){}
+}
 
 /* ── 끄고 켜기 ───────────────────────────────────────────────────────────── */
 function sndApply(){
@@ -4785,6 +5116,44 @@ function sfxMade(){
     const it=S.queue[S.queue.length-1];
     if(it&&(it.g||0)>=10) sfx('sfx-legend',{at:0.12});
   }catch(e){}
+  feverMade();                        // 051 ⑤ — 빛기둥은 **드러난 그 순간**에 선다
+}
+/* ══ 051 ⑤ — 등급 빛기둥 · 특별 주문의 큰 셰이크 ══════════════════════════
+   「드러난 그 순간」은 `sfxMade()` 가 서는 자리와 같다(마지막 릴이 선 순간 · 주기당
+   한 번). CORE 가 남긴 `fgLastSpecial`·`fgLastGrade` 를 읽어 **효과만** 더한다.
+   ⚠ 캔버스 연출은 `__pillar`·`__shake` 로만 부른다(44b 가 내보낸다) — 없으면 아무 일도
+     없다(하네스·캔버스 없는 판). 글자는 CORE 가 이미 썼다(`msg.special`). */
+function feverMade(){
+  try{
+    const sp=(typeof fgLastSpecial!=='undefined')&&fgLastSpecial;
+    const g=(typeof fgLastGrade!=='undefined')?(fgLastGrade|0):0;
+    if(sp){
+      if(typeof __shake==='function') __shake(9);          // 큰 셰이크
+      if(!(SND.buf['sfx-legend'])) sfx('sfx-ascend-riser',{at:0.02});
+    }
+    if(sp||g>=10){
+      if(typeof __pillar==='function') __pillar(sp?15:g);  // 등급색 빛기둥
+      if(sp) sfx('sfx-legend',{at:0.02});
+    }
+  }catch(e){}
+}
+/* 피버의 관찰자. 250ms 틱이 부른다(42c). CORE 는 소리·연출을 한 줄도 안 부른다. */
+let fvOnSeen=false, fvPre=false;
+function feverWatch(){
+  try{
+    const on=feverOn(), g=S.pity|0, mx=FEVER_MAX();
+    // 046 §7-b′ 불러오는 순서 — 피버 곡은 **게이지 70%** 에서 미리 싣는다
+    if(!fvPre && g>=mx*0.7){ fvPre=true; sndFeverLater(); }
+    if(on&&!fvOnSeen){ fvOnSeen=true; sndFeverStart(); }
+    else if(!on&&fvOnSeen){ fvOnSeen=false; sndFeverEnd(); }
+    try{ if(typeof document!=='undefined'&&document.body)
+      document.body.setAttribute('data-fever',on?'1':'0'); }catch(e){}
+  }catch(e){}
+}
+/* 손 판정 하나가 게이지를 채운다 — `rhyJudge()` 가 부르는 **유일한 입구**(051 §2②).
+   CORE 의 `feverAdd()` 를 그대로 부르고, 화면은 다음 틱의 `renderFast()` 가 그린다. */
+function feverTap(grade){
+  try{ if(typeof feverAdd==='function') feverAdd(grade); }catch(e){}
 }
 /* 전투·웨이브 — 카운터와 `S` 의 **변화**만 본다. 250ms 틱이 부른다. */
 let sfxSeen={dissolve:0, attack:0, wave:0, star:0, lv:0, tech:0};
@@ -4842,12 +5211,79 @@ try{ sndLoadPrefs(); sndApply(); }catch(e){}
      그것 하나이므로 변환이 없다.
    ⚠ **판정은 릴 멈춤을 막지 않는다.** 어느 판정이든 탭은 그 릴을 세운다.
    ══════════════════════════════════════════════════════════════════════════ */
-const RHY_BPM=120.15, RHY_BEAT=60/RHY_BPM;          // 0.49938 초
+const RHY_BPM=120.15, RHY_BPM_FEVER=160.25;         // 051 ③ — 피버 곡은 더 빠른 박자
+let RHY_BEAT=60/RHY_BPM;                            // 0.49938 초 · 피버 중엔 0.37441 초
 const RHY_PERFECT=45, RHY_GREAT=90, RHY_GOOD=140;   // ms
 const RHY_TICKS=6;                                  // 게이지에 남기는 눈금 수
+const RHY_CAL_N=8;                                  // 「맞춰 보기」가 받는 탭 수
 const RHY={ origin:null, clock:'perf', beat:0, phase:0, edge:-1, raf:null,
             last:{grade:'', ms:0}, counts:{perfect:0,great:0,good:0,miss:0},
-            combo:0, best:0, ticks:[] };
+            combo:0, best:0, ticks:[], bpm:RHY_BPM,
+            offset:0, lat:0, cal:null, calDone:null, calTaps:null };  // 051 ① — 보정(ms) · 출력 지연(초)
+
+/* ══ 051 ① — 박자 보정. **박은 «들리는» 시각에 있다** ═════════════════════════
+   049 검증 실측: 바늘이 들리는 박보다 **≈37ms 앞섰다.** 까닭은 둘이다.
+     ⑴ `ctx.currentTime` 에 예약한 소리는 그 시각에 **나가기 시작**할 뿐이고,
+        스피커에서 **들리기까지** 기기만큼 더 걸린다 — `ctx.outputLatency` 다.
+     ⑵ 사람의 기기(블루투스 이어폰 수백 ms)는 우리가 알 길이 없다 — 그래서 사람이
+        직접 맞추는 자리(`hs.offset`)를 둔다.
+   그래서 박 기준점에 **출력 지연 + 사람 보정**을 더한다. 바늘과 판정이 같은
+   기준점을 쓰므로 둘이 **함께** 밀린다(한쪽만 밀면 「보이는 박에 쳤는데 아쉬움」이 된다).
+   ⚠ 보정은 **음악이 들릴 때만** 뜻이 있다. 음악이 없으면 바늘 자신이 기준이라
+     격자를 통째로 밀어도 보이는 것이 없다(판정도 같이 밀리니 결과가 같다).
+   ⚠ `hs.offset` 은 `localStorage` 다 — 세이브 `S` 에 넣지 않는다(저장 형식 불변). */
+function rhyOutLat(){
+  try{
+    const c=SND.ctx; if(!c) return 0;
+    const o=c.outputLatency; if(typeof o==='number'&&isFinite(o)&&o>0) return o;
+    const b=c.baseLatency;   if(typeof b==='number'&&isFinite(b)&&b>0) return b;
+  }catch(e){}
+  return 0;
+}
+function rhyLoadOffset(){
+  try{ const v=localStorage.getItem('hs.offset');
+    if(v!==null){ const n=parseInt(v,10); if(isFinite(n)) RHY.offset=Math.max(-200,Math.min(200,n)); }
+  }catch(e){}
+}
+function rhySaveOffset(){
+  try{ localStorage.setItem('hs.offset',String(RHY.offset|0)); }catch(e){}
+}
+/* 「맞춰 보기」 — 박에 맞춰 여덟 번 치면 **평균 시차**를 보정값에 더한다.
+   늦게 친 사람(시차 +)은 격자를 그만큼 뒤로 밀어야 그 탭이 완벽이 된다. */
+function rhyCalStart(){
+  RHY.cal=[]; rhyOffsetUI(); rhyView();
+}
+/* 여덟 번의 **중앙값**을 쓴다(2차 ④). 평균은 튀는 한 탭에 끌려간다 — 검증 실측으로
+   한 탭이 30ms 를 끌고 갔다. 중앙값은 그 한 탭을 그냥 버린다.
+   결과 글자도 `#msg` 가 아니라 **정보 팝업의 그 줄 옆**(`#offdone`)에 남긴다 —
+   `#msg` 는 다음 제련 글자가 곧 덮는다(0.25초 뒤 틱). */
+const rhyMed=a=>{ const b=a.slice().sort((x,y)=>x-y), n=b.length;
+  return n?(n%2?b[(n-1)/2]:(b[n/2-1]+b[n/2])/2):0; };
+function rhyCalTap(d){
+  if(!RHY.cal) return;
+  RHY.cal.push(d);
+  if(RHY.cal.length>=RHY_CAL_N){
+    const mid=rhyMed(RHY.cal);
+    RHY.offset=Math.max(-200,Math.min(200,Math.round((RHY.offset+mid)/10)*10));
+    RHY.calDone=RHY.offset; RHY.calTaps=RHY.cal.slice(); RHY.cal=null;
+    rhySaveOffset(); rhyOffsetUI();
+  }
+  rhyOffsetUI();
+}
+function rhyOffsetUI(){
+  try{
+    const r=document.getElementById('offrange'); if(r&&+r.value!==RHY.offset) r.value=String(RHY.offset);
+    const lb=document.getElementById('offtxt');
+    if(lb) lb.textContent = RHY.cal ? t('ui.offsetCalN',RHY_CAL_N-RHY.cal.length) : t('ui.offset',RHY.offset);
+    const b=document.getElementById('offcal');
+    if(b) b.className = RHY.cal ? 'hot' : '';
+    // 2차 ④ — 맞춘 결과는 그 줄 옆에 남는다(슬라이더를 움직이면 사라진다)
+    const dn=document.getElementById('offdone');
+    if(dn){ const on=(RHY.calDone!==null&&RHY.calDone!==undefined&&!RHY.cal);
+      dn.textContent = on ? t('msg.offsetSet',RHY.calDone) : '';
+      dn.className = on ? 'num hot' : 'dim'; }
+  }catch(e){}
+}
 
 /* ⚠ 049 2차 ④ — **시계 하나로 그린다.** 바늘·판정은 늘 성능 시계(`performance.now`)로
      세고, 곡(오디오 시계)은 **기준**으로만 쓴다. 1차는 음악이 돌면 오디오 시계로
@@ -4869,13 +5305,28 @@ function rhyNow(){ return rhyPerf(); }               // 그리는 시계는 늘 
    음악을 껐으면(`sndOnMusic()` 거짓) `null` — 맞출 곡이 없다. */
 function rhyRef(){
   try{
-    if(sndOnMusic() && SND.ctx && SND.ctx.state==='running' && SND.bgm!=='none' && SND.loopAt)
-      return rhyPerf() - (SND.ctx.currentTime - SND.loopAt);
+    if(sndOnMusic() && SND.ctx && SND.ctx.state==='running' && SND.bgm!=='none' && SND.loopAt){
+      RHY.lat=rhyOutLat();
+      // 051 ① — 반복이 **들리기 시작하는** 시각이 박 0 이다(+ 사람 보정)
+      return rhyPerf() - (SND.ctx.currentTime - SND.loopAt) + RHY.lat + RHY.offset/1000;
+    }
   }catch(e){}
   return null;
 }
-const RHY_SLIDE=RHY_BEAT*0.004;                      // 한 프레임에 밀 수 있는 최대(초)
-const RHY_FRAME_CAP=RHY_BEAT*0.048;                  // 한 프레임에 바늘이 갈 수 있는 몫
+let RHY_SLIDE=RHY_BEAT*0.004;                        // 한 프레임에 밀 수 있는 최대(초)
+let RHY_FRAME_CAP=RHY_BEAT*0.048;                    // 한 프레임에 바늘이 갈 수 있는 몫
+/* 051 ③ — 박자 격자를 갈아탄다(평소 120.15 ↔ 피버 160.25).
+   ⚠ 박 길이만 바꾸면 그 프레임에 **위상이 튄다**(phase = t/박). 그래서 지금 위상을
+     그대로 이어 붙인다 — 049 2차 ④ 가 시계를 갈아탈 때 한 것과 같은 수다.
+     곡과의 어긋남은 그 뒤 `rhySlide` 가 프레임마다 조금씩 민다. */
+function rhyGrid(bpm){
+  if(Math.abs(RHY.bpm-bpm)<1e-9) return;
+  const ph=(typeof RHY.phase==='number')?RHY.phase:0;
+  RHY.bpm=bpm; RHY_BEAT=60/bpm;
+  RHY_SLIDE=RHY_BEAT*0.004; RHY_FRAME_CAP=RHY_BEAT*0.048;
+  RHY.origin=rhyPerf()-ph*RHY_BEAT;                  // 위상 이어 붙이기
+  RHY.edge=-1; rhyView();
+}
 function rhyOrigin(){
   if(RHY.origin===null) RHY.origin=rhyPerf();
   return RHY.origin;
@@ -4933,6 +5384,8 @@ function rhyJudge(ev){
     RHY.ticks.push({x:Math.max(-1,Math.min(1,d/RHY_GOOD)), g});
     while(RHY.ticks.length>RHY_TICKS) RHY.ticks.shift();
     rhyPaintTicks(); rhyShowJudge(g);
+    rhyCalTap(d);                       // 051 ① — 「맞춰 보기」 중이면 시차를 모은다
+    feverTap(g);                        // 051 ② — 손 판정만 게이지를 채운다
     rhyView();
   }catch(e){}
 }
@@ -5008,12 +5461,21 @@ function rhyLoop(){
 }
 function rhyView(){
   const V=globalThis.__view; if(!V) return;
-  V.rhythm={bpm:RHY_BPM, clock:RHY.clock, beat:RHY.beat, phase:+RHY.phase.toFixed(4),
+  /* ⚠ `beat` 는 049 가 낸 대로 **박 번호**다(이름을 바꾸면 049 검사가 조용히 엉뚱한
+     값을 읽는다). 박 길이는 새 키 `beatMs` 로 낸다. */
+  V.rhythm={bpm:RHY.bpm, beat:RHY.beat, beatMs:+(RHY_BEAT*1000).toFixed(2), clock:RHY.clock,
+    phase:+RHY.phase.toFixed(4),
     last:{grade:RHY.last.grade, ms:RHY.last.ms},
     counts:RHY.counts, combo:RHY.combo, best:RHY.best,
     running:RHY.raf!==null, sliding:!(RHY._want===null||RHY._want===undefined),
+    // 051 ① — 보정의 내역을 **효과로** 낸다: 격자가 실제로 얼마나 밀렸는지(ms)
+    offset:RHY.offset, lat:+(RHY.lat*1000).toFixed(1), shift:+(RHY.lat*1000+RHY.offset).toFixed(1),
+    cal:RHY.cal?RHY.cal.length:-1,
+    calDone:(RHY.calDone===null||RHY.calDone===undefined)?null:RHY.calDone,
+    calTaps:RHY.calTaps?RHY.calTaps.slice():null,
     window:{perfect:RHY_PERFECT, great:RHY_GREAT, good:RHY_GOOD}};
 }
+rhyLoadOffset();
 rhyView();
 
 
@@ -5347,6 +5809,43 @@ if(typeof requestAnimationFrame!=='undefined' && typeof document!=='undefined'
     if(left<=0){ scrollX=travTo; travUntil=0; return; }
     scrollX = travFrom + (travTo-travFrom)*ezOut(1-left/TRAVEL_MS);
   }
+  /* ══ 051 ④ — 체력 막대를 **머리 위로** (046 §7-e) ════════════════════════
+     **캔버스는 자리만 낸다. 막대 자체는 DOM 이다.**
+     ⚠ 처음엔 캔버스에 그렸다가 되물렀다 — 캔버스는 사건이 없으면 320ms 뒤에 **잠든다**
+       (011 절전). 그러면 CORE 가 `#fill` 에 계속 쓰는 동안 막대가 **얼어붙는다**
+       (실측: 틱 뒤 CORE 31.7% 인데 그려진 앞 겹은 66.8%). 막대를 위해 캔버스를
+       250ms마다 깨우면 유휴 가동률이 통째로 무너진다(원칙 1 · soak 의 duty).
+       DOM 막대는 CSS 전환이 두 겹의 지연을 공짜로 주고, 캔버스는 계속 잘 수 있다.
+     그래서 여기서 하는 일은 **머리 꼭지의 좌표를 재서 내놓는 것**뿐이다
+     (`__view.stage.hp`). 자리에 놓는 것은 `renderFast()` → `hpPlace()` 다. */
+  const HP_H=4, HP_GAP=4;
+  function hpGeom(L,ground,topFoe,topHero,heroX,heroW){
+    const out={h:HP_H, gap:HP_GAP};
+    const n=L.n;
+    if(n>0 && isFinite(topFoe)){
+      const w=Math.max(24,Math.round(L.step*(n-1)+SPR_UNIT*L.ms));
+      out.foe={x:Math.round(L.x0), y:Math.round(topFoe-HP_GAP-HP_H), w, h:HP_H, top:Math.round(topFoe)};
+    }
+    if(isFinite(topHero)){
+      const hw=Math.max(18,Math.round(heroW||SPR_UNIT*L.ms));
+      out.hero={x:Math.round(heroX), y:Math.round(topHero-HP_GAP-HP_H), w:hw, h:HP_H, top:Math.round(topHero)};
+    }
+    /* 051 2차 ② — **기하가 바뀐 그 프레임에** 막대를 옮긴다.
+       1차는 자리를 250ms 틱에서만 옮겨서, 몹 수 6↔8 로 배율이 뛰는 순간부터 다음
+       틱까지 막대가 옛 자리에 남아 **머리를 덮었다**(검증 실측 768×1024 14.6% 프레임).
+       ⚠ 바뀌지 않은 프레임에서는 **아무것도 안 한다** — DOM 쓰기가 바뀔 때만이라
+         절전(011)과 soak 의 duty 가 그대로다. */
+    const prev=VIEW.stage.hp;
+    const same=(a,b)=>(!a&&!b)||(!!a&&!!b&&a.x===b.x&&a.y===b.y&&a.w===b.w);
+    /* 051 2차 ① — 뒤 겹의 걸음은 **깨어 있는 이 프레임**에서 딛는다(전용 rAF 루프를
+       두면 전투 중 영영 안 멈춰 soak 의 「완전히 섰다」가 깨진다 — 42a 의 긴 주석). */
+    if(typeof hpTick==='function') hpTick();
+    if(prev && same(prev.foe,out.foe) && same(prev.hero,out.hero)) return;
+    if(prev&&prev.v) out.v=prev.v;
+    VIEW.stage.hp=out;
+    if(typeof hpPlace==='function') hpPlace();
+  }
+
   function drawArena(g){
     if(!rA || !stLay.length) return;
     g.save();
@@ -5363,7 +5862,10 @@ if(typeof requestAnimationFrame!=='undefined' && typeof document!=='undefined'
     const swinging = atkT>=ATK_WIND*0.6 && atkT<ATK_ALL;
     const hero=foeSprite(swinging?'heroAtk':'hero',1,ms,stSeg);
     const hx=rA.x+rA.w*0.05+heroDX(ms);
-    if(hero) g.drawImage(hero, Math.round(hx), Math.round(ground-(hero.__bot+1)*ms*SPR_FIT));
+    let topHero=Infinity, heroW=0;
+    if(hero){ const hy=Math.round(ground-(hero.__bot+1)*ms*SPR_FIT);
+      g.drawImage(hero, Math.round(hx), hy);
+      topHero=hy; heroW=hero.width; }          // 051 ④ — 막대를 이 위에 둔다
     // ── 무기 궤적: 012 장비 스프라이트를 태운다. 잔상 3장, 회전 없음 ──
     // 회전시키면 픽셀이 보간돼 뭉갠다(ART-DIRECTION 안티에일리어싱 금지). 대신
     // 같은 그림을 호를 따라 몇 장 겹쳐 알파로 흘린다.
@@ -5388,6 +5890,7 @@ if(typeof requestAnimationFrame!=='undefined' && typeof document!=='undefined'
     const slide=Math.max(0, travTo-scrollX);          // 이동 중엔 오른쪽에서 들어온다
     const mobX=i=>L.x0+L.step*i+slide;
     const cut=deadCut(n,alive);
+    let topFoe=Infinity;
     for(let i=0;i<n;i++){
       if(i<cut) continue;                             // 처치된 개체는 사라진다 (001 규약)
                                                       // 021: 앞쪽(용사 쪽)부터 비워진다
@@ -5400,7 +5903,9 @@ if(typeof requestAnimationFrame!=='undefined' && typeof document!=='undefined'
       //   용사에게 가장 가까운 것」이었으므로 이 줄은 연출의 **변경이 아니라 복구**다.
       //   타이밍·지속시간·진폭(FLASH_MS·HITSTOP_MS·ATK_*)은 한 글자도 안 건드린다.
       const cv=foeSprite(kind,tier,ms,stSeg, flashing && i===cut); if(!cv) continue;
-      g.drawImage(cv, Math.round(mobX(i)), Math.round(ground-(cv.__bot+1)*ms*SPR_FIT));
+      const my=Math.round(ground-(cv.__bot+1)*ms*SPR_FIT);
+      g.drawImage(cv, Math.round(mobX(i)), my);
+      if(my<topFoe) topFoe=my;                 // 051 ④ — 무리에서 가장 높은 머리
     }
     // ── 소멸: 위로 튀었다 아래로 꺼진다 (001 foedie 와 같은 규약) ──
     for(const d of dying){
@@ -5413,6 +5918,9 @@ if(typeof requestAnimationFrame!=='undefined' && typeof document!=='undefined'
                       Math.round(cv.width*sc), Math.round(cv.height*sc));
       g.globalAlpha=1;
     }
+    // 051 ④ — 막대의 **자리**만 낸다(그리는 것은 DOM). 다 죽은 프레임은 지면 기준.
+    hpGeom(L, ground, isFinite(topFoe)?topFoe:(ground-SPR_UNIT*ms*SPR_FIT),
+           topHero, hx, heroW);
     g.restore();
     VIEW.stage.scale=stScale; VIEW.stage.seg=stSeg; VIEW.stage.scrollX=Math.round(scrollX);
     VIEW.stage.moving=!!travUntil; VIEW.stage.mobs=n; VIEW.stage.alive=alive;
@@ -5508,6 +6016,10 @@ if(typeof requestAnimationFrame!=='undefined' && typeof document!=='undefined'
   /* ── 앞 겹: 불티 · 바운스 (DOM 위) ────────────────────────────────── */
   const P=[];                      // 불티. 상한은 §4 의 FX_MAX_PARTICLES.
   let bounce=null;                 // 획득 장비 하나. 겹치지 않게 항상 하나뿐이다.
+  /* 051 ⑤ — 등급 빛기둥. 모루에서 0.8초 솟는다. 하나뿐이고 덮어쓴다(누적 금지).
+     reducedMotion 이면 기둥 대신 **테두리 번쩍 한 번**이다(아래 `pillar.red`). */
+  let pillar=null;
+  const PILLAR_MS=800;
   const ezOut=t=>1-(1-t)*(1-t);    // Quad.easeOut
   const B_UP=FX_BOUNCE_MS*.45;     // 올라가는 시간 (yoyo 라 내려오는 데 같은 시간)
 
@@ -5527,6 +6039,7 @@ if(typeof requestAnimationFrame!=='undefined' && typeof document!=='undefined'
       p.t+=dt; if(p.t>=p.life){ P.splice(i,1); continue; }
       p.vy+=520*s; p.x+=p.vx*s; p.y+=p.vy*s;   // gravityY 520
     }
+    if(pillar){ pillar.t+=dt; if(pillar.t>=PILLAR_MS) pillar=null; }
     if(bounce){ const b=bounce; b.t+=dt;
       if(b.red){ b.a=Math.max(0,1-b.t/180); b.off=0; if(b.t>=180) bounce=null; }
       else if(b.t<B_UP){        b.off=-b.dy*ezOut(b.t/B_UP); }
@@ -5545,6 +6058,21 @@ if(typeof requestAnimationFrame!=='undefined' && typeof document!=='undefined'
       else g.rect(b.x-7, b.y+b.off-7, 14, 14);
       g.fill();
       g.globalAlpha=1;
+    }
+    /* 051 ⑤ — 빛기둥. 등급색 세로 띠가 모루에서 솟아 흐려진다.
+       ⚠ 등급색은 CSS 토큰이 원본이다(`gradeRGB`) — 캔버스 상수에 새 색을 안 만든다. */
+    if(pillar && !pillar.red){
+      const u=Math.min(1,pillar.t/PILLAR_MS);
+      const h=(CH*0.55)*ezOut(Math.min(1,u*1.6));          // 위로 솟는다
+      const a=(1-u)*(1-u)*0.85;                            // 끝까지 흐려진다
+      const w=Math.max(6,Math.round(22*(1-u*0.45)));
+      const c=pillar.col;
+      g.globalCompositeOperation='lighter';
+      const gr=g.createLinearGradient(0,pillar.y-h,0,pillar.y);
+      gr.addColorStop(0,'rgba('+c[0]+','+c[1]+','+c[2]+',0)');
+      gr.addColorStop(1,'rgba('+c[0]+','+c[1]+','+c[2]+','+a.toFixed(3)+')');
+      g.fillStyle=gr; g.fillRect(pillar.x-w/2, pillar.y-h, w, h);
+      g.globalCompositeOperation='source-over';
     }
     g.globalCompositeOperation='lighter';         // blendMode:'ADD'
     for(const p of P){ const k=1-p.t/p.life;      // alpha 1→0 · scale .9→0
@@ -5609,7 +6137,7 @@ if(typeof requestAnimationFrame!=='undefined' && typeof document!=='undefined'
     stepFx(t<stopUntil?0:dt); drawFx();
     VIEW.perf.framesFx++;                     // 013 §0
     VIEW.alive.particles=P.length;
-    VIEW.alive.tweens=bounce?1:0;
+    VIEW.alive.tweens=(bounce?1:0)+(pillar?1:0);
     if(fxIdle()){ __gameFx.loop.sleep(); markSlept(); lastFxT=0; }
   }
   globalThis.__game  ={loop:mkLoop(bgFrame), engine:'canvas2d'};
@@ -5627,7 +6155,7 @@ if(typeof requestAnimationFrame!=='undefined' && typeof document!=='undefined'
   // 도는 것이 있으면 안 재운다 — 자면 그 자리에서 얼어붙는다.
   const bgIdle=()=>nowMs()>=wakeBgUntil && nowMs()>=shakeUntil && !travUntil
     && atkT<0 && !dying.length && nowMs()>=stopUntil;   // 018 모션도 붙잡는다
-  const fxIdle=()=>nowMs()>=wakeFxUntil && P.length===0 && !bounce;
+  const fxIdle=()=>nowMs()>=wakeFxUntil && P.length===0 && !bounce && !pillar;
   // `sleeping` 은 **둘 다 잠들었을 때**만 참이다 (검증이 "화면이 완전히 멈췄다"를
   // 이 한 값으로 읽을 수 있게).
   function markSlept(){
@@ -5740,6 +6268,23 @@ if(typeof requestAnimationFrame!=='undefined' && typeof document!=='undefined'
     VIEW.counters.bounce++;
   }
   globalThis.__hitFx=hitFx;            // 검증용 (checklist·임시 스크립트가 직접 부른다)
+
+  /* 051 ⑤ — 등급 빛기둥. 등급 ≥10 이나 특별 주문에서 선다(부르는 곳은 45a `feverMade`).
+     reducedMotion 이면 기둥을 띄우지 않고 **모루 테두리를 한 번 번쩍**인다(CSS `.pulse`).
+     ⚠ 카운터만으로 완료를 주장하지 않는다 — 검사는 캔버스 **픽셀**로 본다(CLAUDE.md 009). */
+  globalThis.__pillar=(grade)=>{
+    if(hidden()){ VIEW.perf.hiddenSkips++; return 0; }
+    const g=Math.max(1,Math.min(GMAX,grade|0));
+    const an=VIEW.anvil; if(!an) return 0;
+    const red=!!VIEW.reducedMotion;
+    pillar={x:an.x, y:an.y+6, t:0, red, col:(typeof gradeRGB==='function')?gradeRGB(g):[255,217,160], g};
+    VIEW.counters.pillar=(VIEW.counters.pillar||0)+1;
+    if(red){ try{ const e=document.getElementById('forge');
+      if(e&&e.classList){ e.classList.remove('pulse'); void e.offsetWidth; e.classList.add('pulse');
+        if(typeof setTimeout==='function') setTimeout(()=>{ try{ e.classList.remove('pulse'); }catch(x){} },420); } }catch(x){} }
+    canvasWake(PILLAR_MS+120, PILLAR_MS+160);
+    return g;
+  };
 
   /* ── 부팅 ── */
   VIEW.scene='forge'; VIEW.sceneFx='fx'; VIEW.background='canvas';
@@ -5883,7 +6428,69 @@ if(typeof requestAnimationFrame!=='undefined' && typeof document!=='undefined'
   S.peak=pk; S.lv=lvB;
   // 릴은 3 + 별, 단 5에서 멈춘다 (DESIGN.md "릴 수 = 3 + 별 (최대 5)")
   console.assert(REELS()===Math.min(3+S.star,5),'릴 수 오류');
-  console.assert(PITY()===20*REELS(),'천장 문턱 오류');
+  console.assert(FEVER_MAX()===20*REELS(),'피버 게이지 문턱 오류');
+  /* 051 §2② — 피버. 재는 것은 **효과**다(깃발이 아니라 `S` 와 뽑힌 결과로).
+     ⚠ `spin()` 의 420ms 콜백 안에서 결과가 정해지므로 `setTimeout` 을 즉시 돌게 바꿔
+       끼우고 결과를 본다(하네스는 이미 그렇다).
+     ⚠ 그런데 그 콜백은 릴 DOM 에 `.hit` 을 붙인다 — **브라우저에서는** 44b 의
+       감시자가 그것을 「정렬」로 읽어 첫 화면에서 셰이크·불티·빛기둥이 터진다
+       (조각 순서상 44b 가 이 점검보다 **먼저** 돈다). 그래서 점검 동안에는
+       `querySelectorAll` 을 빈 배열로 바꿔 끼운다 — 릴을 **안 만지고** 결과만 본다.
+       재는 값(`fgLastBest`·`S`·대기열)은 DOM 과 무관하므로 검사는 그대로 성립한다.
+       `#msg` 의 글자도 점검이 바꾸므로 들어올 때의 값으로 되돌린다. */
+  { const sv={p:S.pity, f:S.feverUntil, c:S.charge, sp:spinning, lk:S.lockIdx, q:S.queue.length,
+              as:S.asell.slice()}, st0=globalThis.setTimeout, rd0=render;
+    const qsa0=(typeof document!=='undefined')?document.querySelectorAll:null;
+    const msgEl=(typeof document!=='undefined')?document.getElementById('msg'):null;
+    const msg0=msgEl?{t:msgEl.textContent, c:msgEl.className}:null;
+    try{
+      globalThis.setTimeout=function(fn){ try{ fn(); }catch(e){} return 0; };
+      if(qsa0) document.querySelectorAll=function(){ return []; };
+      /* ⚠ **점검은 화면을 그리지 않는다.** `spin()` 은 끝에 `render()` 를 부르는데,
+         이 점검이 도는 동안 `S` 는 시험값이다 — 그 중 하나가 위 ⑴의 `S.peak=0`(이
+         파일 앞쪽에서 0 으로 두고 끝에 통째로 복원한다)이고, 그 상태로 그리면
+         «승천 가능»이 거짓이라 `#asc` 가 `display:none` 으로 **얼어붙는다**(부팅의
+         마지막 그림이 이것이 된다 — 051 첫 판에서 checklist TB7·TB8·AP1 이 그렇게
+         울었다). 050 까지는 점검이 DOM 을 안 건드려서 드러나지 않던 성질이다.
+         그래서 점검 동안 `render` 를 빈 함수로 바꿔 끼운다. */
+      render=function(){};
+      S.asell=S.asell.map(()=>false);              // 대기열로 들어오게 (결과를 읽는다)
+      const peek=()=>S.queue[S.queue.length-1];
+      // ⑴ 자동(견습생) 타격은 게이지를 못 채운다 — `feverAdd` 를 안 지나므로 0 이다.
+      S.pity=0; S.feverUntil=0; S.charge=50; S.lockIdx=-1;
+      for(let i=0;i<5;i++){ spinning=false; spin(); }
+      console.assert((S.pity|0)===0,'자동 제련이 피버 게이지를 채웠다 (051 F1)');
+      // ⑵ 손 판정만 채운다 — 완벽 +3 · 아쉬움 0.
+      S.pity=0; feverAdd('perfect'); feverAdd('miss');
+      console.assert((S.pity|0)===3,'손 판정이 게이지를 안 채운다 (051 §2②)');
+      // ⑶ 가득 → 다음 제련은 전 릴 정렬(고정 토큰이 있으면 그 부위) · 게이지 0 · 피버 시작
+      S.pity=FEVER_MAX(); S.feverUntil=0; S.lockIdx=1; lockPart=4; spinning=false;
+      spin(true);
+      const sp=peek();   // 051 F3 — 고정 토큰을 건 부위로 나온다
+      console.assert(!!sp && sp.part===PARTS[4].id,'특별 주문이 고정 부위로 안 나왔다 (051 F3)');
+      console.assert((S.pity|0)===0,'특별 주문 뒤 게이지가 안 비었다 (051 F5)');
+      console.assert(feverOn(),'특별 주문이 피버를 안 열었다 (051 F3)');
+      /* ⑷ 피버 중에는 **모든** 제련이 2연 이상이다(손·자동 둘 다).
+         ⚠ 릴 DOM 으로 재면 하네스에서 공허하다(`querySelectorAll` 이 빈 배열이다).
+           그래서 CORE 가 남기는 `fgLastBest`(마지막 제련의 정렬 수)로 본다 —
+           브라우저·하네스 양쪽에서 같은 값을 낸다. */
+      console.assert(fgLastBest===REELS(),'특별 주문이 전 릴 정렬이 아니다 (051 F3) — '+fgLastBest);
+      let worst=9;
+      for(let i=0;i<24;i++){ spinning=false; S.lockIdx=-1; S.charge=50;
+        spin(i%2?true:undefined);
+        if(fgLastBest<worst) worst=fgLastBest; }
+      console.assert(worst>=2,'피버 중 2연 보장이 깨졌다 (051 F4) — 최소 '+worst);
+      // ⑸ 피버 중 손 판정은 게이지를 안 채운다
+      S.pity=0; feverAdd('perfect');
+      console.assert((S.pity|0)===0,'피버 중에 게이지가 찼다 (051 §2②)');
+    } finally {
+      globalThis.setTimeout=st0; render=rd0;
+      if(qsa0) document.querySelectorAll=qsa0;
+      S.pity=sv.p; S.feverUntil=sv.f; S.charge=sv.c; spinning=sv.sp; S.lockIdx=sv.lk;
+      S.asell=sv.as; S.queue.length=sv.q;
+      if(msgEl&&msg0){ try{ msgEl.textContent=msg0.t; msgEl.className=msg0.c; }catch(e){} }
+      try{ [...document.querySelectorAll('.reel')].forEach(e=>e.classList.remove('spin','hit')); }catch(e){}
+    } }
   console.assert(Object.keys(makeItem('head',15).ops).length===4,'15등급 4줄 아님');
   console.assert(!makeItem('head',8).sp,'8등급에 각인');
   console.assert(!!makeItem('head',10).sp,'10등급에 각인 없음');

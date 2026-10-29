@@ -564,4 +564,148 @@ if(typeof process!=='undefined' && process.argv.indexOf('--manual')>-1){
   console.log('══════════ 048 --manual 끝 ══════════');
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   051 §5 계측 — **--fever 를 줄 때만 돈다.** 기본 출력에 한 바이트도 안 섞인다
+   (025 --measure · 026 --ads · 048 --manual 과 같은 규약).
+
+   묻는 것: **천장을 빼면 방치가 얼마나 느려지나.**
+
+   ⚠ 먼저 알아야 할 것 — **이 도구는 천장을 한 번도 모형화한 적이 없다.**
+     위 doSpins() 는 spin() 을 부르지 않고 릴을 직접 굴린다. S.pity 도
+     PITY() 도 안 쓴다. 그래서 「지금(천장 있음)」 행은 **여기서 새로 모형을
+     넣어야** 나오고, 「천장 없음」 행은 기본 출력과 **같은 플레이**다(§0 이 확인).
+     바꿔 말해 BALANCE.md 의 밴드는 처음부터 **천장 없는 방치**를 재어 만든 값이다.
+
+   모형 셋 (mode):
+     'pity'  — 지금의 CORE 그대로: S.pity>=20*릴 이면 그 제련은 전 릴 정렬,
+               자연 전 릴 정렬도 게이지를 비운다.
+     'none'  — 천장 분기만 뺀 판(= 지금 days.js 기본 모형).
+     'fever' — 051 §2②: 손 판정이 게이지를 채우고(정확 평균 **릴당 +2**),
+               가득 차면 다음 제련이 **특별 주문**(전 릴 정렬) → 그때부터
+               FEVER_MS 동안 모든 제련이 **2연 이상 보장**. 피버 중 손은 안 채운다.
+
+   ⚠ 피버는 **시간**이 필요하다(15초). 그래서 이 블록만 하루를 시간축으로 편다 —
+     방치 제련은 하루 86,400초에 고르게, 손 제련은 접속 시간 안에 perMin 속도로
+     놓고 **시각 순서대로** 굴린다. 난수를 뽑는 **횟수와 순서**는 한 제련당 그대로라
+     손이 0분이면 기본 play() 와 같은 플레이여야 한다 — §0 이 기계로 확인한다.
+
+   ⚠ 이 모형이 **안 보는 것**(048 --manual 의 둘에 더해):
+     ⑶ 사람이 완벽·정확을 얼마나 꾸준히 치는지. 「정확 평균(+2)」는 **계획 세션이
+        준 시작점**이고, 녹화 실측(049 2차: 박에 맞춰 42타 중 완벽 39)은 이보다 높다.
+     ⑷ 피버 중 대기열이 더 빨리 차는 것(2연 이상이면 거의 다 장착·판매로 간다).
+
+   실행: node tools/days.js --fever
+   ══════════════════════════════════════════════════════════════════════════ */
+if(typeof process!=='undefined' && process.argv.indexOf('--fever')>-1){
+  const FV_MAX = () => 20*REELS();        // 051 §2② 시작점 — 지금 천장 문턱과 같다
+  const FV_MS  = 15000;                   // 피버 길이(시작점)
+  const FV_ADD = 2;                       // 손 탭 하나가 채우는 양(정확 평균)
+  const PER    = 40;                      // 손 속도(개/분) — 048 --manual 과 같은 값
+
+  /* 제련 하나. doSpins() 의 몸통과 **같은 식·같은 난수 순서**이고,
+     force 만 더했다: 'full' = 전 릴 정렬 · 'two' = 2연 이상 보장. */
+  function spinOne(eq, acc, force){
+    const c={}; let mx=1, part=0; const R=REELS(), res=[];
+    for(let r=0;r<R;r++){const v=(Math.random()*6)|0;res.push(v);c[v]=(c[v]||0)+1;if(c[v]>mx){mx=c[v];part=v;}}
+    if(mx===1) part=res[0];
+    if(force==='full'){ part=res[0]; mx=R; }                 // 전 릴 정렬
+    else if(force==='two' && mx<2){ part=res[0]; mx=2; }     // 두 릴을 맞춘다
+    const it=makeItem(PARTS[part].id, rollGrade(mx-1));
+    const cur=eq[it.part];
+    if(power({...eq,[it.part]:it})>power(eq)){ if(cur) acc.gold+=sellPrice(cur); eq[it.part]=it; }
+    else acc.gold+=sellPrice(it);
+    return mx;
+  }
+
+  /* play() 의 쌍둥이. 바뀐 곳은 **하루의 제련을 시각 순서로 편 것**뿐이고,
+     그 밖 순서·식은 글자 그대로 같다. */
+  function playFv(days, activeMin, mode, manualMin, st){
+    S.star=0; S.lv=0; S.tech={}; S.dust=0; S.peak=0;
+    let eq={}, acc={gold:0}, wave=1, hits={}, asc=[];
+    let gauge=0, feverEnd=-1, pity=0;
+    for(let d=1; d<=days; d++){
+      let spins = Math.min(CHG_MAX(), (24*3600*1000-activeMin*60*1000)/CHG_MS());
+      spins += activeMin*60*1000/CHG_MS();
+      const N=Math.floor(spins), H=Math.round(manualMin*PER);
+      const R=REELS(), day0=d*86400000;
+      // 시각: 방치는 하루 전체에 고르게 · 손은 접속 시간 앞머리에 perMin 속도로
+      const list=[];
+      for(let i=0;i<N;i++) list.push({t:day0+(i+0.5)*86400000/Math.max(1,N), hand:false});
+      for(let i=0;i<H;i++) list.push({t:day0+(i+0.5)*60000/PER, hand:true});
+      list.sort((a,b)=>a.t-b.t);
+      for(const s of list){
+        let force=null;
+        if(mode==='pity'){ if(pity>=20*R) force='full'; }
+        else if(mode==='fever'){
+          if(s.t<feverEnd) force='two';
+          else if(gauge>=FV_MAX()){ force='full'; gauge=0; feverEnd=s.t+FV_MS; }
+        }
+        const mx=spinOne(eq,acc,force);
+        if(mode==='pity') pity = (mx===R) ? 0 : pity+1;
+        if(mode==='fever' && s.hand && s.t>=feverEnd) gauge += FV_ADD*R;
+        if(st){ st.n++; if(mx===R) st.full++; if(mx>=2) st.two++; if(force) st.forced++; }
+      }
+      wave=Math.max(wave,reach(eq));
+      acc.gold += Math.round(4*Math.pow(1.10,Math.min(wave,400)-1)*(1+T('gold')*0.02)) * (activeMin*60/3);
+      while(acc.gold>=upCost() && S.lv<28){ acc.gold-=upCost(); S.lv++; }
+      const f=towerFloor(eq);
+      S.dust += 2 * f * 1.6 * (3/8) + 2*f*0;
+      S.dust += 2 * f * 0.8;
+      let guard=0;
+      while(guard++<500){
+        const ks=Object.keys(TECH).filter(k=>T(k)<TECH[k].max).sort((a,b)=>techCost(a)-techCost(b));
+        if(!ks.length||S.dust<techCost(ks[0])) break;
+        S.dust-=techCost(ks[0]); S.tech[ks[0]]=T(ks[0])+1;
+      }
+      for(const t of [30,50,75,100,150,200,250,300]) if(!hits[t]&&wave>=t) hits[t]=d;
+      S.peak=Math.max(S.peak||0,wave);
+      if(cap()===GMAX && S.lv>=ASC_LV() && S.peak>=ASC_WAVE()){
+        asc.push(d); eq={}; S.lv=0; S.star++; wave=1; S.peak=0; }
+    }
+    return {hits, asc};
+  }
+
+  const pd=(s,n)=>String(s).padStart(n);
+  const cell=v=>v?pd(Math.round(v)+'일',9):pd('─',9);
+  const runFv=(mode,man)=>{ const agg={}, a1=[], a2=[], st={n:0,full:0,two:0,forced:0};
+    for(let m=0;m<4;m++){ const mins=[10,30,60,120][m];
+      for(let r=0;r<3;r++){ seed(r); const R=playFv(120,mins,mode,man,st);
+        for(const k in R.hits) agg[k]=(agg[k]||0)+R.hits[k]/12;
+        if(R.asc[0]) a1.push(R.asc[0]); if(R.asc[1]) a2.push(R.asc[1]); } }
+    const av=a=>a.length?Math.round(a.reduce((p,q)=>p+q,0)/a.length):null;
+    return {w75:agg[75], w100:agg[100], w200:agg[200], asc1:av(a1), asc2:av(a2), st}; };
+
+  console.log('');
+  console.log('══════════ 051 §5 — 천장을 빼면 방치가 얼마나 느려지나 ══════════');
+  console.log('  120일 · 고정 시드 3개 × 접속 10/30/60/120분 **전부**의 평균(12판)');
+  console.log('  ⚠ 지금 days.js 기본 모형에는 천장이 **없다** — 「천장 있음」 행은 여기서 새로 넣은 모형이다');
+
+  /* ── §0 자기검산 — 천장 없음·손 0분이 기본 play() 와 같은 플레이인가 ─────── */
+  console.log('');
+  console.log('§0 자기검산 — playFv(천장 없음 · 손 0분) 이 play() 와 같은 플레이인가');
+  {
+    let same=0; const bad=[];
+    for(const m of [10,30,60,120]) for(let r=0;r<3;r++){
+      seed(r); const a=JSON.stringify(play(120,m,false));
+      seed(r); const b=JSON.stringify(playFv(120,m,'none',0,null).hits);
+      if(a===b) same++; else bad.push(m+'분/시드'+r+': '+a+' vs '+b);
+    }
+    console.log('  도달일 표 일치 '+same+'/12'+(bad.length?'  ← **다르다**':'  ✔ 시간축으로 폈어도 같은 플레이다'));
+    bad.slice(0,3).forEach(s=>console.log('    '+s));
+  }
+
+  console.log('');
+  console.log('              판        웨이브75    첫 승천     2회차   웨이브200     전 릴 정렬 비율');
+  const rows=[['지금(천장 있음)','pity',0],['천장 없음 · 방치만','none',0],['천장 없음 · 손 30분+피버','fever',30]];
+  for(const [nm,mode,man] of rows){
+    const R=runFv(mode,man);
+    const pct=R.st.n?(R.st.full/R.st.n*100):0;
+    console.log('  '+pd(nm,24)+cell(R.w75)+cell(R.asc1)+cell(R.asc2)+cell(R.w200)
+      +'   '+pd(pct.toFixed(2)+'%',8)+pd('(2연+ '+(R.st.n?(R.st.two/R.st.n*100).toFixed(1):0)+'%)',14));
+  }
+  console.log('');
+  console.log('  밴드(BALANCE.md): 웨이브75 2~3일 · 첫 승천 5일 전후 · 웨이브200 15~18일');
+  console.log('══════════ 051 §5 끝 ══════════');
+}
+
 `);

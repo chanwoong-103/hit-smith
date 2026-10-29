@@ -42,11 +42,23 @@ S.lv=28; S.peak=ASC_WAVE(); const st0=S.star;
 ascend();
 chk(S.star===st0+1 && S.lv===0 && Object.keys(S.equip).length===0, '승천 리셋 오류');
 
-// 천장: 게이지 가득 → 강제 전릴 정렬 + 리셋
-S.queue=[]; S.asell=Array(15).fill(false); S.charge=5; S.pity=PITY(); S.lockIdx=-1;
+// 051 §2② — 천장이 **피버**로 바뀌었다. 게이지 가득 → 특별 주문(전 릴 정렬) + 게이지 0 + 피버 시작
+S.queue=[]; S.asell=Array(15).fill(false); S.charge=5; S.pity=FEVER_MAX(); S.lockIdx=-1; S.feverUntil=0;
 spin();
-chk(S.pity===0, '천장 후 게이지 미리셋');
-chk(S.queue.length===1, '천장 스핀 아이템 미지급');
+chk(S.pity===0, '특별 주문 후 게이지 미리셋');
+chk(S.queue.length===1, '특별 주문 스핀 아이템 미지급');
+chk(fgLastBest===REELS(), '특별 주문이 전 릴 정렬이 아님');
+chk(feverOn(), '특별 주문이 피버를 안 열었음');
+// 피버 중에는 손·견습생 모두 2연 이상이다
+{ let worst=9; for(let i=0;i<12;i++){ S.charge=5; spinning=false; spin(i%2?true:undefined);
+    if(fgLastBest<worst) worst=fgLastBest; }
+  chk(worst>=2, '피버 중 2연 보장 깨짐 — 최소 '+worst); }
+// 자동(견습생)은 게이지를 못 채운다 · 손 판정만 채운다
+S.feverUntil=0; S.pity=0;
+for(let i=0;i<5;i++){ S.charge=5; spinning=false; spin(); }
+chk(S.pity===0, '자동 제련이 게이지를 채웠음');
+feverAdd('great'); chk(S.pity===2, '손 판정(정확)이 +2 로 안 찼음');
+S.feverUntil=0; S.pity=0;
 
 // 교체 왕복: 되돌리기가 가능한가
 S.queue=[]; S.equip={}; 

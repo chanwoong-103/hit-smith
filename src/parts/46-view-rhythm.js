@@ -13,12 +13,79 @@
      그것 하나이므로 변환이 없다.
    ⚠ **판정은 릴 멈춤을 막지 않는다.** 어느 판정이든 탭은 그 릴을 세운다.
    ══════════════════════════════════════════════════════════════════════════ */
-const RHY_BPM=120.15, RHY_BEAT=60/RHY_BPM;          // 0.49938 초
+const RHY_BPM=120.15, RHY_BPM_FEVER=160.25;         // 051 ③ — 피버 곡은 더 빠른 박자
+let RHY_BEAT=60/RHY_BPM;                            // 0.49938 초 · 피버 중엔 0.37441 초
 const RHY_PERFECT=45, RHY_GREAT=90, RHY_GOOD=140;   // ms
 const RHY_TICKS=6;                                  // 게이지에 남기는 눈금 수
+const RHY_CAL_N=8;                                  // 「맞춰 보기」가 받는 탭 수
 const RHY={ origin:null, clock:'perf', beat:0, phase:0, edge:-1, raf:null,
             last:{grade:'', ms:0}, counts:{perfect:0,great:0,good:0,miss:0},
-            combo:0, best:0, ticks:[] };
+            combo:0, best:0, ticks:[], bpm:RHY_BPM,
+            offset:0, lat:0, cal:null, calDone:null, calTaps:null };  // 051 ① — 보정(ms) · 출력 지연(초)
+
+/* ══ 051 ① — 박자 보정. **박은 «들리는» 시각에 있다** ═════════════════════════
+   049 검증 실측: 바늘이 들리는 박보다 **≈37ms 앞섰다.** 까닭은 둘이다.
+     ⑴ `ctx.currentTime` 에 예약한 소리는 그 시각에 **나가기 시작**할 뿐이고,
+        스피커에서 **들리기까지** 기기만큼 더 걸린다 — `ctx.outputLatency` 다.
+     ⑵ 사람의 기기(블루투스 이어폰 수백 ms)는 우리가 알 길이 없다 — 그래서 사람이
+        직접 맞추는 자리(`hs.offset`)를 둔다.
+   그래서 박 기준점에 **출력 지연 + 사람 보정**을 더한다. 바늘과 판정이 같은
+   기준점을 쓰므로 둘이 **함께** 밀린다(한쪽만 밀면 「보이는 박에 쳤는데 아쉬움」이 된다).
+   ⚠ 보정은 **음악이 들릴 때만** 뜻이 있다. 음악이 없으면 바늘 자신이 기준이라
+     격자를 통째로 밀어도 보이는 것이 없다(판정도 같이 밀리니 결과가 같다).
+   ⚠ `hs.offset` 은 `localStorage` 다 — 세이브 `S` 에 넣지 않는다(저장 형식 불변). */
+function rhyOutLat(){
+  try{
+    const c=SND.ctx; if(!c) return 0;
+    const o=c.outputLatency; if(typeof o==='number'&&isFinite(o)&&o>0) return o;
+    const b=c.baseLatency;   if(typeof b==='number'&&isFinite(b)&&b>0) return b;
+  }catch(e){}
+  return 0;
+}
+function rhyLoadOffset(){
+  try{ const v=localStorage.getItem('hs.offset');
+    if(v!==null){ const n=parseInt(v,10); if(isFinite(n)) RHY.offset=Math.max(-200,Math.min(200,n)); }
+  }catch(e){}
+}
+function rhySaveOffset(){
+  try{ localStorage.setItem('hs.offset',String(RHY.offset|0)); }catch(e){}
+}
+/* 「맞춰 보기」 — 박에 맞춰 여덟 번 치면 **평균 시차**를 보정값에 더한다.
+   늦게 친 사람(시차 +)은 격자를 그만큼 뒤로 밀어야 그 탭이 완벽이 된다. */
+function rhyCalStart(){
+  RHY.cal=[]; rhyOffsetUI(); rhyView();
+}
+/* 여덟 번의 **중앙값**을 쓴다(2차 ④). 평균은 튀는 한 탭에 끌려간다 — 검증 실측으로
+   한 탭이 30ms 를 끌고 갔다. 중앙값은 그 한 탭을 그냥 버린다.
+   결과 글자도 `#msg` 가 아니라 **정보 팝업의 그 줄 옆**(`#offdone`)에 남긴다 —
+   `#msg` 는 다음 제련 글자가 곧 덮는다(0.25초 뒤 틱). */
+const rhyMed=a=>{ const b=a.slice().sort((x,y)=>x-y), n=b.length;
+  return n?(n%2?b[(n-1)/2]:(b[n/2-1]+b[n/2])/2):0; };
+function rhyCalTap(d){
+  if(!RHY.cal) return;
+  RHY.cal.push(d);
+  if(RHY.cal.length>=RHY_CAL_N){
+    const mid=rhyMed(RHY.cal);
+    RHY.offset=Math.max(-200,Math.min(200,Math.round((RHY.offset+mid)/10)*10));
+    RHY.calDone=RHY.offset; RHY.calTaps=RHY.cal.slice(); RHY.cal=null;
+    rhySaveOffset(); rhyOffsetUI();
+  }
+  rhyOffsetUI();
+}
+function rhyOffsetUI(){
+  try{
+    const r=document.getElementById('offrange'); if(r&&+r.value!==RHY.offset) r.value=String(RHY.offset);
+    const lb=document.getElementById('offtxt');
+    if(lb) lb.textContent = RHY.cal ? t('ui.offsetCalN',RHY_CAL_N-RHY.cal.length) : t('ui.offset',RHY.offset);
+    const b=document.getElementById('offcal');
+    if(b) b.className = RHY.cal ? 'hot' : '';
+    // 2차 ④ — 맞춘 결과는 그 줄 옆에 남는다(슬라이더를 움직이면 사라진다)
+    const dn=document.getElementById('offdone');
+    if(dn){ const on=(RHY.calDone!==null&&RHY.calDone!==undefined&&!RHY.cal);
+      dn.textContent = on ? t('msg.offsetSet',RHY.calDone) : '';
+      dn.className = on ? 'num hot' : 'dim'; }
+  }catch(e){}
+}
 
 /* ⚠ 049 2차 ④ — **시계 하나로 그린다.** 바늘·판정은 늘 성능 시계(`performance.now`)로
      세고, 곡(오디오 시계)은 **기준**으로만 쓴다. 1차는 음악이 돌면 오디오 시계로
@@ -40,13 +107,28 @@ function rhyNow(){ return rhyPerf(); }               // 그리는 시계는 늘 
    음악을 껐으면(`sndOnMusic()` 거짓) `null` — 맞출 곡이 없다. */
 function rhyRef(){
   try{
-    if(sndOnMusic() && SND.ctx && SND.ctx.state==='running' && SND.bgm!=='none' && SND.loopAt)
-      return rhyPerf() - (SND.ctx.currentTime - SND.loopAt);
+    if(sndOnMusic() && SND.ctx && SND.ctx.state==='running' && SND.bgm!=='none' && SND.loopAt){
+      RHY.lat=rhyOutLat();
+      // 051 ① — 반복이 **들리기 시작하는** 시각이 박 0 이다(+ 사람 보정)
+      return rhyPerf() - (SND.ctx.currentTime - SND.loopAt) + RHY.lat + RHY.offset/1000;
+    }
   }catch(e){}
   return null;
 }
-const RHY_SLIDE=RHY_BEAT*0.004;                      // 한 프레임에 밀 수 있는 최대(초)
-const RHY_FRAME_CAP=RHY_BEAT*0.048;                  // 한 프레임에 바늘이 갈 수 있는 몫
+let RHY_SLIDE=RHY_BEAT*0.004;                        // 한 프레임에 밀 수 있는 최대(초)
+let RHY_FRAME_CAP=RHY_BEAT*0.048;                    // 한 프레임에 바늘이 갈 수 있는 몫
+/* 051 ③ — 박자 격자를 갈아탄다(평소 120.15 ↔ 피버 160.25).
+   ⚠ 박 길이만 바꾸면 그 프레임에 **위상이 튄다**(phase = t/박). 그래서 지금 위상을
+     그대로 이어 붙인다 — 049 2차 ④ 가 시계를 갈아탈 때 한 것과 같은 수다.
+     곡과의 어긋남은 그 뒤 `rhySlide` 가 프레임마다 조금씩 민다. */
+function rhyGrid(bpm){
+  if(Math.abs(RHY.bpm-bpm)<1e-9) return;
+  const ph=(typeof RHY.phase==='number')?RHY.phase:0;
+  RHY.bpm=bpm; RHY_BEAT=60/bpm;
+  RHY_SLIDE=RHY_BEAT*0.004; RHY_FRAME_CAP=RHY_BEAT*0.048;
+  RHY.origin=rhyPerf()-ph*RHY_BEAT;                  // 위상 이어 붙이기
+  RHY.edge=-1; rhyView();
+}
 function rhyOrigin(){
   if(RHY.origin===null) RHY.origin=rhyPerf();
   return RHY.origin;
@@ -104,6 +186,8 @@ function rhyJudge(ev){
     RHY.ticks.push({x:Math.max(-1,Math.min(1,d/RHY_GOOD)), g});
     while(RHY.ticks.length>RHY_TICKS) RHY.ticks.shift();
     rhyPaintTicks(); rhyShowJudge(g);
+    rhyCalTap(d);                       // 051 ① — 「맞춰 보기」 중이면 시차를 모은다
+    feverTap(g);                        // 051 ② — 손 판정만 게이지를 채운다
     rhyView();
   }catch(e){}
 }
@@ -179,12 +263,21 @@ function rhyLoop(){
 }
 function rhyView(){
   const V=globalThis.__view; if(!V) return;
-  V.rhythm={bpm:RHY_BPM, clock:RHY.clock, beat:RHY.beat, phase:+RHY.phase.toFixed(4),
+  /* ⚠ `beat` 는 049 가 낸 대로 **박 번호**다(이름을 바꾸면 049 검사가 조용히 엉뚱한
+     값을 읽는다). 박 길이는 새 키 `beatMs` 로 낸다. */
+  V.rhythm={bpm:RHY.bpm, beat:RHY.beat, beatMs:+(RHY_BEAT*1000).toFixed(2), clock:RHY.clock,
+    phase:+RHY.phase.toFixed(4),
     last:{grade:RHY.last.grade, ms:RHY.last.ms},
     counts:RHY.counts, combo:RHY.combo, best:RHY.best,
     running:RHY.raf!==null, sliding:!(RHY._want===null||RHY._want===undefined),
+    // 051 ① — 보정의 내역을 **효과로** 낸다: 격자가 실제로 얼마나 밀렸는지(ms)
+    offset:RHY.offset, lat:+(RHY.lat*1000).toFixed(1), shift:+(RHY.lat*1000+RHY.offset).toFixed(1),
+    cal:RHY.cal?RHY.cal.length:-1,
+    calDone:(RHY.calDone===null||RHY.calDone===undefined)?null:RHY.calDone,
+    calTaps:RHY.calTaps?RHY.calTaps.slice():null,
     window:{perfect:RHY_PERFECT, great:RHY_GREAT, good:RHY_GOOD}};
 }
+rhyLoadOffset();
 rhyView();
 
 

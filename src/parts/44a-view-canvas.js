@@ -57,7 +57,7 @@ const VIEW={
   // 018 이 넷을 더한다. **노출되지 않는 연출은 완료로 인정하지 않는다**(CLAUDE.md).
   // 019 가 셋을 더한다 (던전 연출도 같은 규약을 따른다 — 노출 없으면 완료 아님).
   counters:{shake:0, burst:0, bounce:0, attack:0, hitstop:0, flash:0, dissolve:0,
-    climb:0, dice:0, reward:0},
+    climb:0, dice:0, reward:0, pillar:0},        // 051 ⑤ — 등급 빛기둥
   limits:{particles:FX_MAX_PARTICLES, burstPerHit:FX_BURST_CAP},
   alive:{particles:0, tweens:0},       // 누적 방지 확인용 (§4)
   reducedMotion:false,

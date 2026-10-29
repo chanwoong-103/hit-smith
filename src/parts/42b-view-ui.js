@@ -119,6 +119,18 @@ document.getElementById('open').onclick=()=>{ reelTouch(); openCmp(); };
   if(m) m.onclick=()=>{ reelTouch(); SND.music=!SND.music; sndSavePrefs(); sndApply(); };
   const x=document.getElementById('sndSfx');
   if(x) x.onclick=()=>{ reelTouch(); SND.sfx=!SND.sfx; sndSavePrefs(); sndApply(); sfx('sfx-tink'); };
+  /* 051 ① — 박자 보정. 슬라이더는 그 자리에서 먹고, 「맞춰 보기」는 여덟 번의 평균을
+     제안한다. 값은 `hs.offset`(localStorage) — 세이브 `S` 에 안 들어간다.
+     ⚠ `RHY` 는 파일 아래쪽(46 조각)에서 만들어진다 — 여기서 **읽지 않고**, 눌렀을 때만
+       `rhy*()` 를 부른다(049 1차의 TDZ 사고와 같은 자리다). */
+  const or=document.getElementById('offrange');
+  if(or) or.oninput=()=>{ try{ RHY.offset=Math.max(-200,Math.min(200,parseInt(or.value,10)||0));
+    RHY.cal=null; RHY.calDone=null; rhySaveOffset(); rhyOffsetUI(); rhyView(); }catch(e){} };
+  const oc=document.getElementById('offcal');
+  /* 051 2차 ④ — 「맞춰 보기」를 누르면 **팝업을 닫는다.** 팝업이 화면을 덮고 있어서
+     모루를 못 치면 맞출 방법이 없다(2차 탐침이 처음 그 자리에서 0번 쳤다).
+     결과는 `#offdone` 에 남아 있으니 다시 열어 읽으면 된다. */
+  if(oc) oc.onclick=()=>{ reelTouch(); try{ rhyCalStart(); closePop(); }catch(e){} };
   /* ⚠ `sndLoadPrefs()` 를 **여기서 부르면 안 된다** — `const SND` 는 파일 아래쪽에서
      만들어지고 그 전까지는 TDZ 라 `ReferenceError` 가 난다. try/catch 가 그것을
      조용히 삼켜서, 소리를 끄고 새로고침하면 다시 켜져 있었다(검사 A6 가 울었다).
@@ -187,6 +199,7 @@ function openPop(k){
   document.getElementById('ptitle').textContent=POPS[k]?t(POPS[k]):'';
   document.getElementById('pop').classList.add('on');
   renderFast();                                  // 전투력·웨이브·골드 줄을 최신으로
+  try{ rhyOffsetUI(); }catch(e){}                // 051 ① — 보정 줄의 값·글자를 맞춘다
 }
 const closePop=()=>document.getElementById('pop').classList.remove('on');
 document.getElementById('pclose').onclick=closePop;
